@@ -14,7 +14,17 @@ const createInitialState = (): State => ({
   players: [
     {
       type: "player" as const,
-      loc: { x: W / 3, y: (1.5 * H) / 4 },
+      loc: { x: W / 6, y: H / 2.5 },
+      vel: { x: 0, y: 0 },
+      radius: 8,
+      color: "orange",
+      maxSpeed: 2,
+      position: "offense",
+      role: "runner",
+    },
+    {
+      type: "player" as const,
+      loc: { x: W / 3, y: (1.7 * H) / 4 },
       vel: { x: 0, y: 0 },
       radius: 8,
       color: "red",
@@ -34,7 +44,7 @@ const createInitialState = (): State => ({
     },
     {
       type: "player" as const,
-      loc: { x: W / 3, y: (2.5 * H) / 4 },
+      loc: { x: W / 3, y: (2.3 * H) / 4 },
       vel: { x: 0, y: 0 },
       radius: 8,
       color: "red",
@@ -72,6 +82,26 @@ const createInitialState = (): State => ({
       position: "defense",
       role: "rusher",
     },
+    {
+      type: "player" as const,
+      loc: { x: W / 2.4, y: (2 * H) / 4 },
+      vel: { x: 0, y: 0 },
+      radius: 8,
+      color: "lightblue",
+      maxSpeed: 2,
+      position: "defense",
+      role: "rusher",
+    },
+    {
+      type: "player" as const,
+      loc: { x: W / 2, y: (1.5 * H) / 4 },
+      vel: { x: 0, y: 0 },
+      radius: 8,
+      color: "lightblue",
+      maxSpeed: 2,
+      position: "defense",
+      role: "rusher",
+    },
   ],
 });
 
@@ -84,47 +114,62 @@ function triggerMove(entity: Ball | Player) {
   entity.loc.x += entity.vel.x;
   entity.loc.y += entity.vel.y;
 
-  const leftBound = 0 + entity.radius / 2;
-  const rightBound = W - entity.radius / 2;
-  const topBound = 0 + entity.radius / 2;
-  const bottomBound = H - entity.radius / 2;
+  const margin = entity.radius / 2;
+  const leftBound = margin;
+  const rightBound = W - margin;
+  const topBound = margin;
+  const bottomBound = H - margin;
 
-  if (entity.loc.x < leftBound || entity.loc.x > rightBound) {
-    entity.vel.x = -entity.vel.x;
+  // CLAMP POSITION: If they go past the wall, snap them back to the edge
+  if (entity.loc.x < leftBound) {
+    entity.loc.x = leftBound;
+    entity.vel.x = Math.abs(entity.vel.x); // Force velocity away from wall
+  } else if (entity.loc.x > rightBound) {
+    entity.loc.x = rightBound;
+    entity.vel.x = -Math.abs(entity.vel.x);
   }
-  if (entity.loc.y < topBound || entity.loc.y > bottomBound) {
-    entity.vel.y = -entity.vel.y;
+
+  if (entity.loc.y < topBound) {
+    entity.loc.y = topBound;
+    entity.vel.y = Math.abs(entity.vel.y);
+  } else if (entity.loc.y > bottomBound) {
+    entity.loc.y = bottomBound;
+    entity.vel.y = -Math.abs(entity.vel.y);
   }
 }
 
-const SIM_SPEED = 1.0;
+/* Simulation constants */
+const SIM_SPEED = 1;
 const LOGIC_TICK_MS = 1000 / 60;
 
+/* General constants */
 const BALL_SNAP_DIST = 8; // Maximum distance where a player will snap to the ball
+
+/* Blocker constants */
 const DAMPING_FACTOR = 0.65; // Reduce velocity to 85%
+
+/* Rusher constants */
 const RANDOM_JITTER = 0.1; // 10% randomness
 const INLINE_NUDGE = 1.4; // Nudges rusher if inline with blocker
-
 const STEER_FACTOR = 1.5; // Rusher C.O.D amount
 const LATERAL_STRENGTH = 0.8; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
+
+/* Runner constants */
+const LOOK_AHEAD = 120; // How far ahead the runner scans for threats
+const AVOID_STRENGTH = 0.5; // How aggressively the runner veers away
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
   const dx = b.loc.x - a.loc.x;
   const dy = b.loc.y - a.loc.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  // Sum of radii (the minimum distance they should be apart)
   const minDistance = a.radius + b.radius;
+
   if (distance < minDistance) {
-    // If player colliding with ball, make them move in sync
     if (b.type === "ball") {
       if (distance < BALL_SNAP_DIST) {
-        const timeTaken = (performance.now() - simStartTime) / 1000;
-        console.log(`Rusher reached: ${timeTaken.toFixed(3)}s`);
-
-        resetSimulation();
-        return; // Stop processing this frame immediately
+        ballCollideBehavior(a);
       }
     } else if (b.type === "player") {
       const playerB = b as Player;
@@ -134,6 +179,13 @@ function resolveCollision(a: Player, b: Entity) {
         applyDamping(a, DAMPING_FACTOR, RANDOM_JITTER);
       } else if (playerB.role === "rusher" && a.role === "blocker") {
         applyDamping(playerB, DAMPING_FACTOR, RANDOM_JITTER);
+      }
+
+      // End simulation if runner gets tackled
+      if (a.role === "runner" && playerB.role === "rusher") {
+        endSimulation();
+      } else if (playerB.role === "runner" && a.role === "rusher") {
+        endSimulation();
       }
 
       // Static resolution
@@ -153,37 +205,76 @@ function resolveCollision(a: Player, b: Entity) {
   }
 }
 
+function endSimulation() {
+  const timeTaken = (performance.now() - simStartTime) / 1000;
+  console.log(`Time: ${timeTaken.toFixed(3)}s, Ball: ${state.ball.loc.x / W}`);
+  resetSimulation();
+}
+
+function ballCollideBehavior(player: Player) {
+  switch (player.role) {
+    case "blocker": {
+      // If blocker collides with ball, simulation ends
+      endSimulation();
+      break;
+    }
+    case "rusher": {
+      // If rusher collides with ball, simulation ends
+      endSimulation();
+      break;
+    }
+    case "runner": {
+      // If runner collides with ball, runner carries ball
+      state.ball.vel.x = player.vel.x;
+      state.ball.vel.y = player.vel.y;
+      state.ball.loc.x = player.loc.x;
+      state.ball.loc.y = player.loc.y;
+      break;
+    }
+  }
+}
+
 function stepSimulation() {
-  // Change all players' velocity direction to follow ball
+  // Player behavior
   for (const player of state.players) {
     switch (player.role) {
+      // Finds nearest rusher and moves in line to block
       case "blocker": {
         const rushers = state.players.filter((p) => p.role === "rusher");
 
-        // Create a list of potential interceptions
         const potentialBlocks = rushers.map((rusher) => {
+          // The point the blocker needs to reach to be between rusher and ball
           const interceptPoint = closestPointOnSegment(
             player.loc,
             rusher.loc,
             state.ball.loc,
           );
+
+          const distToIntercept = dist(player.loc, interceptPoint);
+          const rusherDistToBall = dist(rusher.loc, state.ball.loc);
+
+          // QUANTIFICATION: Threat Index
+          // Priority = (How far is rusher from ball?) + (How much must I move?)
+          // We multiply rusherDistToBall by a weight to prioritize
+          // "closeness to ball" over "ease of blocking".
+          const threatIndex = rusherDistToBall + distToIntercept;
+
           return {
             rusher,
             interceptPoint,
-            distanceToPoint: dist(player.loc, interceptPoint),
+            threatIndex,
+            distToIntercept,
           };
         });
 
-        // Sort by the least movement required (distanceToPoint)
-        potentialBlocks.sort((a, b) => a.distanceToPoint - b.distanceToPoint);
-
+        // Sort by the quantified threat
+        potentialBlocks.sort((a, b) => a.threatIndex - b.threatIndex);
         const bestBlock = potentialBlocks[0];
 
         if (bestBlock) {
-          const { interceptPoint, distanceToPoint } = bestBlock;
+          const { interceptPoint, distToIntercept } = bestBlock;
 
-          // Only move if we aren't already "in the way" (e.g., within 2 pixels)
-          if (distanceToPoint > 2) {
+          if (distToIntercept > 2) {
             const angle = Math.atan2(
               interceptPoint.y - player.loc.y,
               interceptPoint.x - player.loc.x,
@@ -191,7 +282,6 @@ function stepSimulation() {
             player.vel.x = Math.cos(angle) * player.maxSpeed;
             player.vel.y = Math.sin(angle) * player.maxSpeed;
           } else {
-            // Hold the line
             player.vel.x = 0;
             player.vel.y = 0;
           }
@@ -199,6 +289,7 @@ function stepSimulation() {
         resolveCollision(player, state.ball);
         break;
       }
+      // Moves towards ball in a roughly straight line
       case "rusher": {
         const toBallX = state.ball.loc.x - player.loc.x;
         const toBallY = state.ball.loc.y - player.loc.y;
@@ -229,6 +320,57 @@ function stepSimulation() {
         resolveCollision(player, state.ball);
         break;
       }
+      // Tries to get ball, then tries to score a touchdown
+      case "runner": {
+        const isCarryingBall =
+          dist(player.loc, state.ball.loc) < BALL_SNAP_DIST;
+
+        if (!isCarryingBall) {
+          // Phase 1: Go get the ball (Direct Path)
+          const toBall = {
+            x: state.ball.loc.x - player.loc.x,
+            y: state.ball.loc.y - player.loc.y,
+          };
+          const d = length(toBall);
+          player.vel.x = (toBall.x / d) * player.maxSpeed;
+          player.vel.y = (toBall.y / d) * player.maxSpeed;
+        } else {
+          // Phase 2: Carry the ball with Steering Avoidance
+          // Start with a strong base urge to move downfield (Right)
+          let targetDir = { x: 1.0, y: 0 };
+
+          const rushers = state.players.filter((p) => p.role === "rusher");
+
+          rushers.forEach((rusher) => {
+            const diff = {
+              x: player.loc.x - rusher.loc.x,
+              y: player.loc.y - rusher.loc.y,
+            };
+            const d = length(diff);
+
+            if (d < LOOK_AHEAD) {
+              // Linear Weight: The closer the rusher, the stronger the push
+              const weight = (LOOK_AHEAD - d) / LOOK_AHEAD;
+
+              // Add a "Repulsion Force" vector away from the rusher
+              targetDir.x += (diff.x / d) * weight * AVOID_STRENGTH;
+              targetDir.y += (diff.y / d) * weight * AVOID_STRENGTH;
+            }
+          });
+
+          // Normalize the final vector to maintain consistent maxSpeed
+          const finalMag = length(targetDir);
+          const targetVelX = (targetDir.x / finalMag) * player.maxSpeed;
+          const targetVelY = (targetDir.y / finalMag) * player.maxSpeed;
+
+          // Use STEER_FACTOR for smooth weight shifts (Inertia)
+          player.vel.x += (targetVelX - player.vel.x) * STEER_FACTOR;
+          player.vel.y += (targetVelY - player.vel.y) * STEER_FACTOR;
+        }
+
+        resolveCollision(player, state.ball);
+        break;
+      }
     }
   }
 
@@ -250,7 +392,6 @@ let lastTime = 0;
 let timeAccumulator = 0;
 
 function tick(currentTime: number) {
-  // Initialize lastTime on first frame to prevent huge jumps
   if (lastTime === 0) {
     lastTime = currentTime;
     simStartTime = currentTime;

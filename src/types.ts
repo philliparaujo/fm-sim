@@ -17,7 +17,7 @@ interface Ball extends Entity {
 }
 
 type Position = "offense" | "defense";
-type Role = "blocker" | "rusher";
+type Role = "blocker" | "rusher" | "runner";
 
 interface Player extends Entity {
   type: "player";

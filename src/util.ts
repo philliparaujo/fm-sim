@@ -29,6 +29,7 @@ export function closestPointOnSegment(p: Vector, a: Vector, b: Vector): Vector {
   };
 }
 
+// Slow down player's velocity (when in contact with blocker)
 export function applyDamping(player: Player, factor: number, jitter: number) {
   // 1. Damping (Multiplicative): Slows the existing movement
   player.vel.x *= factor + (Math.random() * 2 - 1) * jitter;
