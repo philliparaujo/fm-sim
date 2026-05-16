@@ -3,24 +3,34 @@ type Vector = {
   y: number;
 };
 
-type Ball = {
-  position: Vector;
-  velocity: Vector;
+interface Entity {
+  type: "ball" | "player";
+  loc: Vector;
+  vel: Vector;
   radius: number;
+}
+
+interface Ball extends Entity {
+  type: "ball";
   strokeWidth: number;
   laceWidth: number;
-};
+}
 
-type Player = {
-  position: Vector;
-  velocity: Vector;
-  radius: number;
+type Position = "offense" | "defense";
+type Role = "blocker" | "rusher";
+
+interface Player extends Entity {
+  type: "player";
   color: string;
-};
+  maxSpeed: number;
+
+  position: Position;
+  role: Role;
+}
 
 type State = {
   ball: Ball;
   players: Player[];
 };
 
-export type { Vector, Ball, Player, State };
+export type { Vector, Entity, Ball, Player, State };

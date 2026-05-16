@@ -1,4 +1,4 @@
-import { tick } from "./render";
+import { tick } from "./simulate";
 
 async function init() {
   console.log("Hello TypeScript");
