@@ -8,6 +8,8 @@ const BALL_COLOR = "#8B4513";
 const BALL_STROKE_COLOR = "#5a2d0c";
 const BALL_LACE_COLOR = "rgba(255,255,255,0.6)";
 
+const CATCHER_TRACE_ON = true;
+
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
@@ -43,6 +45,26 @@ function drawBall() {
   ctx.restore();
 }
 
+function drawCatcherTrace(player: Player) {
+  if (player.role !== "catcher" || player.path.length < 2) return;
+
+  ctx.beginPath();
+  ctx.setLineDash([5, 5]); // Optional: make it a dashed "playbook" line
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"; // White semi-transparent
+  ctx.lineWidth = 2;
+
+  // Start at the beginning of the path
+  ctx.moveTo(player.path[0].x, player.path[0].y);
+
+  // Connect all points
+  for (let i = 1; i < player.path.length; i++) {
+    ctx.lineTo(player.path[i].x, player.path[i].y);
+  }
+
+  ctx.stroke();
+  ctx.setLineDash([]); // Reset dash for other drawing operations
+}
+
 function drawPlayer(player: Player) {
   ctx.beginPath();
   ctx.ellipse(
@@ -52,7 +74,7 @@ function drawPlayer(player: Player) {
     player.radius,
     0,
     0,
-    Math.PI * 2
+    Math.PI * 2,
   );
   ctx.fillStyle = player.color;
   ctx.fill();
@@ -61,6 +83,14 @@ function drawPlayer(player: Player) {
 /* High-level rendering functions */
 function render() {
   drawField();
+
+  // Draw traces first so they are under the players
+  if (CATCHER_TRACE_ON) {
+    for (const player of state.players) {
+      drawCatcherTrace(player);
+    }
+  }
+
   for (const player of state.players) {
     drawPlayer(player);
   }
