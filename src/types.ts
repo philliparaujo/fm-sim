@@ -68,6 +68,8 @@ type State = {
   steps: number;
   ballGiven: boolean;
   ballGivenAtStep: number;
+  earlyThrowDecided: boolean;
+  panicThrowDecided: boolean;
 };
 
 export type { Vector, Entity, Ball, Player, Route, Coverage, State };

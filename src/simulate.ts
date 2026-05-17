@@ -33,6 +33,8 @@ const createInitialState = (): State => {
     steps: 0,
     ballGiven: false,
     ballGivenAtStep: 0,
+    earlyThrowDecided: false,
+    panicThrowDecided: false,
     ball: {
       type: "ball" as const,
       loc: { x: W / 6, y: H / 2 },
@@ -237,7 +239,7 @@ const createInitialState = (): State => {
       },
       {
         type: "player" as const,
-        loc: { x: W / 1.8, y: (2 * H) / 4 },
+        loc: { x: W / 1.8, y: (0.8 * H) / 4 },
         vel: { x: 0, y: 0 },
         radius: 8,
         color: "lightblue",
@@ -254,7 +256,7 @@ const createInitialState = (): State => {
       },
       {
         type: "player" as const,
-        loc: { x: W / 2.7, y: (2 * H) / 4 },
+        loc: { x: W / 1.7, y: (3.2 * H) / 4 },
         vel: { x: 0, y: 0 },
         radius: 8,
         color: "lightblue",
@@ -288,7 +290,7 @@ const createInitialState = (): State => {
       },
       {
         type: "player" as const,
-        loc: { x: W / 6, y: (1.5 * H) / 4 },
+        loc: { x: W / 8, y: (2 * H) / 4 },
         vel: { x: 0, y: 0 },
         radius: 8,
         color: "red",
@@ -418,7 +420,7 @@ function triggerMove(entity: Ball | Player) {
 }
 
 /* Simulation constants */
-const SIM_SPEED = 1;
+const SIM_SPEED = 32;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
@@ -434,15 +436,14 @@ const LATERAL_STRENGTH = 0.8; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 
 /* Runner constants */
-const LOOK_AHEAD = 90; // How far ahead the runner scans for threats
-const AVOID_STRENGTH = 0.85; // How aggressively the runner veers away
+const LOOK_AHEAD = 50; // How far ahead the runner scans for threats
+const AVOID_STRENGTH = 1.2; // How aggressively the runner veers away
 
 /* Receiver constants */
 const PIXELS_PER_STEP = 15;
 const STOP_AFTER_BREAK_THRESHOLD = 10;
-const COMPLETION_RADIUS = 45;
 
-const CATCH_SLOWDOWN_DURATION = 40;
+const CATCH_SLOWDOWN_DURATION = 60;
 const MIN_CATCH_SPEED_MULT = 0.5;
 
 /* Coverer constants */
@@ -451,17 +452,23 @@ const LEAD_FRAMES = 15;
 const ARRIVAL_RADIUS = 15;
 
 const ZONE_PULL = 0.5;
-const MAN_CUSHION = -8; // px behind the receiver toward the ball
+const MAN_CUSHION = -12; // px behind the receiver toward the ball
 
 /* Pursuer constants */
-const PREDICTION_FRAMES = 40;
-const PURSUER_STEER_FACTOR = 0.2;
+const PREDICTION_FRAMES = 60;
+const PURSUER_STEER_FACTOR = 0.4;
 
 /* Passer constants */
 const PASSER_AVOID_STRENGTH = 0.2;
-const IDEAL_POCKET_DEPTH = -10;
-const BALL_GIVEN_STEPS = 100 * 1.2;
+const IDEAL_POCKET_DEPTH = -15;
 const PASSER_LOOK_AHEAD = 90;
+const BALL_GIVEN_STEPS = 180;
+const MIN_THROW_STEP = 40; // Never throw before this, regardless of condition
+const COMPLETION_RADIUS = 50;
+const EARLY_THROW_SEPARATION = 55; // px of separation that tempts an early throw
+const EARLY_THROW_CHANCE = 0.7; // 40% chance to actually take the early throw
+const PANIC_RUSHER_DIST = 40; // px at which passer feels pressure to throw
+const PANIC_THROW_CHANCE = 0.55; // 55% chance to throw under pressure
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
@@ -635,11 +642,11 @@ function stepAsPursuer(player: Player) {
   const pathEnd = {
     x:
       state.ball.loc.x +
-      state.ball.vel.x * dynamicLookAhead +
+      state.ball.vel.x * dynamicLookAhead * 1.5 +
       PREDICTION_FRAMES,
     y:
       state.ball.loc.y +
-      state.ball.vel.y * dynamicLookAhead +
+      state.ball.vel.y * dynamicLookAhead * 1.5 +
       PREDICTION_FRAMES,
   };
 
@@ -647,12 +654,8 @@ function stepAsPursuer(player: Player) {
   const interceptPoint = closestPointOnSegment(player.loc, pathStart, pathEnd);
 
   // 5. Determine the target
-  // If we are very close to the ball, head directly for it to finish the tackle;
-  // otherwise, head for the intercept point to cut off the angle.
-  const target = distToBall < 30 ? state.ball.loc : interceptPoint;
-
-  const toTargetX = target.x - player.loc.x;
-  const toTargetY = target.y - player.loc.y;
+  const toTargetX = interceptPoint.x - player.loc.x;
+  const toTargetY = interceptPoint.y - player.loc.y;
   const d = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
 
   if (d > 0.5) {
@@ -660,11 +663,8 @@ function stepAsPursuer(player: Player) {
     const targetVelX = (toTargetX / d) * player.maxSpeed;
     const targetVelY = (toTargetY / d) * player.maxSpeed;
 
-    // Use a slightly higher steer factor when close to the target to improve "closing" behavior
-    const currentSteer = distToBall < 50 ? 0.4 : PURSUER_STEER_FACTOR;
-
-    player.vel.x += (targetVelX - player.vel.x) * currentSteer;
-    player.vel.y += (targetVelY - player.vel.y) * currentSteer;
+    player.vel.x += (targetVelX - player.vel.x) * PURSUER_STEER_FACTOR;
+    player.vel.y += (targetVelY - player.vel.y) * PURSUER_STEER_FACTOR;
   } else {
     player.vel.x = 0;
     player.vel.y = 0;
@@ -868,38 +868,22 @@ function stepAsCoverer(player: Player) {
 }
 
 function stepAsPasser(player: Player) {
-  // Stay near center / blockers, but slightly drift from rushers
-  // 1. APPROACH LOGIC: Identify the "Pocket"
-  // The passer wants to stay behind the offensive line (blockers).
-  const blockers = state.players.filter((p) => p.role === "blocker");
+  // 1. POCKET LOGIC: Stay in the pocket, drift away from rushers
+  let pocketX = W / 6;
+  let pocketY = H / 2;
 
-  let pocketX = W / 6; // Default fallback depth
-  let pocketY = H / 2; // Default fallback center
-
-  // if (blockers.length > 0) {
-  //   // Target the center of the offensive line, but offset 50px back
-  //   const avgX =
-  //     blockers.reduce((sum, b) => sum + b.loc.x, 0) / blockers.length;
-  //   const avgY =
-  //     blockers.reduce((sum, b) => sum + b.loc.y, 0) / blockers.length;
-  //   pocketX = avgX;
-  //   pocketY = avgY;
-  // }
-
-  // Base urge: move toward the ideal pocket position
   let targetDir = {
     x: pocketX - player.loc.x - IDEAL_POCKET_DEPTH,
     y: pocketY - player.loc.y,
   };
 
-  // Normalize base urge so it doesn't overpower the avoidance math
   const homeDist = length(targetDir);
   if (homeDist > 1) {
     targetDir.x /= homeDist;
     targetDir.y /= homeDist;
   }
 
-  // 2. AVOIDANCE LOGIC: Repel from rushers (similar to stepAsBallCarrier)
+  // 2. AVOIDANCE LOGIC: Repel from rushers
   const rushers = state.players.filter((p) => p.role === "rusher");
   rushers.forEach((rusher) => {
     const diff = {
@@ -907,14 +891,8 @@ function stepAsPasser(player: Player) {
       y: player.loc.y - rusher.loc.y,
     };
     const d = length(diff);
-
-    // If a rusher enters the scan radius
     if (d < PASSER_LOOK_AHEAD) {
-      // Linear Weight: The closer the rusher, the stronger the push
       const weight = (PASSER_LOOK_AHEAD - d) / PASSER_LOOK_AHEAD;
-
-      // Add a "Repulsion Force" vector; we multiply AVOID_STRENGTH by a
-      // higher factor (e.g. 5.0) to prioritize survival over the pocket spot.
       targetDir.x += (diff.x / d) * weight * PASSER_AVOID_STRENGTH * 5.0;
       targetDir.y += (diff.y / d) * weight * PASSER_AVOID_STRENGTH * 5.0;
     }
@@ -924,14 +902,76 @@ function stepAsPasser(player: Player) {
   const finalMag = length(targetDir) || 1;
   const targetVelX = (targetDir.x / finalMag) * player.maxSpeed;
   const targetVelY = (targetDir.y / finalMag) * player.maxSpeed;
-
   player.vel.x += (targetVelX - player.vel.x) * STEER_FACTOR;
   player.vel.y += (targetVelY - player.vel.y) * STEER_FACTOR;
 
-  // 4. BALL SYNC: Lock ball velocity to the passer if they have it
+  // 4. BALL SYNC: Lock ball to passer while they hold it
   if (isCarryingBall(player, state.ball)) {
     state.ball.vel.x = player.vel.x;
     state.ball.vel.y = player.vel.y;
+  }
+
+  // 5. THROW DECISION
+  if (state.ballGiven || state.steps < MIN_THROW_STEP) return;
+
+  const eligibleCatchers = state.players.filter(
+    (p) => p.role === "catcher" && p.route,
+  );
+  const defenders = state.players.filter((p) => p.role === "coverer");
+  if (eligibleCatchers.length === 0) return;
+
+  // Rank catchers by separation from nearest defender
+  const catchersWithSeparation = eligibleCatchers.map((catcher) => {
+    const nearestDefDist =
+      defenders.length > 0
+        ? Math.min(...defenders.map((def) => dist(catcher.loc, def.loc)))
+        : Infinity;
+    return { catcher, nearestDefDist };
+  });
+  catchersWithSeparation.sort((a, b) => b.nearestDefDist - a.nearestDefDist);
+  const bestOption = catchersWithSeparation[0];
+
+  // Determine nearest rusher pressure
+  const nearestRusherDist =
+    rushers.length > 0
+      ? Math.min(...rushers.map((r) => dist(player.loc, r.loc)))
+      : Infinity;
+
+  // Roll throw decisions once per play when a condition is first met.
+  // The flags are reset in resetSimulation so they're fresh each play.
+  let shouldThrow = false;
+
+  if (state.steps >= BALL_GIVEN_STEPS) {
+    // Normal throw: time is up, always throw
+    shouldThrow = true;
+  } else if (
+    !state.earlyThrowDecided &&
+    bestOption.nearestDefDist > EARLY_THROW_SEPARATION
+  ) {
+    // Receiver is wide open — roll once to see if passer takes the shot early
+    state.earlyThrowDecided = true;
+    if (Math.random() < EARLY_THROW_CHANCE) shouldThrow = true;
+  } else if (
+    !state.panicThrowDecided &&
+    nearestRusherDist < PANIC_RUSHER_DIST
+  ) {
+    // Rusher is in the face — roll once to see if passer throws under pressure
+    state.panicThrowDecided = true;
+    if (Math.random() < PANIC_THROW_CHANCE) shouldThrow = true;
+  }
+
+  if (!shouldThrow) return;
+
+  // Execute throw: incomplete if coverage is too tight
+  if (bestOption.nearestDefDist < COMPLETION_RADIUS) {
+    state.ball.loc.x = W / 4;
+    state.ball.loc.y = H / 2;
+    resetSimulation();
+  } else {
+    state.ball.loc.x = bestOption.catcher.loc.x;
+    state.ball.loc.y = bestOption.catcher.loc.y;
+    state.ballGiven = true;
+    state.ballGivenAtStep = state.steps;
   }
 }
 
@@ -1144,6 +1184,8 @@ function resetSimulation() {
   state.players.forEach((p, i) => Object.assign(p, fresh.players[i]));
   state.steps = fresh.steps;
   state.ballGiven = fresh.ballGiven;
+  state.earlyThrowDecided = false;
+  state.panicThrowDecided = false;
   assignCoverageTargets();
 
   // Reset timing logic

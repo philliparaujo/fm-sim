@@ -4,6 +4,9 @@ import { Player } from "./types";
 const W = 720;
 const H = 400;
 const GRASS_COLOR = "#66aa22";
+const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
+const FIELD_NUMBER_COLOR = "rgba(255, 255, 255, 0.3)";
+
 const BALL_COLOR = "#8B4513";
 const BALL_STROKE_COLOR = "#5a2d0c";
 const BALL_LACE_COLOR = "rgba(255,255,255,0.6)";
@@ -19,8 +22,58 @@ canvas.width = W;
 canvas.height = H;
 
 function drawField() {
+  // 1. Draw the Grass
   ctx.fillStyle = GRASS_COLOR;
   ctx.fillRect(0, 0, W, H);
+
+  // 2. Draw Sidelines and Endlines
+  ctx.strokeStyle = FIELD_HASH_COLOR;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(5, 5, W - 10, H - 10);
+
+  // 3. Draw Yard Lines
+  // We'll draw a line every 40 pixels to represent 10 yards
+  const yardSpacing = W / 10;
+  ctx.lineWidth = 1;
+
+  for (let i = 1; i < 10; i++) {
+    const x = i * yardSpacing;
+
+    ctx.beginPath();
+    ctx.moveTo(x, 5);
+    ctx.lineTo(x, H - 5);
+    ctx.stroke();
+
+    // 4. Draw Hash Marks (Top and Bottom)
+    // Small ticks between the main yard lines
+    ctx.globalAlpha = 0.5;
+    for (let j = 1; j < 5; j++) {
+      const hashX = x - (yardSpacing / 5) * j;
+      // Top hashes
+      ctx.beginPath();
+      ctx.moveTo(hashX, 5);
+      ctx.lineTo(hashX, 15);
+      ctx.stroke();
+      // Bottom hashes
+      ctx.beginPath();
+      ctx.moveTo(hashX, H - 15);
+      ctx.lineTo(hashX, H - 5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+
+    // 5. Yard Numbers
+    ctx.fillStyle = FIELD_NUMBER_COLOR;
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+
+    // Calculate yard number (e.g., 10, 20, 30, 40, 50, 40...)
+    const yardNum = i <= 5 ? i * 10 : (10 - i) * 10;
+
+    // Draw numbers near top and bottom sidelines
+    ctx.fillText(yardNum.toString(), x, 40);
+    ctx.fillText(yardNum.toString(), x, H - 30);
+  }
 }
 
 function drawBall() {
