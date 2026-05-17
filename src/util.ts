@@ -1,4 +1,19 @@
-import { Player, Vector } from "./types";
+import {
+  Ball,
+  cornerRoute,
+  Coverage,
+  curlRoute,
+  dragRoute,
+  flatRoute,
+  inRoute,
+  outRoute,
+  Player,
+  postRoute,
+  Route,
+  slantRoute,
+  streakRoute,
+  Vector,
+} from "./types";
 
 export function length(vector: Vector): number {
   return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
@@ -39,4 +54,33 @@ export function applyDamping(player: Player, factor: number, jitter: number) {
   // This allows players to "slip" sideways during a head-on engagement
   player.vel.x += (Math.random() * 2 - 1) * jitter;
   player.vel.y += (Math.random() * 2 - 1) * jitter;
+}
+
+const BALL_SNAP_DIST = 8; // Maximum distance where a player will snap to the ball
+export function isCarryingBall(player: Player, ball: Ball): boolean {
+  return dist(player.loc, ball.loc) < BALL_SNAP_DIST;
+}
+
+export function randomRoute(): Route {
+  const routes = [
+    streakRoute,
+    postRoute,
+    cornerRoute,
+    inRoute,
+    outRoute,
+    curlRoute,
+    slantRoute,
+    dragRoute,
+    flatRoute,
+  ];
+  return routes[Math.floor(Math.random() * routes.length)];
+}
+
+export function randomCoverage(): Coverage {
+  const coverages: Coverage[] = ["man", "zone"];
+  return coverages[Math.floor(Math.random() * coverages.length)];
+}
+
+export function vectorToString(vector: Vector): string {
+  return `${vector.x}|${vector.y}`;
 }

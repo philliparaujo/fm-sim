@@ -17,7 +17,7 @@ interface Ball extends Entity {
 }
 
 type Position = "offense" | "defense";
-type Role = "blocker" | "rusher" | "runner" | "catcher";
+type Role = "blocker" | "runner" | "catcher" | "rusher" | "coverer";
 
 interface Player extends Entity {
   type: "player";
@@ -30,6 +30,14 @@ interface Player extends Entity {
   // Receiver state
   route: Route | null;
   path: Vector[];
+
+  // Coverer state
+  coverage: Coverage | null;
+  assignedTarget: Player | null;
+  perceivedLoc: Vector | null;
+  perceivedVel: Vector;
+  reactionTimer: number;
+  zone?: Vector;
 }
 
 type Route = {
@@ -37,6 +45,7 @@ type Route = {
   steps: number;
   stopAfterBreak: boolean;
 };
+type Coverage = "man" | "zone";
 
 const streakRoute: Route = { breakAngle: 0, steps: 0, stopAfterBreak: false };
 const postRoute: Route = { breakAngle: 45, steps: 10, stopAfterBreak: false };
@@ -47,7 +56,7 @@ const cornerRoute: Route = {
 };
 const inRoute: Route = { breakAngle: 90, steps: 8, stopAfterBreak: false };
 const outRoute: Route = { breakAngle: -90, steps: 8, stopAfterBreak: false };
-const curlRoute: Route = { breakAngle: 180, steps: 6, stopAfterBreak: true };
+const curlRoute: Route = { breakAngle: 180, steps: 8, stopAfterBreak: true };
 const slantRoute: Route = { breakAngle: 60, steps: 3, stopAfterBreak: false };
 const dragRoute: Route = { breakAngle: 90, steps: 3, stopAfterBreak: false };
 const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
@@ -58,9 +67,10 @@ type State = {
 
   steps: number;
   ballGiven: boolean;
+  ballGivenAtStep: number;
 };
 
-export type { Vector, Entity, Ball, Player, State };
+export type { Vector, Entity, Ball, Player, Route, Coverage, State };
 export {
   streakRoute,
   postRoute,
