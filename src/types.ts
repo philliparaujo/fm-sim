@@ -17,7 +17,7 @@ interface Ball extends Entity {
 }
 
 type Position = "offense" | "defense";
-type Role = "blocker" | "runner" | "catcher" | "rusher" | "coverer";
+type Role = "blocker" | "runner" | "catcher" | "passer" | "rusher" | "coverer";
 
 interface Player extends Entity {
   type: "player";
@@ -50,14 +50,14 @@ type Coverage = "man" | "zone";
 const streakRoute: Route = { breakAngle: 0, steps: 0, stopAfterBreak: false };
 const postRoute: Route = { breakAngle: 45, steps: 10, stopAfterBreak: false };
 const cornerRoute: Route = {
-  breakAngle: -45,
+  breakAngle: -55,
   steps: 10,
   stopAfterBreak: false,
 };
 const inRoute: Route = { breakAngle: 90, steps: 8, stopAfterBreak: false };
 const outRoute: Route = { breakAngle: -90, steps: 8, stopAfterBreak: false };
 const curlRoute: Route = { breakAngle: 180, steps: 8, stopAfterBreak: true };
-const slantRoute: Route = { breakAngle: 60, steps: 3, stopAfterBreak: false };
+const slantRoute: Route = { breakAngle: 65, steps: 3, stopAfterBreak: false };
 const dragRoute: Route = { breakAngle: 90, steps: 3, stopAfterBreak: false };
 const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
 
