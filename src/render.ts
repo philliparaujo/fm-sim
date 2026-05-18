@@ -6,6 +6,7 @@ const H = 400;
 const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
 const FIELD_NUMBER_COLOR = "rgba(255, 255, 255, 0.3)";
+const LOS_COLOR = "rgba(255, 255, 0, 0.8)";
 
 const BALL_COLOR = "#8B4513";
 const BALL_STROKE_COLOR = "#5a2d0c";
@@ -14,6 +15,7 @@ const BALL_LACE_COLOR = "rgba(255,255,255,0.6)";
 const CATCHER_TRACE_ON = true;
 const COVERER_ZONE_ON = true;
 const RUNNER_PATH_ON = true;
+const PASSER_POCKET_ON = true;
 
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
@@ -21,7 +23,7 @@ const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 canvas.width = W;
 canvas.height = H;
 
-function drawField() {
+function drawField(LOS?: number) {
   // 1. Draw the Grass
   ctx.fillStyle = GRASS_COLOR;
   ctx.fillRect(0, 0, W, H);
@@ -73,6 +75,15 @@ function drawField() {
     // Draw numbers near top and bottom sidelines
     ctx.fillText(yardNum.toString(), x, 40);
     ctx.fillText(yardNum.toString(), x, H - 30);
+  }
+
+  if (LOS) {
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = LOS_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(LOS, 5);
+    ctx.lineTo(LOS, H - 5);
+    ctx.stroke();
   }
 }
 
@@ -160,6 +171,40 @@ function drawRunnerPath(player: Player) {
   ctx.setLineDash([]); // Reset dash for other drawing operations
 }
 
+function drawPasserPocket(
+  player: Player,
+  pocket: { cx: number; cy: number; rx: number; ry: number },
+) {
+  if (player.role !== "passer") return;
+
+  const { cx, cy, rx, ry } = pocket;
+
+  // Soft filled ellipse
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+  ctx.fill();
+
+  // Dashed border
+  ctx.beginPath();
+  ctx.setLineDash([6, 6]);
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Line from passer to ellipse center so you can see where they are relative to it
+  ctx.beginPath();
+  ctx.setLineDash([2, 4]);
+  ctx.moveTo(player.loc.x, player.loc.y);
+  ctx.lineTo(cx, cy);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
 function drawPlayer(player: Player) {
   ctx.beginPath();
   ctx.ellipse(
@@ -176,8 +221,11 @@ function drawPlayer(player: Player) {
 }
 
 /* High-level rendering functions */
-function render() {
-  drawField();
+function render(
+  pocket: { cx: number; cy: number; rx: number; ry: number },
+  LOS?: number,
+) {
+  drawField(LOS);
 
   // Draw traces first so they are under the players
   for (const player of state.players) {
@@ -189,6 +237,9 @@ function render() {
     }
     if (RUNNER_PATH_ON) {
       drawRunnerPath(player);
+    }
+    if (PASSER_POCKET_ON) {
+      drawPasserPocket(player, pocket);
     }
   }
 

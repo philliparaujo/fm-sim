@@ -19,25 +19,27 @@ interface Ball extends Entity {
 type Position = "offense" | "defense";
 type Role = "blocker" | "runner" | "catcher" | "passer" | "rusher" | "coverer";
 
-interface Player extends Entity {
+interface PartialPlayer extends Entity {
   type: "player";
   color: string;
   maxSpeed: number;
-
   position: Position;
   role: Role;
 
-  // Receiver state
-  route: Route | null;
+  route?: Route; // For receivers
+  coverage?: Coverage; // For coverers
+}
+
+interface Player extends PartialPlayer {
+  // For receivers
   path: Vector[];
 
   // Coverer state
-  coverage: Coverage | null;
   assignedTarget: Player | null;
   perceivedLoc: Vector | null;
-  perceivedVel: Vector;
+  perceivedVel: Vector | null;
   reactionTimer: number;
-  zone?: Vector;
+  zone: Vector;
 }
 
 type Route = {
@@ -64,6 +66,7 @@ const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
 type State = {
   ball: Ball;
   players: Player[];
+  LOS: number;
 
   steps: number;
   ballGiven: boolean;
@@ -72,7 +75,16 @@ type State = {
   panicThrowDecided: boolean;
 };
 
-export type { Vector, Entity, Ball, Player, Route, Coverage, State };
+export type {
+  Vector,
+  Entity,
+  Ball,
+  PartialPlayer,
+  Player,
+  Route,
+  Coverage,
+  State,
+};
 export {
   streakRoute,
   postRoute,

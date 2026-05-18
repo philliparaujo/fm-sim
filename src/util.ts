@@ -84,3 +84,7 @@ export function randomCoverage(): Coverage {
 export function vectorToString(vector: Vector): string {
   return `${vector.x}|${vector.y}`;
 }
+
+export function emptyVector(): Vector {
+  return { x: 0, y: 0 };
+}
