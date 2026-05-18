@@ -67,6 +67,7 @@ type State = {
   ball: Ball;
   players: Player[];
   LOS: number;
+  paused: boolean;
 
   steps: number;
   ballGiven: boolean;

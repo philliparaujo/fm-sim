@@ -4,7 +4,7 @@ import {
   generateDefensivePlaycall,
   generateOffensePlaycall,
 } from "./playbook";
-import { H, render, W } from "./render";
+import { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W } from "./render";
 import {
   Ball,
   cornerRoute,
@@ -25,16 +25,20 @@ import {
   applyDamping,
   closestPointOnSegment,
   dist,
+  getPocket,
   isCarryingBall,
   length,
+  LOSToString,
   randomCoverage,
   randomRoute,
   vectorToString,
 } from "./util";
 
-const createInitialState = (): State => {
-  // const randCoverage = randomCoverage();
-  const LOS = W / 4;
+const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
+const PAUSE_MS_AFTER_PLAY = 0;
+
+const createInitialState = (startingLOS?: number): State => {
+  const LOS = startingLOS ?? START_DRIVE;
   const ball = generateBall(LOS);
   const offensePartial = generateOffensePlaycall(LOS, ball, "red");
   const defensePartial = generateDefensivePlaycall(LOS, "blue", offensePartial);
@@ -42,6 +46,7 @@ const createInitialState = (): State => {
 
   return {
     steps: 0,
+    pausedUntil: 0,
     ballGiven: false,
     ballGivenAtStep: 0,
     earlyThrowDecided: false,
@@ -49,190 +54,6 @@ const createInitialState = (): State => {
     LOS: LOS,
     ball: ball,
     players: players,
-    // ball: {
-    //   type: "ball" as const,
-    //   loc: { x: W / 6, y: H / 2 },
-    //   vel: { x: 0, y: 0 },
-    //   radius: 6,
-    //   strokeWidth: 0.8,
-    //   laceWidth: 2,
-    // },
-    // players: [
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 4, y: (1.7 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1,
-    //     position: "offense",
-    //     role: "blocker",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 4, y: (2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1,
-    //     position: "offense",
-    //     role: "blocker",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 4, y: (2.3 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1,
-    //     position: "offense",
-    //     role: "blocker",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 3.5, y: (1.5 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "blue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "rusher",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 3.5, y: (2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "blue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "rusher",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 3.5, y: (2.5 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "blue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "rusher",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 4.1, y: (1.2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1.6,
-    //     position: "offense",
-    //     role: "catcher",
-    //     route: randomRoute(),
-    //     path: [],
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 4.1, y: (0.8 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1.6,
-    //     position: "offense",
-    //     role: "catcher",
-    //     route: randomRoute(),
-    //     path: [],
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 4.1, y: (3.2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1.6,
-    //     position: "offense",
-    //     role: "catcher",
-    //     route: randomRoute(),
-    //     path: [],
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 3, y: (0.7 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "blue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "coverer",
-    //     coverage: randCoverage,
-    //     perceivedVel: { x: 0, y: 0 },
-    //     reactionTimer: 0,
-    //     zone: { x: 0, y: 0 },
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 2.5, y: (1.6 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "blue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "coverer",
-    //     coverage: randCoverage,
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 1.8, y: (0.8 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "lightblue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "coverer",
-    //     coverage: "zone",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 1.7, y: (3.2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "lightblue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "coverer",
-    //     coverage: "zone",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 3, y: (3.2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "blue",
-    //     maxSpeed: 1.5,
-    //     position: "defense",
-    //     role: "coverer",
-    //     coverage: randCoverage,
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 8, y: (2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "red",
-    //     maxSpeed: 1.9,
-    //     position: "offense",
-    //     role: "blocker",
-    //   },
-    //   {
-    //     type: "player" as const,
-    //     loc: { x: W / 6, y: (2 * H) / 4 },
-    //     vel: { x: 0, y: 0 },
-    //     radius: 8,
-    //     color: "orange",
-    //     maxSpeed: 1,
-    //     position: "offense",
-    //     role: "passer",
-    //   },
-    // ],
   };
 };
 
@@ -300,14 +121,17 @@ function triggerMove(entity: Ball | Player) {
 
   const margin = entity.radius / 2;
   const leftBound = margin;
-  const rightBound = W - margin;
+  const rightEndzone = W + ENDZONE_W;
+  const rightBound = TOTAL_W - margin;
   const topBound = margin;
-  const bottomBound = H - margin;
+  const bottomBound = TOTAL_H - margin;
 
   if (
-    (entity.type === "player" && isCarryingBall(entity, state.ball),
-    entity.loc.x > rightBound)
+    entity.type === "player" &&
+    isCarryingBall(entity, state.ball) &&
+    entity.loc.x > rightEndzone
   ) {
+    console.log("TOUCHDOWN!", entity);
     resetSimulation();
   }
 
@@ -370,10 +194,6 @@ const PREDICTION_FRAMES = 60;
 const PURSUER_STEER_FACTOR = 0.4;
 
 /* Passer constants */
-const POCKET_CX = W / 5;
-const POCKET_CY = H / 2;
-const POCKET_RX = 30;
-const POCKET_RY = 120;
 const PASSER_STEER_FACTOR = 0.2;
 
 const PASSER_LOOK_AHEAD = 80; // Radius where passer starts noticing rushers
@@ -795,8 +615,9 @@ function stepAsCoverer(player: Player) {
 function stepAsPasser(player: Player) {
   // 1. ELLIPSOIDAL POCKET LOGIC
   // Calculate the player's position relative to the ellipse center, normalized by radii
-  const dx = (player.loc.x - POCKET_CX) / POCKET_RX;
-  const dy = (player.loc.y - POCKET_CY) / POCKET_RY;
+  const pocket = getPocket(state.LOS);
+  const dx = (player.loc.x - pocket.cx) / pocket.rx;
+  const dy = (player.loc.y - pocket.cy) / pocket.ry;
 
   // distSq > 1 means the player is outside the ellipse boundary
   const distSq = dx * dx + dy * dy;
@@ -902,7 +723,7 @@ function stepAsPasser(player: Player) {
 
   if (!shouldThrow) return;
   if (bestOption.nearestDefDist < COMPLETION_RADIUS) {
-    state.ball.loc.x = W / 4;
+    state.ball.loc.x = state.LOS;
     state.ball.loc.y = H / 2;
     resetSimulation();
   } else {
@@ -1090,7 +911,15 @@ function stepSimulation() {
 let lastTime = 0;
 let timeAccumulator = 0;
 
-function tick(currentTime: number) {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function tick(currentTime: number) {
+  if (currentTime < state.pausedUntil) {
+    lastTime = currentTime;
+    render(getPocket(state.LOS), state.LOS);
+    requestAnimationFrame(tick);
+    return;
+  }
+
   if (lastTime === 0) {
     lastTime = currentTime;
     simStartTime = currentTime;
@@ -1107,30 +936,25 @@ function tick(currentTime: number) {
     timeAccumulator -= LOGIC_TICK_MS;
   }
 
-  render(
-    { cx: POCKET_CX, cy: POCKET_CY, rx: POCKET_RX, ry: POCKET_RY },
-    state.LOS,
-  );
+  render(getPocket(state.LOS), state.LOS);
   requestAnimationFrame(tick);
 }
 
 function resetSimulation() {
+  let nextLOS = state.ball.loc.x;
+  if (nextLOS > W + ENDZONE_W) {
+    nextLOS = START_DRIVE;
+  }
   // Log simulation stats
-  const timeTaken = (performance.now() - simStartTime) / 1000;
-  console.log(`Time: ${timeTaken.toFixed(3)}s, Ball: ${state.ball.loc.x / W}`);
+  console.log(`Play Ended. New LOS: ${LOSToString(nextLOS)}`);
 
   // Reset state
-  const fresh = createInitialState();
-  Object.assign(state.ball, fresh.ball);
-  state.players.forEach((p, i) => Object.assign(p, fresh.players[i]));
-  state.steps = fresh.steps;
-  state.ballGiven = fresh.ballGiven;
-  state.earlyThrowDecided = false;
-  state.panicThrowDecided = false;
+  state = createInitialState(nextLOS);
+  state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;
   assignCoverageTargets();
 
   // Reset timing logic
-  simStartTime = performance.now();
+  simStartTime = state.pausedUntil;
   timeAccumulator = 0; // Reset the bucket to avoid logic jumps
   runCount++;
 }

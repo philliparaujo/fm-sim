@@ -6,6 +6,7 @@ const H = 400;
 const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
 const FIELD_NUMBER_COLOR = "rgba(255, 255, 255, 0.3)";
+const ENDZONE_COLOR = "rgba(140, 0, 255, 0.5)";
 const LOS_COLOR = "rgba(255, 255, 0, 0.8)";
 
 const BALL_COLOR = "#8B4513";
@@ -20,31 +21,42 @@ const PASSER_POCKET_ON = true;
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-canvas.width = W;
-canvas.height = H;
+const ENDZONE_W = (W * 1) / 10;
+const TOTAL_W = W + 2 * ENDZONE_W;
+const TOTAL_H = H;
+
+canvas.width = TOTAL_W;
+canvas.height = TOTAL_H;
 
 function drawField(LOS?: number) {
   // 1. Draw the Grass
   ctx.fillStyle = GRASS_COLOR;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, TOTAL_W, TOTAL_H);
+
+  // 1.5. Draw the Endzones
+  ctx.fillStyle = ENDZONE_COLOR;
+  ctx.fillRect(0, 0, ENDZONE_W, TOTAL_H);
+  ctx.fillRect(TOTAL_W - ENDZONE_W, 0, ENDZONE_W, TOTAL_H);
 
   // 2. Draw Sidelines and Endlines
   ctx.strokeStyle = FIELD_HASH_COLOR;
   ctx.lineWidth = 2;
-  ctx.strokeRect(5, 5, W - 10, H - 10);
+  ctx.strokeRect(5, 5, TOTAL_W - 10, TOTAL_H - 10);
 
   // 3. Draw Yard Lines
   // We'll draw a line every 40 pixels to represent 10 yards
   const yardSpacing = W / 10;
   ctx.lineWidth = 1;
 
-  for (let i = 1; i < 10; i++) {
-    const x = i * yardSpacing;
+  for (let i = 0; i <= 10; i++) {
+    const x = i * yardSpacing + ENDZONE_W;
 
     ctx.beginPath();
     ctx.moveTo(x, 5);
-    ctx.lineTo(x, H - 5);
+    ctx.lineTo(x, TOTAL_H - 5);
     ctx.stroke();
+
+    if (i === 10) continue;
 
     // 4. Draw Hash Marks (Top and Bottom)
     // Small ticks between the main yard lines
@@ -58,23 +70,25 @@ function drawField(LOS?: number) {
       ctx.stroke();
       // Bottom hashes
       ctx.beginPath();
-      ctx.moveTo(hashX, H - 15);
-      ctx.lineTo(hashX, H - 5);
+      ctx.moveTo(hashX, TOTAL_H - 15);
+      ctx.lineTo(hashX, TOTAL_H - 5);
       ctx.stroke();
     }
     ctx.globalAlpha = 1.0;
 
     // 5. Yard Numbers
-    ctx.fillStyle = FIELD_NUMBER_COLOR;
-    ctx.font = "bold 16px Arial";
-    ctx.textAlign = "center";
+    if (i > 0 && i < 10) {
+      ctx.fillStyle = FIELD_NUMBER_COLOR;
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
 
-    // Calculate yard number (e.g., 10, 20, 30, 40, 50, 40...)
-    const yardNum = i <= 5 ? i * 10 : (10 - i) * 10;
+      // Calculate yard number (e.g., 10, 20, 30, 40, 50, 40...)
+      const yardNum = i <= 5 ? i * 10 : (10 - i) * 10;
 
-    // Draw numbers near top and bottom sidelines
-    ctx.fillText(yardNum.toString(), x, 40);
-    ctx.fillText(yardNum.toString(), x, H - 30);
+      // Draw numbers near top and bottom sidelines
+      ctx.fillText(yardNum.toString(), x, 40);
+      ctx.fillText(yardNum.toString(), x, H - 30);
+    }
   }
 
   if (LOS) {
@@ -82,7 +96,7 @@ function drawField(LOS?: number) {
     ctx.strokeStyle = LOS_COLOR;
     ctx.beginPath();
     ctx.moveTo(LOS, 5);
-    ctx.lineTo(LOS, H - 5);
+    ctx.lineTo(LOS, TOTAL_H - 5);
     ctx.stroke();
   }
 }
@@ -249,4 +263,4 @@ function render(
   drawBall();
 }
 
-export { H, render, W };
+export { H, render, W, ENDZONE_W, TOTAL_H, TOTAL_W };
