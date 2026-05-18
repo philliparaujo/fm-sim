@@ -1,3 +1,4 @@
+import { ENDZONE_W, H, TOTAL_H, W } from "./render";
 import {
   Ball,
   cornerRoute,
@@ -87,4 +88,32 @@ export function vectorToString(vector: Vector): string {
 
 export function emptyVector(): Vector {
   return { x: 0, y: 0 };
+}
+
+export function LOSToString(LOS: number) {
+  if (LOS <= ENDZONE_W) return "Safety";
+  if (LOS >= W + ENDZONE_W) return "Touchdown";
+
+  const adjLOS = LOS - ENDZONE_W;
+  const yardsNumber = Math.round((adjLOS / W) * 100);
+
+  if (yardsNumber < 50) {
+    return `< ${yardsNumber}`;
+  } else if (yardsNumber === 50) {
+    return `${yardsNumber}`;
+  } else {
+    return `${100 - yardsNumber} >`;
+  }
+}
+
+const POCKET_CY = H / 2;
+const POCKET_RX = 30;
+const POCKET_RY = 120;
+export function getPocket(LOS: number) {
+  return {
+    cx: LOS - (W * 5) / 100,
+    cy: POCKET_CY,
+    rx: POCKET_RX,
+    ry: POCKET_RY,
+  };
 }
