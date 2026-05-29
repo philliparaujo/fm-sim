@@ -171,7 +171,11 @@ const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 
 /* Runner constants */
 const LOOK_AHEAD = 50; // How far ahead the runner scans for threats
-const AVOID_STRENGTH = 1.2; // How aggressively the runner veers away
+const AVOID_STRENGTH = 1.3; // How aggressively the runner veers away
+
+const RUNNER_INITIAL_STEER_DURATION = 70;
+const INITIAL_STEER_AVOID_STRENGTH = 0.4;
+const ANGLE_ENDZONE_INTENT = 0.7;
 
 /* Receiver constants */
 const PIXELS_PER_STEP = 15;
@@ -472,29 +476,26 @@ function stepAsBlocker(player: Player) {
   }
 }
 
-function stepAsBallCarrier(player: Player) {
-  // 1. Calculate speed multiplier if ball caught
+function stepAsBallCarrier(
+  player: Player,
+  avoidStrength: number,
+  targetDir: Vector = { x: 1.0, y: 0 },
+) {
   const framesSinceCatch = state.steps - state.ballGivenAtStep;
   let currentMaxSpeed = player.maxSpeed;
 
-  const avoidStrength =
-    player.role === "runner" ? AVOID_STRENGTH : CATCHER_AVOID_STRENGTH;
-
+  // 1. Acceleration ramp (unchanged)
   if (
     framesSinceCatch < CATCH_SLOWDOWN_DURATION &&
     isCarryingBall(player, state.ball)
   ) {
-    // Linear ramp: starts slow and accelerates back to player.maxSpeed
     const progress = framesSinceCatch / CATCH_SLOWDOWN_DURATION;
     const multiplier =
       MIN_CATCH_SPEED_MULT + (1 - MIN_CATCH_SPEED_MULT) * progress;
     currentMaxSpeed *= multiplier;
   }
 
-  // Phase 2: Carry the ball with Steering Avoidance
-  // Start with a strong base urge to move downfield (Right)
-  let targetDir = { x: 1.0, y: 0 };
-
+  // 2. Steering Avoidance Logic
   const enemies = state.players.filter(
     (p) => p.role === "rusher" || p.role === "coverer",
   );
@@ -507,21 +508,32 @@ function stepAsBallCarrier(player: Player) {
     const d = length(diff);
 
     if (d < LOOK_AHEAD) {
-      // Linear Weight: The closer the rusher, the stronger the push
       const weight = (LOOK_AHEAD - d) / LOOK_AHEAD;
 
-      // Add a "Repulsion Force" vector away from the rusher
-      targetDir.x += (diff.x / d) * weight * AVOID_STRENGTH;
-      targetDir.y += (diff.y / d) * weight * AVOID_STRENGTH;
+      // FIX A: Asymmetric Repulsion
+      // We scale the X-repulsion down so defenders mostly force the runner to "Juke"
+      // up or down rather than turning around and running away.
+      const BACKWARD_PUNISH_MULT = 0.3;
+
+      const pushX = (diff.x / d) * weight * avoidStrength;
+      const pushY = (diff.y / d) * weight * avoidStrength;
+
+      // Only damp the push if it's trying to push us backwards (negative X)
+      targetDir.x += pushX < 0 ? pushX * BACKWARD_PUNISH_MULT : pushX;
+      targetDir.y += pushY;
     }
   });
 
-  // Normalize the final vector to maintain consistent maxSpeed
+  // FIX B: The Forward Intent Clamp
+  // This ensures that after all fears are calculated, the runner's "Will"
+  // to reach the endzone is at least 10% of their total intent.
+  targetDir.x = Math.max(ANGLE_ENDZONE_INTENT, targetDir.x);
+
+  // 3. Normalize and Apply (unchanged)
   const finalMag = length(targetDir);
   const targetVelX = (targetDir.x / finalMag) * currentMaxSpeed;
   const targetVelY = (targetDir.y / finalMag) * currentMaxSpeed;
 
-  // Use STEER_FACTOR for smooth weight shifts (Inertia)
   player.vel.x += (targetVelX - player.vel.x) * STEER_FACTOR;
   player.vel.y += (targetVelY - player.vel.y) * STEER_FACTOR;
 
@@ -758,7 +770,7 @@ function stepSimulation() {
         if (!isCarryingBall(player, state.ball) && state.ballGiven) {
           stepAsBlocker(player);
         } else if (!isCarryingBall(player, state.ball)) {
-          // Phase 1: Go get the ball (Direct Path)
+          // Phase 1: Go get the ball (unchanged)
           const toBall = {
             x: state.ball.loc.x - player.loc.x,
             y: state.ball.loc.y - player.loc.y,
@@ -767,8 +779,22 @@ function stepSimulation() {
           player.vel.x = (toBall.x / d) * player.maxSpeed;
           player.vel.y = (toBall.y / d) * player.maxSpeed;
         } else {
-          // Phase 2: become a ball carrier
-          stepAsBallCarrier(player);
+          // Phase 2: Ball Carrier Logic
+          const framesSinceHandover = state.steps - state.ballGivenAtStep;
+
+          if (
+            framesSinceHandover < RUNNER_INITIAL_STEER_DURATION &&
+            player.runAngle
+          ) {
+            stepAsBallCarrier(
+              player,
+              INITIAL_STEER_AVOID_STRENGTH,
+              player.runAngle,
+            );
+          } else {
+            stepAsBallCarrier(player, AVOID_STRENGTH);
+          }
+
           player.path.push({ x: player.loc.x, y: player.loc.y });
         }
 
@@ -822,7 +848,7 @@ function stepSimulation() {
             }
           }
         } else {
-          stepAsBallCarrier(player);
+          stepAsBallCarrier(player, CATCHER_AVOID_STRENGTH);
         }
 
         resolveCollision(player, state.ball);

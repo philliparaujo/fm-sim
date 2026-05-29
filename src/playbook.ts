@@ -1,9 +1,14 @@
 import { H, W } from "./render";
 import { Ball, PartialPlayer, Player } from "./types";
-import { emptyVector, randomCoverage, randomRoute } from "./util";
+import {
+  emptyVector,
+  randomCoverage,
+  randomRoute,
+  randomRunVector,
+} from "./util";
 
 // Offensive playcall
-const PASS_PERCENT = 0.5;
+const PASS_PERCENT = 0;
 const RUN_PERCENT = 1 - PASS_PERCENT;
 
 // Defensive underneath coverage playcall
@@ -120,6 +125,7 @@ function generateOffensePlaycall(
   const RB_Y = CENTER_Y;
   const RB_X = ball.loc.x - (5 / 100) * W;
   const RB_SPEED = 1.9;
+  const RB_VEL = isPassPlay ? emptyVector() : randomRunVector(RB_SPEED);
   const RB_RADIUS = DEFAULT_RADIUS;
   players.push({
     type: "player",
@@ -129,6 +135,7 @@ function generateOffensePlaycall(
     role: RB_ROLE,
     loc: { x: RB_X, y: RB_Y },
     vel: emptyVector(),
+    runAngle: RB_VEL,
     radius: RB_RADIUS,
   });
 
@@ -253,6 +260,7 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
       role: partial.role,
 
       // Specific properties determined on creation
+      runAngle: partial.runAngle,
       route: partial.route,
       path: [],
       coverage: partial.coverage,

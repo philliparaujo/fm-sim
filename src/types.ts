@@ -26,6 +26,7 @@ interface PartialPlayer extends Entity {
   position: Position;
   role: Role;
 
+  runAngle?: Vector; // For runners
   route?: Route; // For receivers
   coverage?: Coverage; // For coverers
 }
