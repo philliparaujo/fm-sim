@@ -1,5 +1,5 @@
 import { state } from "./simulate";
-import { Player } from "./types";
+import { Player, Scoreboard } from "./types";
 
 const W = 720;
 const H = 400;
@@ -7,7 +7,9 @@ const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
 const FIELD_NUMBER_COLOR = "rgba(255, 255, 255, 0.3)";
 const ENDZONE_COLOR = "rgba(140, 0, 255, 0.5)";
-const LOS_COLOR = "rgba(255, 255, 0, 0.8)";
+const LOS_COLOR = "rgba(0, 120, 255, 0.8)";
+const FIRST_DOWN_COLOR = "rgba(255, 255, 0, 0.8)";
+const FIRST_DOWN_4TH_COLOR = "rgba(255, 0, 0, 0.8)";
 
 const BALL_COLOR = "#8B4513";
 const BALL_STROKE_COLOR = "#5a2d0c";
@@ -32,7 +34,16 @@ canvas.height = TOTAL_H;
 scoreboard.style.width = `${TOTAL_W}px`;
 scoreboard.style.visibility = "visible";
 
-function drawField(LOS?: number) {
+function drawVerticalLine(x: number, color: string) {
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, 5);
+  ctx.lineTo(x, TOTAL_H - 5);
+  ctx.stroke();
+}
+
+function drawField(scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">) {
   // 1. Draw the Grass
   ctx.fillStyle = GRASS_COLOR;
   ctx.fillRect(0, 0, TOTAL_W, TOTAL_H);
@@ -95,13 +106,14 @@ function drawField(LOS?: number) {
     }
   }
 
-  if (LOS) {
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = LOS_COLOR;
-    ctx.beginPath();
-    ctx.moveTo(LOS, 5);
-    ctx.lineTo(LOS, TOTAL_H - 5);
-    ctx.stroke();
+  if (scoreboard?.LOS) {
+    drawVerticalLine(scoreboard.LOS, LOS_COLOR);
+  }
+
+  if (scoreboard?.firstDownLine != null) {
+    const firstDownColor =
+      scoreboard.down === "4th" ? FIRST_DOWN_4TH_COLOR : FIRST_DOWN_COLOR;
+    drawVerticalLine(scoreboard.firstDownLine, firstDownColor);
   }
 }
 
@@ -241,9 +253,9 @@ function drawPlayer(player: Player) {
 /* High-level rendering functions */
 function render(
   pocket: { cx: number; cy: number; rx: number; ry: number },
-  LOS?: number,
+  scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">,
 ) {
-  drawField(LOS);
+  drawField(scoreboard);
 
   // Draw traces first so they are under the players
   for (const player of state.players) {

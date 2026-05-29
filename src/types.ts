@@ -74,6 +74,7 @@ type ScoreboardTeam = {
 
 type Scoreboard = {
   LOS: number;
+  firstDownLine: number | null;
   time: number;
   quarter: "1st" | "2nd" | "3rd" | "4th";
   down: "1st" | "2nd" | "3rd" | "4th";

@@ -10,11 +10,14 @@ import { Ball, Entity, Player, Scoreboard, State, Vector } from "./types";
 import {
   applyDamping,
   closestPointOnSegment,
+  computeFirstDownLine,
   dist,
+  distanceAfterFirstDown,
   getPocket,
   isCarryingBall,
   length,
   LOSToString,
+  updateDownAndDistance,
   vectorToString,
 } from "./util";
 
@@ -32,6 +35,7 @@ const createInitialState = (startingLOS?: number): State => {
     distance: 10,
     down: "1st",
     LOS: LOS,
+    firstDownLine: computeFirstDownLine(LOS, 10),
     quarter: "1st",
     teams: [
       { color: "red", name: "RED", score: 0, timeouts: 3, possessing: true },
@@ -936,7 +940,7 @@ let timeAccumulator = 0;
 async function tick(currentTime: number) {
   if (currentTime < state.pausedUntil) {
     lastTime = currentTime;
-    render(getPocket(state.scoreboard.LOS), state.scoreboard.LOS);
+    render(getPocket(state.scoreboard.LOS), state.scoreboard);
     requestAnimationFrame(tick);
     return;
   }
@@ -958,20 +962,42 @@ async function tick(currentTime: number) {
     timeAccumulator -= LOGIC_TICK_MS;
   }
 
-  render(getPocket(state.scoreboard.LOS), state.scoreboard.LOS);
+  render(getPocket(state.scoreboard.LOS), state.scoreboard);
   requestAnimationFrame(tick);
 }
 
 function resetSimulation() {
+  const prevScoreboard = state.scoreboard;
   let nextLOS = state.ball.loc.x;
-  if (nextLOS > W + ENDZONE_W) {
+  const isTouchdown = nextLOS >= W + ENDZONE_W;
+  if (isTouchdown) {
     nextLOS = START_DRIVE;
   }
   // Log simulation stats
   console.log(`Play Ended. New LOS: ${LOSToString(nextLOS)}`);
 
+  let downDistance: Pick<
+    Scoreboard,
+    "down" | "distance" | "firstDownLine"
+  >;
+  if (isTouchdown) {
+    const distance = distanceAfterFirstDown(nextLOS);
+    downDistance = {
+      down: "1st",
+      distance,
+      firstDownLine: computeFirstDownLine(nextLOS, distance),
+    };
+  } else {
+    downDistance = updateDownAndDistance(prevScoreboard, nextLOS);
+  }
+
   // Reset state
   state = createInitialState(nextLOS);
+  state.scoreboard = {
+    ...prevScoreboard,
+    LOS: nextLOS,
+    ...downDistance,
+  };
   state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;
   assignCoverageTargets();
 

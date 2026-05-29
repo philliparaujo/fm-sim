@@ -1,4 +1,5 @@
 import { ENDZONE_W, H, TOTAL_H, W } from "./render";
+import { Scoreboard } from "./types";
 import {
   Ball,
   cornerRoute,
@@ -99,6 +100,64 @@ export function randomRunVector(speed: number): Vector {
   return {
     x: Math.cos(angle) * speed,
     y: Math.sin(angle) * speed,
+  };
+}
+
+export function computeFirstDownLine(
+  LOS: number,
+  distance: "goal" | number,
+): number | null {
+  if (distance === "goal") return null;
+  return LOS + (distance * W) / 100;
+}
+
+const DOWNS = ["1st", "2nd", "3rd", "4th"] as const;
+
+export function yardsFromPixels(pixels: number): number {
+  return Math.round((pixels / W) * 100);
+}
+
+export function yardsToGoal(LOS: number): number {
+  const goalLine = W + ENDZONE_W;
+  return Math.max(0, yardsFromPixels(goalLine - LOS));
+}
+
+export function distanceAfterFirstDown(LOS: number): "goal" | number {
+  return yardsToGoal(LOS) <= 10 ? "goal" : 10;
+}
+
+function nextDown(down: Scoreboard["down"]): Scoreboard["down"] {
+  const idx = DOWNS.indexOf(down);
+  return DOWNS[Math.min(idx + 1, DOWNS.length - 1)];
+}
+
+export function updateDownAndDistance(
+  prev: Pick<Scoreboard, "LOS" | "firstDownLine" | "down" | "distance">,
+  nextLOS: number,
+): Pick<Scoreboard, "down" | "distance" | "firstDownLine"> {
+  const gotFirstDown =
+    prev.firstDownLine !== null && nextLOS >= prev.firstDownLine;
+
+  if (gotFirstDown) {
+    const distance = distanceAfterFirstDown(nextLOS);
+    return {
+      down: "1st",
+      distance,
+      firstDownLine: computeFirstDownLine(nextLOS, distance),
+    };
+  }
+
+  const yardsGained = yardsFromPixels(nextLOS - prev.LOS);
+  const distance: "goal" | number =
+    prev.distance === "goal"
+      ? "goal"
+      : Math.max(1, prev.distance - yardsGained);
+  const down = prev.down === "4th" ? "4th" : nextDown(prev.down);
+
+  return {
+    down,
+    distance,
+    firstDownLine: computeFirstDownLine(nextLOS, distance),
   };
 }
 
