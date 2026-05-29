@@ -5,22 +5,8 @@ import {
   generateOffensePlaycall,
 } from "./playbook";
 import { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W } from "./render";
-import {
-  Ball,
-  cornerRoute,
-  curlRoute,
-  dragRoute,
-  Entity,
-  flatRoute,
-  inRoute,
-  outRoute,
-  Player,
-  postRoute,
-  slantRoute,
-  State,
-  streakRoute,
-  Vector,
-} from "./types";
+import { updateScoreboardUI } from "./scoreboard";
+import { Ball, Entity, Player, Scoreboard, State, Vector } from "./types";
 import {
   applyDamping,
   closestPointOnSegment,
@@ -29,8 +15,6 @@ import {
   isCarryingBall,
   length,
   LOSToString,
-  randomCoverage,
-  randomRoute,
   vectorToString,
 } from "./util";
 
@@ -44,6 +28,18 @@ const createInitialState = (startingLOS?: number): State => {
   const defensePartial = generateDefensivePlaycall(LOS, "blue", offensePartial);
   const players = fillOutPlayers([...offensePartial, ...defensePartial]);
 
+  const scoreboard: Scoreboard = {
+    distance: 10,
+    down: "1st",
+    LOS: LOS,
+    quarter: "1st",
+    teams: [
+      { color: "red", name: "Red", score: 0, timeouts: 3, possessing: true },
+      { color: "blue", name: "Blue", score: 0, timeouts: 3, possessing: false },
+    ],
+    time: 900,
+  };
+
   return {
     steps: 0,
     pausedUntil: 0,
@@ -51,7 +47,7 @@ const createInitialState = (startingLOS?: number): State => {
     ballGivenAtStep: 0,
     earlyThrowDecided: false,
     panicThrowDecided: false,
-    LOS: LOS,
+    scoreboard: scoreboard,
     ball: ball,
     players: players,
   };
@@ -203,7 +199,7 @@ const PASSER_STEER_FACTOR = 0.2;
 const PASSER_LOOK_AHEAD = 80; // Radius where passer starts noticing rushers
 const PASSER_AVOID_STRENGTH = 1.7; // Strength of the "push" from rushers
 
-const BALL_GIVEN_STEPS = 180;
+const BALL_GIVEN_STEPS = 200;
 const MIN_THROW_STEP = 60; // Never throw before this, regardless of condition
 const COMPLETION_RADIUS = 50;
 const EARLY_THROW_SEPARATION = 55; // px of separation that tempts an early throw
@@ -627,7 +623,7 @@ function stepAsCoverer(player: Player) {
 function stepAsPasser(player: Player) {
   // 1. ELLIPSOIDAL POCKET LOGIC
   // Calculate the player's position relative to the ellipse center, normalized by radii
-  const pocket = getPocket(state.LOS);
+  const pocket = getPocket(state.scoreboard.LOS);
   const dx = (player.loc.x - pocket.cx) / pocket.rx;
   const dy = (player.loc.y - pocket.cy) / pocket.ry;
 
@@ -735,7 +731,7 @@ function stepAsPasser(player: Player) {
 
   if (!shouldThrow) return;
   if (bestOption.nearestDefDist < COMPLETION_RADIUS) {
-    state.ball.loc.x = state.LOS;
+    state.ball.loc.x = state.scoreboard.LOS;
     state.ball.loc.y = H / 2;
     resetSimulation();
   } else {
@@ -937,11 +933,10 @@ function stepSimulation() {
 let lastTime = 0;
 let timeAccumulator = 0;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function tick(currentTime: number) {
   if (currentTime < state.pausedUntil) {
     lastTime = currentTime;
-    render(getPocket(state.LOS), state.LOS);
+    render(getPocket(state.scoreboard.LOS), state.scoreboard.LOS);
     requestAnimationFrame(tick);
     return;
   }
@@ -950,6 +945,7 @@ async function tick(currentTime: number) {
     lastTime = currentTime;
     simStartTime = currentTime;
     console.log("--- Simulation Run #1 Started ---");
+    updateScoreboardUI(state.scoreboard);
   }
 
   const deltaTime = currentTime - lastTime;
@@ -962,7 +958,7 @@ async function tick(currentTime: number) {
     timeAccumulator -= LOGIC_TICK_MS;
   }
 
-  render(getPocket(state.LOS), state.LOS);
+  render(getPocket(state.scoreboard.LOS), state.scoreboard.LOS);
   requestAnimationFrame(tick);
 }
 
@@ -983,6 +979,9 @@ function resetSimulation() {
   simStartTime = state.pausedUntil;
   timeAccumulator = 0; // Reset the bucket to avoid logic jumps
   runCount++;
+
+  // Draw scoreboard
+  updateScoreboardUI(state.scoreboard);
 }
 
 export { state, tick };

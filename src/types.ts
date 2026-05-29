@@ -64,10 +64,29 @@ const slantRoute: Route = { breakAngle: 65, steps: 3, stopAfterBreak: false };
 const dragRoute: Route = { breakAngle: 90, steps: 3, stopAfterBreak: false };
 const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
 
+type ScoreboardTeam = {
+  name: string;
+  color: string;
+  score: number;
+  timeouts: 0 | 1 | 2 | 3;
+  possessing: boolean;
+};
+
+type Scoreboard = {
+  LOS: number;
+  time: number;
+  quarter: "1st" | "2nd" | "3rd" | "4th";
+  down: "1st" | "2nd" | "3rd" | "4th";
+  distance: "goal" | number;
+  teams: ScoreboardTeam[];
+};
+
 type State = {
   ball: Ball;
   players: Player[];
-  LOS: number;
+  // LOS: number;
+  scoreboard: Scoreboard;
+
   pausedUntil: number;
 
   steps: number;
@@ -86,6 +105,7 @@ export type {
   Route,
   Coverage,
   State,
+  Scoreboard,
 };
 export {
   streakRoute,
