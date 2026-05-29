@@ -1,12 +1,26 @@
+* {
+  box-sizing: border-box;
+}
+
 .scoreboard {
+  visibility: hidden;
   display: flex;
   background: #111;
   color: white;
-  font-family: "Arial Black", sans-serif;
+  font-family: "Arial", sans-serif;
+  font-weight: bold;
+  font-size: small;
   padding: 10px;
   border-bottom: 3px solid #444;
-  gap: 20px;
+  gap: 10px;
   align-items: center;
+  height: 30px;
+}
+
+.team-container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .team-box {
@@ -14,21 +28,44 @@
   align-items: center;
   gap: 10px;
   background: #222;
-  padding: 5px 15px;
+  padding: 2px 10px;
   border-radius: 4px;
 }
 
+#team-red {
+  background: #522;
+}
+#team-blue {
+  background: #33a;
+}
+
+.game-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.scoreboard-item {
+  /* background: #444; */
+  min-width: 60px;
+  display: flex;
+  gap: 10px;
+}
+
 .score {
-  font-size: 1.5rem;
   color: #ffcc00;
 }
 
 .possession-dot {
   color: #00ff00;
-  font-size: 1.5rem;
 }
 
 .scoreboard-value {
-  padding: 0 10px;
+  padding: 0 0 0 10px;
   border-left: 1px solid #555;
+}
+
+#yard-line {
+  font-size: small;
 }

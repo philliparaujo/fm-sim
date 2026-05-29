@@ -20,6 +20,7 @@ const PASSER_POCKET_ON = true;
 
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+const scoreboard = document.getElementById("scoreboard") as HTMLDivElement;
 
 const ENDZONE_W = (W * 1) / 10;
 const TOTAL_W = W + 2 * ENDZONE_W;
@@ -27,6 +28,9 @@ const TOTAL_H = H;
 
 canvas.width = TOTAL_W;
 canvas.height = TOTAL_H;
+
+scoreboard.style.width = `${TOTAL_W}px`;
+scoreboard.style.visibility = "visible";
 
 function drawField(LOS?: number) {
   // 1. Draw the Grass

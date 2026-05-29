@@ -34,8 +34,8 @@ const createInitialState = (startingLOS?: number): State => {
     LOS: LOS,
     quarter: "1st",
     teams: [
-      { color: "red", name: "Red", score: 0, timeouts: 3, possessing: true },
-      { color: "blue", name: "Blue", score: 0, timeouts: 3, possessing: false },
+      { color: "red", name: "RED", score: 0, timeouts: 3, possessing: true },
+      { color: "blue", name: "BLU", score: 0, timeouts: 3, possessing: false },
     ],
     time: 900,
   };

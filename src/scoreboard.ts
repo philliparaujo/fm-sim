@@ -1,7 +1,6 @@
 import { Scoreboard } from "./types";
 import { formatTime, LOSToString } from "./util";
 
-const yardLineEl = document.getElementById("yard-line");
 function updateScoreboardUI(data: Scoreboard) {
   // 1. Update Scores
   document.getElementById("score-red")!.textContent =
@@ -9,13 +8,9 @@ function updateScoreboardUI(data: Scoreboard) {
   document.getElementById("score-blue")!.textContent =
     data.teams[1].score.toString();
 
-  // 2. Update Possession Indicators (dots)
-  document.getElementById("pos-red")!.style.opacity = data.teams[0].possessing
-    ? "1"
-    : "0";
-  document.getElementById("pos-blue")!.style.opacity = data.teams[1].possessing
-    ? "1"
-    : "0";
+  // 2. Update Team names
+  document.getElementById("name-red")!.textContent = data.teams[0].name;
+  document.getElementById("name-blue")!.textContent = data.teams[1].name;
 
   // 3. Update Down & Distance
   // Example: "1st & 10"
