@@ -3,7 +3,7 @@ import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
 import { emptyVector, randomRoute, randomRunVector } from "./util";
 
 // Offensive playcall
-const PASS_PERCENT = 0;
+const PASS_PERCENT = 0.5;
 const RUN_PERCENT = 1 - PASS_PERCENT;
 
 // Defensive underneath coverage playcall

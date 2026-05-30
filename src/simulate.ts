@@ -178,12 +178,13 @@ function triggerMove(entity: Ball | Player) {
 }
 
 /* Simulation constants */
-const SIM_SPEED = 1;
+const SIM_SPEED = 8;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
-const RUSHER_DAMPING_FACTOR = 0.75; // Reduce velocity to 85%
+const RUSHER_DAMPING_FACTOR = 0.77; // Reduce velocity to 85%
 const COVERER_DAMPING_FACTOR = 0.6;
+const RUN_BLOCK_DAMPING_FACTOR = 0.45;
 const MIN_BLOCK_DISTANCE = 40;
 
 /* Rusher constants */
@@ -254,10 +255,15 @@ function resolveCollision(a: Player, b: Entity) {
       const playerB = b as Player;
 
       // Apply damping if rusher colliding with blocker
+      const currentDamping =
+        state.currentPlay.offense === "run"
+          ? RUN_BLOCK_DAMPING_FACTOR
+          : RUSHER_DAMPING_FACTOR;
+
       if (a.role === "rusher" && playerB.role === "blocker") {
-        applyDamping(a, RUSHER_DAMPING_FACTOR, RANDOM_JITTER);
+        applyDamping(a, currentDamping, RANDOM_JITTER);
       } else if (playerB.role === "rusher" && a.role === "blocker") {
-        applyDamping(playerB, RUSHER_DAMPING_FACTOR, RANDOM_JITTER);
+        applyDamping(playerB, currentDamping, RANDOM_JITTER);
       }
 
       if (a.role === "coverer") {
