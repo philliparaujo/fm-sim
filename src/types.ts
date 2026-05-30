@@ -50,6 +50,76 @@ type Route = {
 };
 type Coverage = "man" | "zone";
 
+type OffensivePlayType = "run" | "pass";
+type DefensiveCoverageType = "man" | "manBlitz" | "zone" | "zoneBlitz";
+type PlayEndReason =
+  | "tackle"
+  | "touchdown"
+  | "sack"
+  | "incomplete"
+  | "turnover";
+
+type CountYards = {
+  count: number;
+  yards: number;
+};
+
+type PlaycallStats = {
+  run: CountYards;
+  pass: CountYards;
+};
+
+type PlaycallCoverageKey =
+  | "runMan"
+  | "runManBlitz"
+  | "runZone"
+  | "runZoneBlitz"
+  | "passMan"
+  | "passManBlitz"
+  | "passZone"
+  | "passZoneBlitz";
+
+type PlaycallCoverageStats = Record<PlaycallCoverageKey, CountYards>;
+
+type CoverageStats = {
+  man: CountYards;
+  manBlitz: CountYards;
+  zone: CountYards;
+  zoneBlitz: CountYards;
+};
+
+type QBStats = {
+  attempts: number;
+  completions: number;
+  yards: number;
+  tds: number;
+  sacks: number;
+};
+
+type RBStats = {
+  rushes: number;
+  yards: number;
+  tds: number;
+  tfls: number;
+};
+
+type Stats = {
+  playcalls: PlaycallStats;
+  coverage: CoverageStats;
+  playcallCoverage: PlaycallCoverageStats;
+  qb: QBStats;
+  rb: RBStats;
+  runAngles: Record<string, CountYards>;
+  routes: Record<string, CountYards>;
+};
+
+type CurrentPlay = {
+  offense: OffensivePlayType;
+  defense: DefensiveCoverageType;
+  runAngle?: Vector;
+  routes: Route[];
+};
+
 const streakRoute: Route = { breakAngle: 0, steps: 0, stopAfterBreak: false };
 const postRoute: Route = { breakAngle: 45, steps: 10, stopAfterBreak: false };
 const cornerRoute: Route = {
@@ -61,7 +131,7 @@ const inRoute: Route = { breakAngle: 90, steps: 8, stopAfterBreak: false };
 const outRoute: Route = { breakAngle: -90, steps: 8, stopAfterBreak: false };
 const curlRoute: Route = { breakAngle: 180, steps: 8, stopAfterBreak: true };
 const slantRoute: Route = { breakAngle: 65, steps: 3, stopAfterBreak: false };
-const dragRoute: Route = { breakAngle: 90, steps: 3, stopAfterBreak: false };
+const dragRoute: Route = { breakAngle: 90, steps: 2, stopAfterBreak: false };
 const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
 
 type ScoreboardTeam = {
@@ -85,8 +155,9 @@ type Scoreboard = {
 type State = {
   ball: Ball;
   players: Player[];
-  // LOS: number;
   scoreboard: Scoreboard;
+  stats: Stats;
+  currentPlay: CurrentPlay;
 
   pausedUntil: number;
 
@@ -105,8 +176,16 @@ export type {
   Player,
   Route,
   Coverage,
+  Role,
   State,
   Scoreboard,
+  Stats,
+  CurrentPlay,
+  PlayEndReason,
+  OffensivePlayType,
+  DefensiveCoverageType,
+  PlaycallCoverageKey,
+  PlaycallCoverageStats,
 };
 export {
   streakRoute,

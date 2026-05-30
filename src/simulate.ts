@@ -6,7 +6,16 @@ import {
 } from "./playbook";
 import { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
-import { Ball, Entity, Player, Scoreboard, State, Vector } from "./types";
+import { createEmptyStats, updateStatsAfterPlay } from "./stats";
+import {
+  Ball,
+  Entity,
+  PlayEndReason,
+  Player,
+  Scoreboard,
+  State,
+  Vector,
+} from "./types";
 import {
   applyDamping,
   closestPointOnSegment,
@@ -19,6 +28,7 @@ import {
   LOSToString,
   updateDownAndDistance,
   vectorToString,
+  yardsFromPixels,
 } from "./util";
 
 const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
@@ -27,9 +37,16 @@ const PAUSE_MS_AFTER_PLAY = 0;
 const createInitialState = (startingLOS?: number): State => {
   const LOS = startingLOS ?? START_DRIVE;
   const ball = generateBall(LOS);
-  const offensePartial = generateOffensePlaycall(LOS, ball, "red");
-  const defensePartial = generateDefensivePlaycall(LOS, "blue", offensePartial);
-  const players = fillOutPlayers([...offensePartial, ...defensePartial]);
+  const offensePlay = generateOffensePlaycall(LOS, ball, "red");
+  const defensePlay = generateDefensivePlaycall(
+    LOS,
+    "blue",
+    offensePlay.players,
+  );
+  const players = fillOutPlayers([
+    ...offensePlay.players,
+    ...defensePlay.players,
+  ]);
 
   const scoreboard: Scoreboard = {
     distance: 10,
@@ -52,6 +69,13 @@ const createInitialState = (startingLOS?: number): State => {
     earlyThrowDecided: false,
     panicThrowDecided: false,
     scoreboard: scoreboard,
+    stats: createEmptyStats(),
+    currentPlay: {
+      offense: offensePlay.playType,
+      defense: defensePlay.coverage,
+      runAngle: offensePlay.runAngle,
+      routes: offensePlay.routes,
+    },
     ball: ball,
     players: players,
   };
@@ -132,7 +156,7 @@ function triggerMove(entity: Ball | Player) {
     entity.loc.x > rightEndzone
   ) {
     console.log("TOUCHDOWN!", entity);
-    resetSimulation();
+    resetSimulation("touchdown");
   }
 
   // CLAMP POSITION: If they go past the wall, snap them back to the edge
@@ -158,15 +182,15 @@ const SIM_SPEED = 1;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
-const RUSHER_DAMPING_FACTOR = 0.6; // Reduce velocity to 85%
+const RUSHER_DAMPING_FACTOR = 0.75; // Reduce velocity to 85%
 const COVERER_DAMPING_FACTOR = 0.6;
 const MIN_BLOCK_DISTANCE = 40;
 
 /* Rusher constants */
 const RANDOM_JITTER = 0.1; // 10% randomness
-const INLINE_NUDGE = 1.4; // Nudges rusher if inline with blocker
+const INLINE_NUDGE = 1; // Nudges rusher if inline with blocker
 const STEER_FACTOR = 1.5; // Rusher C.O.D amount
-const LATERAL_STRENGTH = 0.8; // How wide the rusher oscillates
+const LATERAL_STRENGTH = 1; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 
 /* Runner constants */
@@ -181,16 +205,19 @@ const ANGLE_ENDZONE_INTENT = 0.7;
 const PIXELS_PER_STEP = 15;
 const STOP_AFTER_BREAK_THRESHOLD = 10;
 const CATCHER_AVOID_STRENGTH = 0.6;
+const ROUTE_BREAK_ANGLE_JITTER = 3;
+const ROUTE_STEM_DRIFT = 0.06;
 
-const CATCH_SLOWDOWN_DURATION = 60;
-const MIN_CATCH_SPEED_MULT = 0.5;
+const CATCH_SLOWDOWN_DURATION = 40;
+const MIN_CATCH_SPEED_MULT = 0.8;
 
 /* Coverer constants */
-const REACTION_DELAY = 30;
-const LEAD_FRAMES = 45;
+const START_DELAY = 10; // Snap read — shorter so defenders aren't frozen at the LOS
+const REACTION_DELAY = 41; // Route break reaction — longer lag on receiver changes
+const LEAD_FRAMES = 25;
 const ARRIVAL_RADIUS = 15;
 
-const ZONE_PULL = 0.5;
+const ZONE_PULL = 0.8;
 const MAN_CUSHION = 0; // px behind the receiver toward the ball
 
 /* Pursuer constants */
@@ -203,13 +230,13 @@ const PASSER_STEER_FACTOR = 0.2;
 const PASSER_LOOK_AHEAD = 80; // Radius where passer starts noticing rushers
 const PASSER_AVOID_STRENGTH = 1.7; // Strength of the "push" from rushers
 
-const BALL_GIVEN_STEPS = 200;
-const MIN_THROW_STEP = 60; // Never throw before this, regardless of condition
-const COMPLETION_RADIUS = 50;
-const EARLY_THROW_SEPARATION = 55; // px of separation that tempts an early throw
-const EARLY_THROW_CHANCE = 0.7; // 40% chance to actually take the early throw
-const PANIC_RUSHER_DIST = 40; // px at which passer feels pressure to throw
-const PANIC_THROW_CHANCE = 0.55; // 55% chance to throw under pressure
+const BALL_GIVEN_STEPS = 250;
+const MIN_THROW_STEP = 75; // Never throw before this, regardless of condition
+const COMPLETION_RADIUS = 32;
+const EARLY_THROW_SEPARATION = 38; // px of separation that tempts an early throw
+const EARLY_THROW_CHANCE = 0.8; // 40% chance to actually take the early throw
+const PANIC_RUSHER_DIST = 30; // px at which passer feels pressure to throw
+const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
@@ -242,11 +269,11 @@ function resolveCollision(a: Player, b: Entity) {
       // End simulation if ball carrier gets tackled
       if (playerB.role === "rusher" || playerB.role === "coverer") {
         if (isCarryingBall(a, state.ball)) {
-          resetSimulation();
+          resetSimulation(a.role === "passer" ? "sack" : "tackle");
         }
       } else if (a.role === "rusher" || a.role === "coverer") {
         if (isCarryingBall(playerB, state.ball)) {
-          resetSimulation();
+          resetSimulation(playerB.role === "passer" ? "sack" : "tackle");
         }
       }
 
@@ -294,13 +321,13 @@ function ballCollideBehavior(player: Player) {
     case "blocker": {
       // If blocker collides with ball, simulation ends
       // console.log("SACK");
-      resetSimulation();
+      resetSimulation("sack");
       break;
     }
     case "rusher": {
       // If rusher collides with ball, simulation ends
       // console.log("SACK");
-      resetSimulation();
+      resetSimulation("sack");
       break;
     }
     case "runner": {
@@ -323,8 +350,7 @@ function ballCollideBehavior(player: Player) {
     }
     case "coverer": {
       // If coverer collides with ball, simulation ends (turnover)
-      resetSimulation();
-      console.warn("COVERER TURNED THE BALL OVER!!");
+      resetSimulation("turnover");
       break;
     }
     case "passer": {
@@ -541,39 +567,116 @@ function stepAsBallCarrier(
   state.ball.vel.y = player.vel.y;
 }
 
-function stepAsCoverer(player: Player) {
-  // Tick timer and flag the exact frame a reaction fires
-  player.reactionTimer++;
-  const justReacted = player.reactionTimer >= REACTION_DELAY;
-
-  // Determine target catcher
-  let targetCatcher: Player | null = null;
+function getCovererTargetCatcher(player: Player): Player | null {
   if (player.coverage === "man") {
-    targetCatcher = player.assignedTarget || null;
-  } else if (player.coverage === "zone") {
+    return player.assignedTarget || null;
+  }
+
+  if (player.coverage === "zone") {
     if (!player.zone) {
       console.warn("Zone defender has no zone?");
+      return null;
+    }
+    const catchers = state.players.filter((p) => p.role === "catcher");
+    if (catchers.length === 0) return null;
+    catchers.sort(
+      (a, b) => dist(player.zone!, a.loc) - dist(player.zone!, b.loc),
+    );
+    return catchers[0];
+  }
+
+  return null;
+}
+
+function updateCovererPerception(player: Player, targetCatcher: Player | null) {
+  if (targetCatcher) {
+    player.perceivedVel = { ...targetCatcher.vel };
+    player.perceivedLoc = { ...targetCatcher.loc };
+  } else {
+    player.perceivedLoc = { ...player.loc };
+    player.perceivedVel = { x: 0, y: 0 };
+  }
+}
+
+const catcherRouteVariance = new WeakMap<
+  Player,
+  { angleOffset: number; stemDrift: number }
+>();
+
+function getCatcherRouteVariance(player: Player) {
+  let variance = catcherRouteVariance.get(player);
+  if (!variance) {
+    variance = {
+      angleOffset: (Math.random() * 2 - 1) * ROUTE_BREAK_ANGLE_JITTER,
+      stemDrift: (Math.random() * 2 - 1) * ROUTE_STEM_DRIFT * player.maxSpeed,
+    };
+    catcherRouteVariance.set(player, variance);
+  }
+  return variance;
+}
+
+function stepAsCatcher(player: Player) {
+  if (!player.route) {
+    console.log("Catcher does not have a route?");
+    return;
+  }
+
+  if (!state.ballGiven) {
+    player.path.push({ x: player.loc.x, y: player.loc.y });
+  }
+
+  if (!isCarryingBall(player, state.ball) && state.ballGiven) {
+    stepAsBlocker(player);
+  } else if (!isCarryingBall(player, state.ball)) {
+    const { angleOffset, stemDrift } = getCatcherRouteVariance(player);
+    const threshold = Math.floor(
+      (player.route.steps * PIXELS_PER_STEP) / player.maxSpeed,
+    );
+
+    if (state.steps < threshold) {
+      // PHASE 1: The Stem
+      player.vel.x = player.maxSpeed;
+      player.vel.y = stemDrift;
     } else {
-      const catchers = state.players.filter((p) => p.role === "catcher");
-      if (catchers.length > 0) {
-        catchers.sort(
-          (a, b) => dist(player.zone!, a.loc) - dist(player.zone!, b.loc),
-        );
-        targetCatcher = catchers[0];
+      // PHASE 2: The Break
+      if (state.steps === Math.max(1, threshold)) {
+        const sideMultiplier = player.loc.y < H / 2 ? 1 : -1;
+        const angleRad =
+          (player.route.breakAngle + angleOffset) *
+          sideMultiplier *
+          (Math.PI / 180);
+
+        player.vel.x = Math.cos(angleRad) * player.maxSpeed;
+        player.vel.y = Math.sin(angleRad) * player.maxSpeed;
+      }
+
+      // Phase 3: Optional stop for curl routes
+      if (
+        player.route.stopAfterBreak &&
+        state.steps > threshold + STOP_AFTER_BREAK_THRESHOLD
+      ) {
+        player.vel.x *= 0.9;
+        player.vel.y *= 0.9;
       }
     }
+  } else {
+    stepAsBallCarrier(player, CATCHER_AVOID_STRENGTH);
   }
+}
 
-  if (justReacted) {
-    player.reactionTimer = 0;
-    if (targetCatcher) {
-      player.perceivedVel = { ...targetCatcher.vel };
-      player.perceivedLoc = { ...targetCatcher.loc };
-    }
-  }
+function stepAsCoverer(player: Player) {
+  player.reactionTimer++;
+  const targetCatcher = getCovererTargetCatcher(player);
 
   if (player.perceivedLoc === null) {
-    return;
+    if (player.reactionTimer < START_DELAY) {
+      return;
+    }
+    updateCovererPerception(player, targetCatcher);
+    player.reactionTimer = 0;
+  } else if (player.reactionTimer >= REACTION_DELAY) {
+    player.reactionTimer = 0;
+    updateCovererPerception(player, targetCatcher);
   }
 
   // Determine base target point
@@ -737,7 +840,7 @@ function stepAsPasser(player: Player) {
   if (bestOption.nearestDefDist < COMPLETION_RADIUS) {
     state.ball.loc.x = state.scoreboard.LOS;
     state.ball.loc.y = H / 2;
-    resetSimulation();
+    resetSimulation("incomplete");
   } else {
     state.ball.loc.x = bestOption.catcher.loc.x;
     state.ball.loc.y = bestOption.catcher.loc.y;
@@ -803,54 +906,7 @@ function stepSimulation() {
       }
       // Runs predefined route then turns into ball carrier
       case "catcher": {
-        if (!player.route) {
-          console.log("Catcher does not have a route?");
-          break;
-        }
-
-        if (!state.ballGiven) {
-          player.path.push({ x: player.loc.x, y: player.loc.y });
-        }
-
-        if (!isCarryingBall(player, state.ball) && state.ballGiven) {
-          stepAsBlocker(player);
-        } else if (!isCarryingBall(player, state.ball)) {
-          // 1. SCALED THRESHOLD: Time (frames) = Distance / Speed
-          // This ensures all players break at the same pixel depth.
-          const threshold = Math.floor(
-            (player.route.steps * PIXELS_PER_STEP) / player.maxSpeed,
-          );
-
-          if (state.steps < threshold) {
-            // PHASE 1: The Stem
-            player.vel.x = player.maxSpeed;
-            player.vel.y = 0;
-          } else {
-            // PHASE 2: The Break
-            // Only calculate the angle once at the transition frame.
-            // This prevents the player from "flipping" if they cross the H/2 line later.
-            if (state.steps === Math.max(1, threshold)) {
-              const sideMultiplier = player.loc.y < H / 2 ? 1 : -1;
-              const angleRad =
-                player.route.breakAngle * sideMultiplier * (Math.PI / 180);
-
-              player.vel.x = Math.cos(angleRad) * player.maxSpeed;
-              player.vel.y = Math.sin(angleRad) * player.maxSpeed;
-            }
-
-            // Phase 3: Optional stop for curl routes
-            if (
-              player.route.stopAfterBreak &&
-              state.steps > threshold + STOP_AFTER_BREAK_THRESHOLD
-            ) {
-              player.vel.x *= 0.9;
-              player.vel.y *= 0.9;
-            }
-          }
-        } else {
-          stepAsBallCarrier(player, CATCHER_AVOID_STRENGTH);
-        }
-
+        stepAsCatcher(player);
         resolveCollision(player, state.ball);
         break;
       }
@@ -914,7 +970,7 @@ function stepSimulation() {
         // console.log(`INCOMPLETE: ${maxSeparation.toFixed(1)}px separation`);
         state.ball.loc.x = W / 4;
         state.ball.loc.y = H / 2;
-        resetSimulation();
+        resetSimulation("incomplete");
       } else {
         // Snap the ball to the most open receiver
         state.ball.loc.x = target.loc.x;
@@ -966,20 +1022,37 @@ async function tick(currentTime: number) {
   requestAnimationFrame(tick);
 }
 
-function resetSimulation() {
+function resetSimulation(reason: PlayEndReason) {
   const prevScoreboard = state.scoreboard;
-  let nextLOS = state.ball.loc.x;
-  const isTouchdown = nextLOS >= W + ENDZONE_W;
-  if (isTouchdown) {
-    nextLOS = START_DRIVE;
-  }
-  // Log simulation stats
-  console.log(`Play Ended. New LOS: ${LOSToString(nextLOS)}`);
+  const prevStats = state.stats;
+  const currentPlay = state.currentPlay;
+  const ballGiven = state.ballGiven;
+  const ballCarrier = state.players.find((p) => isCarryingBall(p, state.ball));
 
-  let downDistance: Pick<
-    Scoreboard,
-    "down" | "distance" | "firstDownLine"
-  >;
+  const endBallX = state.ball.loc.x;
+  const isTouchdown = endBallX >= W + ENDZONE_W;
+  const isSafety = endBallX <= ENDZONE_W;
+  const yards = yardsFromPixels(
+    (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
+  );
+  const nextLOS = isTouchdown || isSafety ? START_DRIVE : endBallX;
+
+  const updatedStats = updateStatsAfterPlay(
+    prevStats,
+    currentPlay,
+    yards,
+    isTouchdown,
+    reason,
+    ballGiven,
+    ballCarrier?.role,
+    ballCarrier?.route,
+  );
+
+  // Log simulation stats
+  // console.log(`Play Ended. New LOS: ${LOSToString(nextLOS)}`);
+  console.log(updatedStats);
+
+  let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
   if (isTouchdown) {
     const distance = distanceAfterFirstDown(nextLOS);
     downDistance = {
@@ -993,6 +1066,7 @@ function resetSimulation() {
 
   // Reset state
   state = createInitialState(nextLOS);
+  state.stats = updatedStats;
   state.scoreboard = {
     ...prevScoreboard,
     LOS: nextLOS,

@@ -1,14 +1,9 @@
 import { H, W } from "./render";
-import { Ball, PartialPlayer, Player } from "./types";
-import {
-  emptyVector,
-  randomCoverage,
-  randomRoute,
-  randomRunVector,
-} from "./util";
+import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
+import { emptyVector, randomRoute, randomRunVector } from "./util";
 
 // Offensive playcall
-const PASS_PERCENT = 0.5;
+const PASS_PERCENT = 0;
 const RUN_PERCENT = 1 - PASS_PERCENT;
 
 // Defensive underneath coverage playcall
@@ -37,7 +32,12 @@ function generateOffensePlaycall(
   LOS: number,
   ball: Ball,
   teamColor: string,
-): PartialPlayer[] {
+): {
+  players: PartialPlayer[];
+  playType: "run" | "pass";
+  runAngle?: Vector;
+  routes: Route[];
+} {
   const isPassPlay = Math.random() < PASS_PERCENT;
   const players: PartialPlayer[] = [];
 
@@ -139,14 +139,24 @@ function generateOffensePlaycall(
     radius: RB_RADIUS,
   });
 
-  return players;
+  return {
+    players,
+    playType: isPassPlay ? "pass" : "run",
+    runAngle: isPassPlay ? undefined : RB_VEL,
+    routes: players
+      .filter((p) => p.role === "catcher" && p.route)
+      .map((p) => p.route!),
+  };
 }
 
 function generateDefensivePlaycall(
   LOS: number,
   teamColor: string,
   offensivePlayers: PartialPlayer[],
-): PartialPlayer[] {
+): {
+  players: PartialPlayer[];
+  coverage: "man" | "manBlitz" | "zone" | "zoneBlitz";
+} {
   const players: PartialPlayer[] = [];
 
   const CENTER_Y = H / 2;
@@ -155,7 +165,7 @@ function generateDefensivePlaycall(
   // Add 3 rushers on LOS
   const RUSHER_X = LOS + (5 / 100) * W;
   const RUSHER_CENTER_Y = CENTER_Y;
-  const RUSHER_SPREAD_Y = (1 / 9) * H;
+  const RUSHER_SPREAD_Y = (1 / 7) * H;
   const RUSHER_SPEED = 1.5;
   const RUSHER_RADIUS = DEFAULT_RADIUS;
   for (let i = 0; i < 3; i++) {
@@ -172,7 +182,7 @@ function generateDefensivePlaycall(
   }
 
   // Match coverers with catchers
-  const COVERER_X = LOS + (1 / 8) * W;
+  const COVERER_X = LOS + (1 / 10) * W;
   const COVERER_SPEED = 1.6;
   const COVERER_RADIUS = DEFAULT_RADIUS;
   const COVERER_COVERAGE = Math.random() < MAN_PERCENT ? "man" : "zone";
@@ -209,9 +219,9 @@ function generateDefensivePlaycall(
   const isBlitz = Math.random() < BLITZ_PERCENT;
 
   const LB_ROLE = isBlitz ? "rusher" : "coverer";
-  const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (1 / 3) * W;
+  const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (3 / 10) * W;
   const LB_Y = isBlitz ? (Math.random() < 0.5 ? H * 0.25 : H * 0.75) : H / 3;
-  const LB_SPEED = 1.6;
+  const LB_SPEED = isBlitz ? 1.5 : 1.6;
   const LB_RADIUS = DEFAULT_RADIUS;
   players.push({
     type: "player",
@@ -225,7 +235,7 @@ function generateDefensivePlaycall(
     coverage: "zone",
   });
 
-  const S_X = LOS + (1 / 3) * W;
+  const S_X = LOS + (3 / 10) * W;
   const S_Y = isBlitz ? H / 2 : (2 * H) / 3;
   const S_SPEED = 1.6;
   const S_RADIUS = DEFAULT_RADIUS;
@@ -241,7 +251,14 @@ function generateDefensivePlaycall(
     coverage: "zone",
   });
 
-  return players;
+  const underneathCoverage = COVERER_COVERAGE;
+  const coverage = isBlitz
+    ? underneathCoverage === "man"
+      ? "manBlitz"
+      : "zoneBlitz"
+    : underneathCoverage;
+
+  return { players, coverage };
 }
 
 function fillOutPlayers(partials: PartialPlayer[]): Player[] {
@@ -279,8 +296,8 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
 }
 
 export {
-  generateBall,
-  generateOffensePlaycall,
-  generateDefensivePlaycall,
   fillOutPlayers,
+  generateBall,
+  generateDefensivePlaycall,
+  generateOffensePlaycall,
 };
