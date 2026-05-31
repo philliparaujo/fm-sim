@@ -62,6 +62,7 @@ type PlayEndReason =
 type CountYards = {
   count: number;
   yards: number;
+  avg: number;
 };
 
 type PlaycallStats = {
@@ -92,6 +93,7 @@ type QBStats = {
   attempts: number;
   completions: number;
   yards: number;
+  ypa: number;
   tds: number;
   sacks: number;
 };
@@ -99,6 +101,7 @@ type QBStats = {
 type RBStats = {
   rushes: number;
   yards: number;
+  ypc: number;
   tds: number;
   tfls: number;
 };

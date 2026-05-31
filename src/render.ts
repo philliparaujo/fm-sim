@@ -1,8 +1,8 @@
 import { state } from "./simulate";
 import { Player, Scoreboard } from "./types";
 
-const W = 720;
-const H = 400;
+const W = 720 * 3;
+const H = 400 * 3;
 const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
 const FIELD_NUMBER_COLOR = "rgba(255, 255, 255, 0.3)";
@@ -35,7 +35,7 @@ scoreboard.style.width = `${TOTAL_W}px`;
 scoreboard.style.visibility = "visible";
 
 function drawVerticalLine(x: number, color: string) {
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 6;
   ctx.strokeStyle = color;
   ctx.beginPath();
   ctx.moveTo(x, 5);
@@ -43,7 +43,9 @@ function drawVerticalLine(x: number, color: string) {
   ctx.stroke();
 }
 
-function drawField(scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">) {
+function drawField(
+  scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">,
+) {
   // 1. Draw the Grass
   ctx.fillStyle = GRASS_COLOR;
   ctx.fillRect(0, 0, TOTAL_W, TOTAL_H);
@@ -55,13 +57,13 @@ function drawField(scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down
 
   // 2. Draw Sidelines and Endlines
   ctx.strokeStyle = FIELD_HASH_COLOR;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 6;
   ctx.strokeRect(5, 5, TOTAL_W - 10, TOTAL_H - 10);
 
   // 3. Draw Yard Lines
   // We'll draw a line every 40 pixels to represent 10 yards
   const yardSpacing = W / 10;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 3;
 
   for (let i = 0; i <= 10; i++) {
     const x = i * yardSpacing + ENDZONE_W;
@@ -145,9 +147,9 @@ function drawCatcherTrace(player: Player) {
   if (player.role !== "catcher" || player.path.length < 2) return;
 
   ctx.beginPath();
-  ctx.setLineDash([5, 5]); // Optional: make it a dashed "playbook" line
+  ctx.setLineDash([15, 15]); // Optional: make it a dashed "playbook" line
   ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"; // White semi-transparent
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 6;
 
   // Start at the beginning of the path
   ctx.moveTo(player.path[0].x, player.path[0].y);
@@ -168,10 +170,10 @@ function drawCovererZone(player: Player) {
 
   ctx.beginPath();
   // Use a light dashed line or a soft fill to represent the 'area'
-  ctx.setLineDash([10, 10]);
-  ctx.arc(player.zone.x, player.zone.y, 80, 0, Math.PI * 2);
+  ctx.setLineDash([30, 30]);
+  ctx.arc(player.zone.x, player.zone.y, 240, 0, Math.PI * 2);
   ctx.strokeStyle = "rgba(255, 255, 0, 0.7)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 3;
   ctx.stroke();
 
   // Optional: Draw a small cross or dot at the center (startLoc)
@@ -185,9 +187,9 @@ function drawRunnerPath(player: Player) {
   if (player.role !== "runner" || player.path.length < 2) return;
 
   ctx.beginPath();
-  ctx.setLineDash([3, 1]); // Optional: make it a dashed "playbook" line
+  ctx.setLineDash([9, 3]); // Optional: make it a dashed "playbook" line
   ctx.strokeStyle = "rgba(25, 25, 25, 0.5)"; // White semi-transparent
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 6;
 
   // Start at the beginning of the path
   ctx.moveTo(player.path[0].x, player.path[0].y);
@@ -217,20 +219,20 @@ function drawPasserPocket(
 
   // Dashed border
   ctx.beginPath();
-  ctx.setLineDash([6, 6]);
+  ctx.setLineDash([18, 18]);
   ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
   ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 3;
   ctx.stroke();
   ctx.setLineDash([]);
 
   // Line from passer to ellipse center so you can see where they are relative to it
   ctx.beginPath();
-  ctx.setLineDash([2, 4]);
+  ctx.setLineDash([6, 12]);
   ctx.moveTo(player.loc.x, player.loc.y);
   ctx.lineTo(cx, cy);
   ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 3;
   ctx.stroke();
   ctx.setLineDash([]);
 }

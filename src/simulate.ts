@@ -178,32 +178,32 @@ function triggerMove(entity: Ball | Player) {
 }
 
 /* Simulation constants */
-const SIM_SPEED = 8;
+const SIM_SPEED = 1;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
 const RUSHER_DAMPING_FACTOR = 0.77; // Reduce velocity to 85%
 const COVERER_DAMPING_FACTOR = 0.6;
 const RUN_BLOCK_DAMPING_FACTOR = 0.45;
-const MIN_BLOCK_DISTANCE = 40;
+const MIN_BLOCK_DISTANCE = 120;
 
 /* Rusher constants */
 const RANDOM_JITTER = 0.1; // 10% randomness
-const INLINE_NUDGE = 1; // Nudges rusher if inline with blocker
+const INLINE_NUDGE = 3; // Nudges rusher if inline with blocker
 const STEER_FACTOR = 1.5; // Rusher C.O.D amount
 const LATERAL_STRENGTH = 1; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 
 /* Runner constants */
-const LOOK_AHEAD = 50; // How far ahead the runner scans for threats
-const AVOID_STRENGTH = 1.3; // How aggressively the runner veers away
+const LOOK_AHEAD = 160; // How far ahead the runner scans for threats
+const INITIAL_STEER_AVOID_STRENGTH = 1.3;
+const AVOID_STRENGTH = 4.2; // How aggressively the runner veers away
 
 const RUNNER_INITIAL_STEER_DURATION = 70;
-const INITIAL_STEER_AVOID_STRENGTH = 0.4;
-const ANGLE_ENDZONE_INTENT = 0.7;
+const ANGLE_ENDZONE_INTENT = 1;
 
 /* Receiver constants */
-const PIXELS_PER_STEP = 15;
+const PIXELS_PER_STEP = 45;
 const STOP_AFTER_BREAK_THRESHOLD = 10;
 const CATCHER_AVOID_STRENGTH = 0.6;
 const ROUTE_BREAK_ANGLE_JITTER = 3;
@@ -214,30 +214,34 @@ const MIN_CATCH_SPEED_MULT = 0.8;
 
 /* Coverer constants */
 const START_DELAY = 10; // Snap read — shorter so defenders aren't frozen at the LOS
-const REACTION_DELAY = 41; // Route break reaction — longer lag on receiver changes
+const REACTION_DELAY = 44; // Route break reaction — longer lag on receiver changes
 const LEAD_FRAMES = 25;
-const ARRIVAL_RADIUS = 15;
+const ARRIVAL_RADIUS = 45;
 
 const ZONE_PULL = 0.8;
 const MAN_CUSHION = 0; // px behind the receiver toward the ball
 
 /* Pursuer constants */
-const PREDICTION_FRAMES = 60;
-const PURSUER_STEER_FACTOR = 0.4;
+const PREDICTION_FRAMES = 30;
+const PURSUER_STEER_FACTOR = 0.5;
+const PURSUER_HOMING_FACTOR = 0.1; // Blends the intercept with the direct chase
+const PURSUER_CONTAIN_OFFSET = 10; // 90 if using 3x scale
 
 /* Passer constants */
 const PASSER_STEER_FACTOR = 0.2;
 
-const PASSER_LOOK_AHEAD = 80; // Radius where passer starts noticing rushers
+const PASSER_LOOK_AHEAD = 240; // Radius where passer starts noticing rushers
 const PASSER_AVOID_STRENGTH = 1.7; // Strength of the "push" from rushers
 
 const BALL_GIVEN_STEPS = 250;
 const MIN_THROW_STEP = 75; // Never throw before this, regardless of condition
-const COMPLETION_RADIUS = 32;
-const EARLY_THROW_SEPARATION = 38; // px of separation that tempts an early throw
+const COMPLETION_RADIUS = 96;
+const EARLY_THROW_SEPARATION = 114; // px of separation that tempts an early throw
 const EARLY_THROW_CHANCE = 0.8; // 40% chance to actually take the early throw
-const PANIC_RUSHER_DIST = 30; // px at which passer feels pressure to throw
+const PANIC_RUSHER_DIST = 90; // px at which passer feels pressure to throw
 const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
+
+const PASSER_HANDOFF_SEPARATION = 80;
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
@@ -401,46 +405,55 @@ function stepAsRusher(player: Player) {
 }
 
 function stepAsPursuer(player: Player) {
-  // 1. Calculate the current distance to the ball
   const distToBall = dist(player.loc, state.ball.loc);
 
-  // 2. DYNAMIC PREDICTION:
-  // Instead of a constant (like 80), we calculate how many frames it would
-  // take the player to reach the ball at max speed. This is the "Look Ahead" window.
-  // We add a small floor (e.g., 5 frames) to prevent division by zero.
-  const dynamicLookAhead = Math.max(5, distToBall / player.maxSpeed);
+  // 1. Calculate how long it takes us to get there
+  const timeToReach = distToBall / player.maxSpeed;
 
-  // 3. Define the predicted path of the ball carrier
+  // 2. ADD PREDICTION FRAMES TO TIME
+  // We look ahead to where the ball will be when we arrive + a buffer
+  const totalLookAhead = timeToReach + PREDICTION_FRAMES;
+
+  // 3. PROJECT THE TARGET
+  // This projects the ball carrier's current velocity into the future.
+  // Because we multiply vel.x by the lookAhead, it stays true to their heading.
+  const predictedX = state.ball.loc.x + state.ball.vel.x * totalLookAhead;
+  const predictedY = state.ball.loc.y + state.ball.vel.y * totalLookAhead;
+
+  // 4. FIND THE INTERCEPT
+  // We create a line from the ball's current spot to its "future" spot.
   const pathStart = state.ball.loc;
-  const pathEnd = {
-    x:
-      state.ball.loc.x +
-      state.ball.vel.x * dynamicLookAhead * 1.5 +
-      PREDICTION_FRAMES,
-    y:
-      state.ball.loc.y +
-      state.ball.vel.y * dynamicLookAhead * 1.5 +
-      PREDICTION_FRAMES,
-  };
-
-  // 4. Find the Intercept Point on that predicted path
+  const pathEnd = { x: predictedX, y: predictedY };
   const interceptPoint = closestPointOnSegment(player.loc, pathStart, pathEnd);
 
-  // 5. Determine the target
-  const toTargetX = interceptPoint.x - player.loc.x;
-  const toTargetY = interceptPoint.y - player.loc.y;
+  // 5. BLEND WITH HOMING
+  let targetX =
+    interceptPoint.x * (1 - PURSUER_HOMING_FACTOR) +
+    state.ball.loc.x * PURSUER_HOMING_FACTOR;
+  let targetY =
+    interceptPoint.y * (1 - PURSUER_HOMING_FACTOR) +
+    state.ball.loc.y * PURSUER_HOMING_FACTOR;
+
+  // 6. APPLY CONTAINMENT BIAS
+  // H is the height of the field. H/2 is the middle.
+  // If the ball is above the middle, we push our target further UP (-Y).
+  // If the ball is below the middle, we push our target further DOWN (+Y).
+  const middleOfField = H / 2;
+  const containDirection = state.ball.loc.y < middleOfField ? -1 : 1;
+
+  targetY += containDirection * PURSUER_CONTAIN_OFFSET;
+
+  // 7. Calculate final steering
+  const toTargetX = targetX - player.loc.x;
+  const toTargetY = targetY - player.loc.y;
   const d = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
 
   if (d > 0.5) {
-    // 6. Calculate Velocity
     const targetVelX = (toTargetX / d) * player.maxSpeed;
     const targetVelY = (toTargetY / d) * player.maxSpeed;
 
     player.vel.x += (targetVelX - player.vel.x) * PURSUER_STEER_FACTOR;
     player.vel.y += (targetVelY - player.vel.y) * PURSUER_STEER_FACTOR;
-  } else {
-    player.vel.x = 0;
-    player.vel.y = 0;
   }
 }
 
@@ -930,8 +943,28 @@ function stepSimulation() {
         if (!state.ballGiven) {
           stepAsPasser(player);
         } else {
-          player.vel.x = 0;
-          player.vel.y = 0;
+          // Move passer out of way of ball carrier
+          const ballSpeed = Math.sqrt(
+            state.ball.vel.x ** 2 + state.ball.vel.y ** 2,
+          );
+          const runAngleY = state.currentPlay.runAngle?.y;
+
+          if (
+            ballSpeed > 0.1 &&
+            runAngleY &&
+            dist(player.loc, state.ball.loc) < PASSER_HANDOFF_SEPARATION
+          ) {
+            // 2. Move straight UP or DOWN based on relative position
+            // If passer is above the ball, move Up (-1). Otherwise, move Down (1).
+            const direction = runAngleY < 0 ? -1 : 1;
+
+            player.vel.x = 0;
+            player.vel.y = direction * player.maxSpeed;
+          } else {
+            // Stop moving if the ball stops
+            player.vel.x = 0;
+            player.vel.y = 0;
+          }
         }
         resolveCollision(player, state.ball);
         break;

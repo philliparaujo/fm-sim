@@ -58,7 +58,7 @@ export function applyDamping(player: Player, factor: number, jitter: number) {
   player.vel.y += (Math.random() * 2 - 1) * jitter;
 }
 
-const BALL_SNAP_DIST = 8; // Maximum distance where a player will snap to the ball
+const BALL_SNAP_DIST = 24; // Maximum distance where a player will snap to the ball
 export function isCarryingBall(player: Player, ball: Ball): boolean {
   return dist(player.loc, ball.loc) < BALL_SNAP_DIST;
 }
@@ -178,8 +178,8 @@ export function LOSToString(LOS: number) {
 }
 
 const POCKET_CY = H / 2;
-const POCKET_RX = 30;
-const POCKET_RY = 120;
+const POCKET_RX = 90;
+const POCKET_RY = 360;
 export function getPocket(LOS: number) {
   return {
     cx: LOS - (W * 5) / 100,

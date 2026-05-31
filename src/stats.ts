@@ -32,7 +32,7 @@ const ROUTE_NAMES: [string, Route][] = [
   ["flat", flatRoute],
 ];
 
-const EMPTY_COUNT_YARDS = { count: 0, yards: 0 };
+const EMPTY_COUNT_YARDS = { count: 0, yards: 0, avg: 0 };
 
 function emptyPlaycallCoverageStats(): PlaycallCoverageStats {
   return {
@@ -84,8 +84,8 @@ export function createEmptyStats(): Stats {
       zoneBlitz: { ...EMPTY_COUNT_YARDS },
     },
     playcallCoverage: emptyPlaycallCoverageStats(),
-    qb: { attempts: 0, completions: 0, yards: 0, tds: 0, sacks: 0 },
-    rb: { rushes: 0, yards: 0, tds: 0, tfls: 0 },
+    qb: { attempts: 0, completions: 0, yards: 0, ypa: 0, tds: 0, sacks: 0 },
+    rb: { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 },
     runAngles: {},
     routes: {},
   };
@@ -105,7 +105,9 @@ export function routeKey(route: Route): string {
 }
 
 export function runAngleKey(runAngle: Vector): string {
-  const degrees = Math.round((Math.atan2(runAngle.y, runAngle.x) * 180) / Math.PI);
+  const degrees = Math.round(
+    (Math.atan2(runAngle.y, runAngle.x) * 180) / Math.PI,
+  );
   return `${degrees}°`;
 }
 
@@ -158,7 +160,10 @@ export function updateStatsAfterPlay(
     qb: { ...stats.qb },
     rb: { ...stats.rb },
     runAngles: Object.fromEntries(
-      Object.entries(stats.runAngles).map(([key, value]) => [key, { ...value }]),
+      Object.entries(stats.runAngles).map(([key, value]) => [
+        key,
+        { ...value },
+      ]),
     ),
     routes: Object.fromEntries(
       Object.entries(stats.routes).map(([key, value]) => [key, { ...value }]),
@@ -167,17 +172,25 @@ export function updateStatsAfterPlay(
 
   next.playcalls[play.offense].count++;
   next.playcalls[play.offense].yards += yards;
+  next.playcalls[play.offense].avg =
+    next.playcalls[play.offense].yards / next.playcalls[play.offense].count;
   next.coverage[play.defense].count++;
   next.coverage[play.defense].yards += yards;
+  next.coverage[play.defense].avg =
+    next.coverage[play.defense].yards / next.coverage[play.defense].count;
 
   const matchupKey = playcallCoverageKey(play.offense, play.defense);
   next.playcallCoverage[matchupKey].count++;
   next.playcallCoverage[matchupKey].yards += yards;
+  next.playcallCoverage[matchupKey].avg =
+    next.playcallCoverage[matchupKey].yards /
+    next.playcallCoverage[matchupKey].count;
 
   if (play.offense === "pass") {
     next.qb.attempts++;
     if (reason === "sack") {
       next.qb.sacks++;
+      next.qb.attempts--;
     } else if (isPassCompletion(reason, ballGiven, ballCarrierRole)) {
       next.qb.completions++;
       next.qb.yards += yards;
@@ -185,6 +198,7 @@ export function updateStatsAfterPlay(
         next.qb.tds++;
       }
     }
+    next.qb.ypa = next.qb.yards / next.qb.attempts;
 
     for (const route of play.routes) {
       bumpCountYards(next.routes, routeKey(route));
@@ -214,17 +228,20 @@ export function updateStatsAfterPlay(
       if (isTouchdown) {
         next.rb.tds++;
       }
+      next.rb.ypc = next.rb.yards / next.rb.rushes;
     }
 
     if (play.runAngle) {
       const key = runAngleKey(play.runAngle);
       if (!next.runAngles[key]) {
-        next.runAngles[key] = { count: 0, yards: 0 };
+        next.runAngles[key] = { count: 0, yards: 0, avg: 0 };
       }
       next.runAngles[key].count++;
       if (isRush) {
         next.runAngles[key].yards += yards;
       }
+      next.runAngles[key].avg =
+        next.runAngles[key].yards / next.runAngles[key].count;
     }
   }
 
