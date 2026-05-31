@@ -142,7 +142,7 @@ function generateOffensePlaycall(
   return {
     players,
     playType: isPassPlay ? "pass" : "run",
-    // runAngle: isPassPlay ? undefined : RB_VEL,
+    runAngle: isPassPlay ? undefined : RB_VEL,
     routes: players
       .filter((p) => p.role === "catcher" && p.route)
       .map((p) => p.route!),
@@ -219,7 +219,7 @@ function generateDefensivePlaycall(
   const isBlitz = Math.random() < BLITZ_PERCENT;
 
   const LB_ROLE = isBlitz ? "rusher" : "coverer";
-  const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (3 / 10) * W;
+  const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
   const LB_Y = isBlitz ? (Math.random() < 0.5 ? H * 0.25 : H * 0.75) : H / 3;
   const LB_SPEED = isBlitz ? 4.5 : 4.8;
   const LB_RADIUS = DEFAULT_RADIUS;
@@ -235,7 +235,7 @@ function generateDefensivePlaycall(
     coverage: "zone",
   });
 
-  const S_X = LOS + (3 / 10) * W;
+  const S_X = LOS + (35 / 100) * W;
   const S_Y = isBlitz ? H / 2 : (2 * H) / 3;
   const S_SPEED = 4.8;
   const S_RADIUS = DEFAULT_RADIUS;
@@ -280,6 +280,7 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
       runAngle: partial.runAngle,
       route: partial.route,
       path: [],
+      breakFrame: null,
       coverage: partial.coverage,
 
       // Specific properties determined later

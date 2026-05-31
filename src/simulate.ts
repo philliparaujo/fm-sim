@@ -24,6 +24,7 @@ import {
   distanceAfterFirstDown,
   getPocket,
   isCarryingBall,
+  isNoBreakRoute,
   length,
   LOSToString,
   updateDownAndDistance,
@@ -189,7 +190,7 @@ const MIN_BLOCK_DISTANCE = 120;
 
 /* Rusher constants */
 const RANDOM_JITTER = 0.1; // 10% randomness
-const INLINE_NUDGE = 3; // Nudges rusher if inline with blocker
+const INLINE_NUDGE = 2.2; // Nudges rusher if inline with blocker
 const STEER_FACTOR = 1.5; // Rusher C.O.D amount
 const LATERAL_STRENGTH = 1; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
@@ -208,17 +209,19 @@ const STOP_AFTER_BREAK_THRESHOLD = 10;
 const CATCHER_AVOID_STRENGTH = 0.6;
 const ROUTE_BREAK_ANGLE_JITTER = 3;
 const ROUTE_STEM_DRIFT = 0.06;
+const ROUTE_CUT_SPEED_RETAINED = 0.7;
+const REACCEL_DURATION = 30;
 
 const CATCH_SLOWDOWN_DURATION = 40;
 const MIN_CATCH_SPEED_MULT = 0.8;
 
 /* Coverer constants */
 const START_DELAY = 10; // Snap read — shorter so defenders aren't frozen at the LOS
-const REACTION_DELAY = 44; // Route break reaction — longer lag on receiver changes
-const LEAD_FRAMES = 25;
+const REACTION_DELAY = 40; // Route break reaction — longer lag on receiver changes
+const LEAD_FRAMES = 20;
 const ARRIVAL_RADIUS = 45;
 
-const ZONE_PULL = 0.8;
+const ZONE_PULL = 0.7;
 const MAN_CUSHION = 0; // px behind the receiver toward the ball
 
 /* Pursuer constants */
@@ -236,7 +239,7 @@ const PASSER_AVOID_STRENGTH = 1.7; // Strength of the "push" from rushers
 const BALL_GIVEN_STEPS = 250;
 const MIN_THROW_STEP = 75; // Never throw before this, regardless of condition
 const COMPLETION_RADIUS = 96;
-const EARLY_THROW_SEPARATION = 114; // px of separation that tempts an early throw
+const EARLY_THROW_SEPARATION = 120; // px of separation that tempts an early throw
 const EARLY_THROW_CHANCE = 0.8; // 40% chance to actually take the early throw
 const PANIC_RUSHER_DIST = 90; // px at which passer feels pressure to throw
 const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
@@ -635,10 +638,7 @@ function getCatcherRouteVariance(player: Player) {
 }
 
 function stepAsCatcher(player: Player) {
-  if (!player.route) {
-    console.log("Catcher does not have a route?");
-    return;
-  }
+  if (!player.route) return;
 
   if (!state.ballGiven) {
     player.path.push({ x: player.loc.x, y: player.loc.y });
@@ -665,8 +665,34 @@ function stepAsCatcher(player: Player) {
           sideMultiplier *
           (Math.PI / 180);
 
-        player.vel.x = Math.cos(angleRad) * player.maxSpeed;
-        player.vel.y = Math.sin(angleRad) * player.maxSpeed;
+        // Only apply cut speed penalty on routes that actually have a break
+        const cutMult = isNoBreakRoute(player.route)
+          ? 1.0
+          : ROUTE_CUT_SPEED_RETAINED;
+        const cutSpeed = player.maxSpeed * cutMult;
+        player.vel.x = Math.cos(angleRad) * cutSpeed;
+        player.vel.y = Math.sin(angleRad) * cutSpeed;
+
+        // Store the frame we broke so we can reaccelerate from it
+        player.breakFrame = state.steps;
+      }
+
+      if (player.breakFrame !== undefined) {
+        const framesSinceBreak = player.breakFrame
+          ? state.steps - player.breakFrame
+          : 0;
+        if (framesSinceBreak > 0 && framesSinceBreak <= REACCEL_DURATION) {
+          const t = framesSinceBreak / REACCEL_DURATION;
+          const currentMag = Math.sqrt(player.vel.x ** 2 + player.vel.y ** 2);
+          if (currentMag > 0) {
+            const targetMag =
+              player.maxSpeed *
+              (ROUTE_CUT_SPEED_RETAINED + (1 - ROUTE_CUT_SPEED_RETAINED) * t);
+            const scale = targetMag / currentMag;
+            player.vel.x *= scale;
+            player.vel.y *= scale;
+          }
+        }
       }
 
       // Phase 3: Optional stop for curl routes
@@ -956,9 +982,9 @@ function stepSimulation() {
           ) {
             // 2. Move straight UP or DOWN based on relative position
             // If passer is above the ball, move Up (-1). Otherwise, move Down (1).
-            const direction = runAngleY < 0 ? -1 : 1;
+            const direction = runAngleY > 0 ? -1 : 1;
 
-            player.vel.x = 0;
+            player.vel.x = -1;
             player.vel.y = direction * player.maxSpeed;
           } else {
             // Stop moving if the ball stops

@@ -34,6 +34,7 @@ interface PartialPlayer extends Entity {
 interface Player extends PartialPlayer {
   // For receivers
   path: Vector[];
+  breakFrame: number | null;
 
   // Coverer state
   assignedTarget: Player | null;

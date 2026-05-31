@@ -194,3 +194,7 @@ export function formatTime(seconds: number): string {
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
+
+export function isNoBreakRoute(route: Route): boolean {
+  return route.steps === 0 || route.breakAngle === 0;
+}
