@@ -33,7 +33,7 @@ import {
 } from "./util";
 
 const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
-const PAUSE_MS_AFTER_PLAY = 0;
+const PAUSE_MS_AFTER_PLAY = 1000;
 
 const createInitialState = (startingLOS?: number): State => {
   const LOS = startingLOS ?? START_DRIVE;
@@ -179,7 +179,7 @@ function triggerMove(entity: Ball | Player) {
 }
 
 /* Simulation constants */
-const SIM_SPEED = 1;
+const SIM_SPEED = 2;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
@@ -190,7 +190,7 @@ const MIN_BLOCK_DISTANCE = 120;
 
 /* Rusher constants */
 const RANDOM_JITTER = 0.1; // 10% randomness
-const INLINE_NUDGE = 2.2; // Nudges rusher if inline with blocker
+const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
 const STEER_FACTOR = 1.5; // Rusher C.O.D amount
 const LATERAL_STRENGTH = 1; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
@@ -212,16 +212,16 @@ const ROUTE_STEM_DRIFT = 0.06;
 const ROUTE_CUT_SPEED_RETAINED = 0.7;
 const REACCEL_DURATION = 30;
 
-const CATCH_SLOWDOWN_DURATION = 40;
+const CATCH_SLOWDOWN_DURATION = 45;
 const MIN_CATCH_SPEED_MULT = 0.8;
 
 /* Coverer constants */
-const START_DELAY = 10; // Snap read — shorter so defenders aren't frozen at the LOS
-const REACTION_DELAY = 40; // Route break reaction — longer lag on receiver changes
-const LEAD_FRAMES = 20;
+const START_DELAY = 5; // Snap read — shorter so defenders aren't frozen at the LOS
+const REACTION_DELAY = 47; // Route break reaction — longer lag on receiver changes
+const LEAD_FRAMES = 28;
 const ARRIVAL_RADIUS = 45;
 
-const ZONE_PULL = 0.7;
+const ZONE_PULL = 0.8;
 const MAN_CUSHION = 0; // px behind the receiver toward the ball
 
 /* Pursuer constants */
@@ -239,7 +239,7 @@ const PASSER_AVOID_STRENGTH = 1.7; // Strength of the "push" from rushers
 const BALL_GIVEN_STEPS = 250;
 const MIN_THROW_STEP = 75; // Never throw before this, regardless of condition
 const COMPLETION_RADIUS = 96;
-const EARLY_THROW_SEPARATION = 120; // px of separation that tempts an early throw
+const EARLY_THROW_SEPARATION = 115; // px of separation that tempts an early throw
 const EARLY_THROW_CHANCE = 0.8; // 40% chance to actually take the early throw
 const PANIC_RUSHER_DIST = 90; // px at which passer feels pressure to throw
 const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
