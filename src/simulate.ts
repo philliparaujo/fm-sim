@@ -246,6 +246,11 @@ const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
 
 const PASSER_HANDOFF_SEPARATION = 80;
 
+const QB_ACCURACY_SHORT = 0.9; // 95% completion chance under 15 yards
+const QB_ACCURACY_DEEP = 0.8; // 65% completion chance over 15 yards
+const QB_ACCURACY_PANIC_CHANGE = -0.1;
+const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
+
 /* Tackle / Power constants */
 const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
 const TACKLE_PRESSURE_THRESHOLD = 1.0; // Pressure at which tackle is guaranteed regardless of power
@@ -925,6 +930,7 @@ function stepAsPasser(player: Player) {
       : Infinity;
 
   let shouldThrow = false;
+  let panicThrow = false;
   if (state.steps >= BALL_GIVEN_STEPS) {
     shouldThrow = true;
   } else if (
@@ -938,15 +944,36 @@ function stepAsPasser(player: Player) {
     nearestRusherDist < PANIC_RUSHER_DIST
   ) {
     state.panicThrowDecided = true;
-    if (Math.random() < PANIC_THROW_CHANCE) shouldThrow = true;
+    if (Math.random() < PANIC_THROW_CHANCE) {
+      shouldThrow = true;
+      panicThrow = true;
+    }
   }
 
   if (!shouldThrow) return;
-  if (bestOption.nearestDefDist < COMPLETION_RADIUS) {
+
+  // Calculate air distance of the pass to determine accuracy needed
+  const throwDistance = dist(player.loc, bestOption.catcher.loc);
+  const isShortThrow = throwDistance < SHORT_THROW_THRESHOLD_PX;
+  let accuracyThreshold = isShortThrow ? QB_ACCURACY_SHORT : QB_ACCURACY_DEEP;
+  accuracyThreshold += panicThrow ? QB_ACCURACY_PANIC_CHANGE : 0;
+
+  // Accuracy Check: Even if open, the QB might miss
+  const isAccurate = Math.random() < accuracyThreshold;
+  console.log(
+    "isShort",
+    isShortThrow,
+    isAccurate,
+    bestOption.nearestDefDist < COMPLETION_RADIUS,
+  );
+
+  if (!isAccurate || bestOption.nearestDefDist < COMPLETION_RADIUS) {
+    // If inaccurate, or the defender is too close, it's incomplete
     state.ball.loc.x = state.scoreboard.LOS;
     state.ball.loc.y = H / 2;
     resetSimulation("incomplete");
   } else {
+    // Catch is successful
     state.ball.loc.x = bestOption.catcher.loc.x;
     state.ball.loc.y = bestOption.catcher.loc.y;
     state.ballGiven = true;
