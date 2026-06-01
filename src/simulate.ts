@@ -191,7 +191,7 @@ const MIN_BLOCK_DISTANCE = 120;
 /* Rusher constants */
 const RANDOM_JITTER = 0.1; // 10% randomness
 const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
-const STEER_FACTOR = 1.5; // Rusher C.O.D amount
+const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
 const LATERAL_STRENGTH = 1; // How wide the rusher oscillates
 const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 
@@ -202,6 +202,7 @@ const AVOID_STRENGTH = 2; // How aggressively the runner veers away
 
 const RUNNER_INITIAL_STEER_DURATION = 60;
 const ANGLE_ENDZONE_INTENT = 1;
+const RUNNER_STEER_FACTOR = 1.5;
 
 /* Receiver constants */
 const PIXELS_PER_STEP = 45;
@@ -468,8 +469,8 @@ function stepAsRusher(player: Player) {
   const targetVelY = (dirY + perpY * lateral) * player.maxSpeed;
 
   // Blend current velocity toward target (steering inertia)
-  player.vel.x += (targetVelX - player.vel.x) * STEER_FACTOR;
-  player.vel.y += (targetVelY - player.vel.y) * STEER_FACTOR;
+  player.vel.x += (targetVelX - player.vel.x) * RUSHER_STEER_FACTOR;
+  player.vel.y += (targetVelY - player.vel.y) * RUSHER_STEER_FACTOR;
 }
 
 function stepAsPursuer(player: Player) {
@@ -647,8 +648,8 @@ function stepAsBallCarrier(
   const targetVelX = (targetDir.x / finalMag) * currentMaxSpeed;
   const targetVelY = (targetDir.y / finalMag) * currentMaxSpeed;
 
-  player.vel.x += (targetVelX - player.vel.x) * STEER_FACTOR;
-  player.vel.y += (targetVelY - player.vel.y) * STEER_FACTOR;
+  player.vel.x += (targetVelX - player.vel.x) * RUNNER_STEER_FACTOR;
+  player.vel.y += (targetVelY - player.vel.y) * RUNNER_STEER_FACTOR;
 
   state.ball.vel.x = player.vel.x;
   state.ball.vel.y = player.vel.y;
