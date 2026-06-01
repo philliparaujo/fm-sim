@@ -33,7 +33,7 @@ import {
 } from "./util";
 
 const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
-const PAUSE_MS_AFTER_PLAY = 1000;
+const PAUSE_MS_AFTER_PLAY = 0;
 
 const createInitialState = (startingLOS?: number): State => {
   const LOS = startingLOS ?? START_DRIVE;
@@ -179,7 +179,7 @@ function triggerMove(entity: Ball | Player) {
 }
 
 /* Simulation constants */
-const SIM_SPEED = 2;
+const SIM_SPEED = 1;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
@@ -198,9 +198,9 @@ const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 /* Runner constants */
 const LOOK_AHEAD = 160; // How far ahead the runner scans for threats
 const INITIAL_STEER_AVOID_STRENGTH = 1.3;
-const AVOID_STRENGTH = 4.2; // How aggressively the runner veers away
+const AVOID_STRENGTH = 2; // How aggressively the runner veers away
 
-const RUNNER_INITIAL_STEER_DURATION = 70;
+const RUNNER_INITIAL_STEER_DURATION = 60;
 const ANGLE_ENDZONE_INTENT = 1;
 
 /* Receiver constants */
@@ -246,6 +246,14 @@ const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
 
 const PASSER_HANDOFF_SEPARATION = 80;
 
+/* Tackle / Power constants */
+const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
+const TACKLE_PRESSURE_THRESHOLD = 1.0; // Pressure at which tackle is guaranteed regardless of power
+const CARRIER_POWER = 0.5; // Ball carrier break-tackle strength (0–1). Tune per player later
+const DEFENDER_TACKLE = 0.5; // Defender tackle strength (0–1). Tune per player later
+const TACKLE_ATTEMPT_CHANCE = 0.3; // Per-frame probability of a tackle attempt while in contact
+const BROKEN_TACKLE_SPEED_BURST = 1.15; // Speed multiplier when carrier breaks a tackle
+
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
   const dx = b.loc.x - a.loc.x;
@@ -279,15 +287,20 @@ function resolveCollision(a: Player, b: Entity) {
         applyDamping(playerB, COVERER_DAMPING_FACTOR, RANDOM_JITTER);
       }
 
-      // End simulation if ball carrier gets tackled
-      if (playerB.role === "rusher" || playerB.role === "coverer") {
-        if (isCarryingBall(a, state.ball)) {
-          resetSimulation(a.role === "passer" ? "sack" : "tackle");
-        }
-      } else if (a.role === "rusher" || a.role === "coverer") {
-        if (isCarryingBall(playerB, state.ball)) {
-          resetSimulation(playerB.role === "passer" ? "sack" : "tackle");
-        }
+      // Contested tackle system
+      const defenderA = a.role === "rusher" || a.role === "coverer" ? a : null;
+      const defenderB =
+        playerB.role === "rusher" || playerB.role === "coverer"
+          ? playerB
+          : null;
+      const carrierA = isCarryingBall(a, state.ball) ? a : null;
+      const carrierB = isCarryingBall(playerB, state.ball) ? playerB : null;
+
+      const defender = defenderA ?? (carrierA ? defenderB : null);
+      const carrier = carrierA ?? (defenderB ? carrierB : null);
+
+      if (defender && carrier) {
+        attemptTackle(defender, carrier);
       }
 
       if (
@@ -325,6 +338,53 @@ function resolveCollision(a: Player, b: Entity) {
       a.loc.y -= moveY;
       playerB.loc.x += moveX;
       playerB.loc.y += moveY;
+    }
+  }
+}
+
+function attemptTackle(defender: Player, carrier: Player) {
+  // Passergets sacked immediately — no contest
+  if (carrier.role === "passer") {
+    resetSimulation("sack");
+    return;
+  }
+
+  carrier.contactedThisFrame = true; // mark contact before any pressure logic
+  carrier.tacklePressure =
+    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
+
+  // Accumulate tackle pressure while in contact
+  carrier.tacklePressure =
+    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
+
+  // Guaranteed bring-down once pressure maxes out
+  if (carrier.tacklePressure >= TACKLE_PRESSURE_THRESHOLD) {
+    resetSimulation("tackle");
+    return;
+  }
+
+  // Per-frame probabilistic contest
+  if (Math.random() < TACKLE_ATTEMPT_CHANCE) {
+    const defTackle = DEFENDER_TACKLE;
+    const carPower = CARRIER_POWER;
+    const tackleChance = defTackle / (defTackle + carPower);
+
+    if (Math.random() < tackleChance) {
+      resetSimulation("tackle");
+    } else {
+      // Broken tackle — shed the pressure and burst forward
+      carrier.tacklePressure = 0;
+      const currentMag = Math.sqrt(carrier.vel.x ** 2 + carrier.vel.y ** 2);
+      if (currentMag > 0) {
+        carrier.vel.x =
+          (carrier.vel.x / currentMag) *
+          carrier.maxSpeed *
+          BROKEN_TACKLE_SPEED_BURST;
+        carrier.vel.y =
+          (carrier.vel.y / currentMag) *
+          carrier.maxSpeed *
+          BROKEN_TACKLE_SPEED_BURST;
+      }
     }
   }
 }
@@ -899,6 +959,10 @@ function stepSimulation() {
   state.steps++;
 
   for (const player of state.players) {
+    player.contactedThisFrame = false;
+  }
+
+  for (const player of state.players) {
     switch (player.role) {
       // Finds nearest rusher and moves in line to block
       case "blocker": {
@@ -1002,6 +1066,12 @@ function stepSimulation() {
   for (let i = 0; i < state.players.length; i++) {
     for (let j = i + 1; j < state.players.length; j++) {
       resolveCollision(state.players[i], state.players[j]);
+    }
+  }
+
+  for (const player of state.players) {
+    if (isCarryingBall(player, state.ball) && !player.contactedThisFrame) {
+      player.tacklePressure = 0; // reset fully — they're in the clear
     }
   }
 

@@ -42,6 +42,10 @@ interface Player extends PartialPlayer {
   perceivedVel: Vector | null;
   reactionTimer: number;
   zone: Vector;
+
+  // Tackle state
+  tacklePressure?: number;
+  contactedThisFrame: boolean;
 }
 
 type Route = {

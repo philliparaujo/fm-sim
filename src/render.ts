@@ -19,6 +19,7 @@ const CATCHER_TRACE_ON = true;
 const COVERER_ZONE_ON = true;
 const RUNNER_PATH_ON = true;
 const PASSER_POCKET_ON = true;
+const RUNNER_LOOK_AHEAD_ON = false;
 
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
@@ -238,6 +239,22 @@ function drawPasserPocket(
 }
 
 function drawPlayer(player: Player) {
+  if (player.role === "runner" && RUNNER_LOOK_AHEAD_ON) {
+    ctx.beginPath();
+    ctx.arc(
+      player.loc.x,
+      player.loc.y,
+      220, // The fixed radius for the outline
+      0,
+      Math.PI * 2,
+    );
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; // Semi-transparent white
+    ctx.setLineDash([5, 5]); // Optional: makes it a dashed line
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash for the rest of the rendering
+  }
+
+  // 2. Draw the Player (Original logic)
   ctx.beginPath();
   ctx.ellipse(
     player.loc.x,

@@ -289,6 +289,8 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
       perceivedVel: null,
       reactionTimer: 0,
       zone: emptyVector(),
+
+      contactedThisFrame: false,
     };
     players.push(full);
   }
