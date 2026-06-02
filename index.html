@@ -6,6 +6,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>Football Sim</title>
 
+    <link rel="stylesheet" href="./styles/dashboard.css" />
     <link rel="stylesheet" href="./styles/scoreboard.css" />
     <script type="module" src="./src/app.ts"></script>
   </head>
@@ -43,6 +44,20 @@
       </div>
 
       <canvas id="field"></canvas>
+
+      <div id="speed-control">
+        <label for="sim-speed-slider"
+          >Speed: <span id="speed-label">1×</span></label
+        >
+        <input
+          type="range"
+          id="sim-speed-slider"
+          min="0"
+          max="6"
+          step="1"
+          value="2"
+        />
+      </div>
     </main>
   </body>
 </html>

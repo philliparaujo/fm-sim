@@ -180,7 +180,7 @@ function triggerMove(entity: Ball | Player) {
 }
 
 /* Simulation constants */
-export const SIM_SPEED = 1;
+export let simSpeed = 1;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
@@ -445,7 +445,7 @@ async function tick(currentTime: number) {
   const deltaTime = currentTime - lastTime;
   lastTime = currentTime;
 
-  timeAccumulator += deltaTime * SIM_SPEED;
+  timeAccumulator += deltaTime * simSpeed;
 
   while (timeAccumulator >= LOGIC_TICK_MS) {
     stepSimulation();
@@ -518,4 +518,8 @@ function resetSimulation(reason: PlayEndReason) {
   updateScoreboardUI(state.scoreboard);
 }
 
-export { resetSimulation, resolveCollision, state, tick };
+function setSimSpeed(value: number) {
+  simSpeed = value;
+}
+
+export { resetSimulation, resolveCollision, setSimSpeed, state, tick };

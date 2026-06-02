@@ -17,7 +17,7 @@ import {
   ROUTE_BREAK_ANGLE_JITTER,
   RUSHER_STEER_FACTOR,
   SHORT_THROW_THRESHOLD_PX,
-  SIM_SPEED,
+  simSpeed,
   TACKLE_PRESSURE_PER_FRAME,
 } from "./simulate";
 import { Player, State, Vector } from "./types";
@@ -460,7 +460,7 @@ function stepAsPlayer(player: Player, state: State) {
     // Slow, lateral drift
     const phaseOffset = state.players.indexOf(player) * 2.1;
     const lateral =
-      Math.sin(Date.now() * lateralFreq * 0.01 * SIM_SPEED + phaseOffset) *
+      Math.sin(Date.now() * lateralFreq * 0.01 * simSpeed + phaseOffset) *
       lateralStrength;
 
     // Apply velocity
@@ -528,7 +528,7 @@ function stepAsPlayer(player: Player, state: State) {
       const phaseOffset = state.players.indexOf(player) * 2.1;
       const lateral =
         Math.sin(
-          Date.now() * pursuitLateralFreq * 0.01 * SIM_SPEED + phaseOffset,
+          Date.now() * pursuitLateralFreq * 0.01 * simSpeed + phaseOffset,
         ) * pursuitLateralStrength;
 
       // 5. Apply the lateral drift to the final velocity calculation
