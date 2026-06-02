@@ -1,3 +1,4 @@
+import { defaultRatings } from "./ratings";
 import { H, W } from "./render";
 import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
 import { emptyVector, randomRoute, randomRunVector } from "./util";
@@ -125,7 +126,7 @@ function generateOffensePlaycall(
   const RB_Y = CENTER_Y;
   const RB_X = ball.loc.x - (5 / 100) * W;
   const RB_SPEED = 5.7;
-  const RB_VEL = isPassPlay ? emptyVector() : randomRunVector(RB_SPEED);
+  const RB_VEL = isPassPlay ? emptyVector() : randomRunVector();
   const RB_RADIUS = DEFAULT_RADIUS;
   players.push({
     type: "player",
@@ -266,6 +267,9 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
 
   for (const partial of partials) {
     const full: Player = {
+      // TEMP: Ratings
+      ratings: defaultRatings,
+
       // General properties determined on creation
       type: partial.type,
       loc: partial.loc,

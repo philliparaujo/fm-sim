@@ -5,6 +5,7 @@ import {
   generateOffensePlaycall,
 } from "./playbook";
 import { attemptTackle, stepAsPlayer } from "./playerBehavior";
+import { getConstants } from "./ratings";
 import { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
@@ -258,7 +259,8 @@ export const TACKLE_PRESSURE_THRESHOLD = 1.0; // Pressure at which tackle is gua
 export const CARRIER_POWER = 0.5; // Ball carrier break-tackle strength (0–1). Tune per player later
 export const DEFENDER_TACKLE = 0.5; // Defender tackle strength (0–1). Tune per player later
 export const TACKLE_ATTEMPT_CHANCE = 0.3; // Per-frame probability of a tackle attempt while in contact
-export const BROKEN_TACKLE_SPEED_BURST = 1.15; // Speed multiplier when carrier breaks a tackle
+export const BROKEN_TACKLE_SPEED_BURST = 0.7; // Speed multiplier when carrier breaks a tackle
+export const BROKEN_TACKLE_BURST_DURATION = 15;
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
@@ -275,63 +277,58 @@ function resolveCollision(a: Player, b: Entity) {
     } else if (b.type === "player") {
       const playerB = b as Player;
 
-      // Apply damping if rusher colliding with blocker
-      const currentDamping =
-        state.currentPlay.offense === "run"
-          ? RUN_BLOCK_DAMPING_FACTOR
-          : RUSHER_DAMPING_FACTOR;
+      const blocker =
+        a.role === "blocker" ? a : playerB.role === "blocker" ? playerB : null;
+      const passer =
+        a.role === "passer" ? a : playerB.role === "passer" ? playerB : null;
+      const runner =
+        a.role === "runner" ? a : playerB.role === "runner" ? playerB : null;
 
-      if (a.role === "rusher" && playerB.role === "blocker") {
-        applyDamping(a, currentDamping, RANDOM_JITTER);
-      } else if (playerB.role === "rusher" && a.role === "blocker") {
-        applyDamping(playerB, currentDamping, RANDOM_JITTER);
-      }
-
-      if (a.role === "coverer") {
-        applyDamping(a, COVERER_DAMPING_FACTOR, RANDOM_JITTER);
-      } else if (playerB.role === "coverer") {
-        applyDamping(playerB, COVERER_DAMPING_FACTOR, RANDOM_JITTER);
-      }
-
-      // Contested tackle system
-      const defenderA = a.role === "rusher" || a.role === "coverer" ? a : null;
-      const defenderB =
-        playerB.role === "rusher" || playerB.role === "coverer"
+      const defender =
+        a.role === "rusher" || a.role === "coverer"
+          ? a
+          : playerB.role === "rusher" || playerB.role === "coverer"
+            ? playerB
+            : null;
+      const carrier = isCarryingBall(a, state.ball)
+        ? a
+        : isCarryingBall(playerB, state.ball)
           ? playerB
           : null;
-      const carrierA = isCarryingBall(a, state.ball) ? a : null;
-      const carrierB = isCarryingBall(playerB, state.ball) ? playerB : null;
 
-      const defender = defenderA ?? (carrierA ? defenderB : null);
-      const carrier = carrierA ?? (defenderB ? carrierB : null);
+      // Initiate blocking
+      if (blocker && defender) {
+        const { rusherDampingFactor } = getConstants("passBlock", blocker);
+        const { runBlockDampingFactor, covererDampingFactor } = getConstants(
+          "runBlock",
+          blocker,
+        );
+        const { randomJitter } = getConstants("blockShedding", defender);
 
+        const damping =
+          defender.role === "rusher"
+            ? state.currentPlay.offense === "run"
+              ? runBlockDampingFactor
+              : rusherDampingFactor
+            : covererDampingFactor;
+        applyDamping(defender, damping, randomJitter);
+      }
+
+      // Initiate tackle attempt
       if (defender && carrier) {
         attemptTackle(defender, carrier);
       }
 
-      if (
-        a.role === "passer" &&
-        playerB.role === "runner" &&
-        !state.ballGiven
-      ) {
-        state.ball.loc.x = playerB.loc.x;
-        state.ball.loc.y = playerB.loc.y;
+      // Initiate handoff
+      if (passer && runner && !state.ballGiven) {
+        state.ball.loc.x = runner.loc.x;
+        state.ball.loc.y = runner.loc.y;
+        state.ball.vel.x = runner.vel.x;
+        state.ball.vel.y = runner.vel.y;
         state.ballGiven = true;
       }
 
-      if (
-        playerB.role === "passer" &&
-        a.role === "runner" &&
-        !state.ballGiven
-      ) {
-        state.ball.loc.x = a.loc.x;
-        state.ball.loc.y = a.loc.y;
-        state.ball.vel.x = a.vel.x;
-        state.ball.vel.y = a.vel.y;
-        state.ballGiven = true;
-      }
-
-      // Static resolution
+      // Resolve regular collision
       const overlap = minDistance - distance;
       const nx = dx / distance;
       const ny =

@@ -1,3 +1,5 @@
+import { Ratings } from "./ratings";
+
 type Vector = {
   x: number;
   y: number;
@@ -32,6 +34,8 @@ interface PartialPlayer extends Entity {
 }
 
 interface Player extends PartialPlayer {
+  ratings: Ratings;
+
   // For receivers
   path: Vector[];
   breakFrame: number | null;
@@ -45,6 +49,7 @@ interface Player extends PartialPlayer {
 
   // Tackle state
   tacklePressure?: number;
+  burstFrames?: number;
   contactedThisFrame: boolean;
 }
 

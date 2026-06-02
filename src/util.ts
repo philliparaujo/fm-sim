@@ -98,15 +98,15 @@ export function emptyVector(): Vector {
   return { x: 0, y: 0 };
 }
 
-export function randomRunVector(speed: number): Vector {
+export function randomRunVector(): Vector {
   // 1. Generate a random angle between +80 and -80
   const MAX_ANGLE_DEGRESS = 60;
   const maxAngleRad = (MAX_ANGLE_DEGRESS * Math.PI) / 180;
   const angle = (Math.random() * 2 - 1) * maxAngleRad;
 
   return {
-    x: Math.cos(angle) * speed,
-    y: Math.sin(angle) * speed,
+    x: Math.cos(angle),
+    y: Math.sin(angle),
   };
 }
 

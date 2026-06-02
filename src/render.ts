@@ -244,7 +244,7 @@ function drawPlayer(player: Player) {
     ctx.arc(
       player.loc.x,
       player.loc.y,
-      220, // The fixed radius for the outline
+      160, // The fixed radius for the outline
       0,
       Math.PI * 2,
     );
