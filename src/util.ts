@@ -27,6 +27,13 @@ export function dist(a: Vector, b: Vector): number {
   return length({ x: dx, y: dy });
 }
 
+export function diff(a: Vector, b: Vector): Vector {
+  return {
+    x: a.x - b.x,
+    y: a.y - b.y,
+  };
+}
+
 // Finds nearest point on line segment AB to point P
 export function closestPointOnSegment(p: Vector, a: Vector, b: Vector): Vector {
   const pax = p.x - a.x;
@@ -197,4 +204,8 @@ export function formatTime(seconds: number): string {
 
 export function isNoBreakRoute(route: Route): boolean {
   return route.steps === 0 || route.breakAngle === 0;
+}
+
+export function lerp(rating: number, min: number, max: number): number {
+  return min + (max - min) * rating;
 }
