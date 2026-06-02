@@ -3,13 +3,14 @@ import {
   ANGLE_ENDZONE_INTENT,
   ARRIVAL_RADIUS,
   BALL_GIVEN_STEPS,
+  BROKEN_TACKLE_SPEED_BURST,
+  CARRIER_POWER,
   CATCH_SLOWDOWN_DURATION,
   CATCHER_AVOID_STRENGTH,
   COMPLETION_RADIUS,
+  DEFENDER_TACKLE,
   EARLY_THROW_CHANCE,
   EARLY_THROW_SEPARATION,
-  getCatcherRouteVariance,
-  getCovererTargetCatcher,
   LATERAL_FREQ,
   LATERAL_STRENGTH,
   LEAD_FRAMES,
@@ -36,7 +37,9 @@ import {
   REACTION_DELAY,
   resetSimulation,
   resolveCollision,
+  ROUTE_BREAK_ANGLE_JITTER,
   ROUTE_CUT_SPEED_RETAINED,
+  ROUTE_STEM_DRIFT,
   RUNNER_AVOID_STRENGTH,
   RUNNER_EARLY_AVOID_STRENGTH,
   RUNNER_INITIAL_STEER_DURATION,
@@ -46,7 +49,9 @@ import {
   SIM_SPEED,
   START_DELAY,
   STOP_AFTER_BREAK_THRESHOLD,
-  updateCovererPerception,
+  TACKLE_ATTEMPT_CHANCE,
+  TACKLE_PRESSURE_PER_FRAME,
+  TACKLE_PRESSURE_THRESHOLD,
   ZONE_PULL,
 } from "./simulate";
 import { Player, State, Vector } from "./types";
@@ -511,7 +516,7 @@ function stepAsPlayer(player: Player, state: State) {
   function cover(player: Player) {
     // Update perceived catcher details after any start/reaction delays
     player.reactionTimer++;
-    const targetCatcher = getCovererTargetCatcher(player);
+    const targetCatcher = getCovererTargetCatcher(player, state.players);
     if (player.perceivedLoc === null) {
       if (player.reactionTimer < START_DELAY) {
         return;
@@ -573,4 +578,102 @@ function stepAsPlayer(player: Player, state: State) {
   }
 }
 
-export { stepAsPlayer };
+const catcherRouteVariance = new WeakMap<
+  Player,
+  { angleOffset: number; stemDrift: number }
+>();
+
+function getCatcherRouteVariance(player: Player) {
+  let variance = catcherRouteVariance.get(player);
+  if (!variance) {
+    variance = {
+      angleOffset: (Math.random() * 2 - 1) * ROUTE_BREAK_ANGLE_JITTER,
+      stemDrift: (Math.random() * 2 - 1) * ROUTE_STEM_DRIFT * player.maxSpeed,
+    };
+    catcherRouteVariance.set(player, variance);
+  }
+  return variance;
+}
+
+function attemptTackle(defender: Player, carrier: Player) {
+  // Passergets sacked immediately — no contest
+  if (carrier.role === "passer") {
+    resetSimulation("sack");
+    return;
+  }
+
+  carrier.contactedThisFrame = true; // mark contact before any pressure logic
+  carrier.tacklePressure =
+    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
+
+  // Accumulate tackle pressure while in contact
+  carrier.tacklePressure =
+    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
+
+  // Guaranteed bring-down once pressure maxes out
+  if (carrier.tacklePressure >= TACKLE_PRESSURE_THRESHOLD) {
+    resetSimulation("tackle");
+    return;
+  }
+
+  // Per-frame probabilistic contest
+  if (Math.random() < TACKLE_ATTEMPT_CHANCE) {
+    const defTackle = DEFENDER_TACKLE;
+    const carPower = CARRIER_POWER;
+    const tackleChance = defTackle / (defTackle + carPower);
+
+    if (Math.random() < tackleChance) {
+      resetSimulation("tackle");
+    } else {
+      // Broken tackle — shed the pressure and burst forward
+      carrier.tacklePressure = 0;
+      const currentMag = Math.sqrt(carrier.vel.x ** 2 + carrier.vel.y ** 2);
+      if (currentMag > 0) {
+        carrier.vel.x =
+          (carrier.vel.x / currentMag) *
+          carrier.maxSpeed *
+          BROKEN_TACKLE_SPEED_BURST;
+        carrier.vel.y =
+          (carrier.vel.y / currentMag) *
+          carrier.maxSpeed *
+          BROKEN_TACKLE_SPEED_BURST;
+      }
+    }
+  }
+}
+
+function getCovererTargetCatcher(
+  player: Player,
+  players: Player[],
+): Player | null {
+  if (player.coverage === "man") {
+    return player.assignedTarget || null;
+  }
+
+  if (player.coverage === "zone") {
+    if (!player.zone) {
+      console.warn("Zone defender has no zone?");
+      return null;
+    }
+    const catchers = players.filter((p) => p.role === "catcher");
+    if (catchers.length === 0) return null;
+    catchers.sort(
+      (a, b) => dist(player.zone!, a.loc) - dist(player.zone!, b.loc),
+    );
+    return catchers[0];
+  }
+
+  return null;
+}
+
+function updateCovererPerception(player: Player, targetCatcher: Player | null) {
+  if (targetCatcher) {
+    player.perceivedVel = { ...targetCatcher.vel };
+    player.perceivedLoc = { ...targetCatcher.loc };
+  } else {
+    player.perceivedLoc = { ...player.loc };
+    player.perceivedVel = { x: 0, y: 0 };
+  }
+}
+
+export { attemptTackle, stepAsPlayer };

@@ -4,7 +4,7 @@ import {
   generateDefensivePlaycall,
   generateOffensePlaycall,
 } from "./playbook";
-import { stepAsPlayer } from "./playerBehavior";
+import { attemptTackle, stepAsPlayer } from "./playerBehavior";
 import { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
@@ -208,8 +208,8 @@ export const RUNNER_STEER_FACTOR = 1.5;
 export const PIXELS_PER_STEP = 45;
 export const STOP_AFTER_BREAK_THRESHOLD = 10;
 export const CATCHER_AVOID_STRENGTH = 0.6;
-const ROUTE_BREAK_ANGLE_JITTER = 3;
-const ROUTE_STEM_DRIFT = 0.06;
+export const ROUTE_BREAK_ANGLE_JITTER = 3;
+export const ROUTE_STEM_DRIFT = 0.06;
 export const ROUTE_CUT_SPEED_RETAINED = 0.7;
 export const REACCELERATION_DURATION = 30;
 
@@ -253,12 +253,12 @@ export const QB_ACCURACY_PANIC_CHANGE = -0.1;
 export const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
 
 /* Tackle / Power constants */
-const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
-const TACKLE_PRESSURE_THRESHOLD = 1.0; // Pressure at which tackle is guaranteed regardless of power
-const CARRIER_POWER = 0.5; // Ball carrier break-tackle strength (0–1). Tune per player later
-const DEFENDER_TACKLE = 0.5; // Defender tackle strength (0–1). Tune per player later
-const TACKLE_ATTEMPT_CHANCE = 0.3; // Per-frame probability of a tackle attempt while in contact
-const BROKEN_TACKLE_SPEED_BURST = 1.15; // Speed multiplier when carrier breaks a tackle
+export const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
+export const TACKLE_PRESSURE_THRESHOLD = 1.0; // Pressure at which tackle is guaranteed regardless of power
+export const CARRIER_POWER = 0.5; // Ball carrier break-tackle strength (0–1). Tune per player later
+export const DEFENDER_TACKLE = 0.5; // Defender tackle strength (0–1). Tune per player later
+export const TACKLE_ATTEMPT_CHANCE = 0.3; // Per-frame probability of a tackle attempt while in contact
+export const BROKEN_TACKLE_SPEED_BURST = 1.15; // Speed multiplier when carrier breaks a tackle
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
@@ -348,53 +348,6 @@ function resolveCollision(a: Player, b: Entity) {
   }
 }
 
-function attemptTackle(defender: Player, carrier: Player) {
-  // Passergets sacked immediately — no contest
-  if (carrier.role === "passer") {
-    resetSimulation("sack");
-    return;
-  }
-
-  carrier.contactedThisFrame = true; // mark contact before any pressure logic
-  carrier.tacklePressure =
-    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
-
-  // Accumulate tackle pressure while in contact
-  carrier.tacklePressure =
-    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
-
-  // Guaranteed bring-down once pressure maxes out
-  if (carrier.tacklePressure >= TACKLE_PRESSURE_THRESHOLD) {
-    resetSimulation("tackle");
-    return;
-  }
-
-  // Per-frame probabilistic contest
-  if (Math.random() < TACKLE_ATTEMPT_CHANCE) {
-    const defTackle = DEFENDER_TACKLE;
-    const carPower = CARRIER_POWER;
-    const tackleChance = defTackle / (defTackle + carPower);
-
-    if (Math.random() < tackleChance) {
-      resetSimulation("tackle");
-    } else {
-      // Broken tackle — shed the pressure and burst forward
-      carrier.tacklePressure = 0;
-      const currentMag = Math.sqrt(carrier.vel.x ** 2 + carrier.vel.y ** 2);
-      if (currentMag > 0) {
-        carrier.vel.x =
-          (carrier.vel.x / currentMag) *
-          carrier.maxSpeed *
-          BROKEN_TACKLE_SPEED_BURST;
-        carrier.vel.y =
-          (carrier.vel.y / currentMag) *
-          carrier.maxSpeed *
-          BROKEN_TACKLE_SPEED_BURST;
-      }
-    }
-  }
-}
-
 function ballCollideBehavior(player: Player) {
   switch (player.role) {
     case "blocker": {
@@ -443,54 +396,6 @@ function ballCollideBehavior(player: Player) {
       break;
     }
   }
-}
-
-function getCovererTargetCatcher(player: Player): Player | null {
-  if (player.coverage === "man") {
-    return player.assignedTarget || null;
-  }
-
-  if (player.coverage === "zone") {
-    if (!player.zone) {
-      console.warn("Zone defender has no zone?");
-      return null;
-    }
-    const catchers = state.players.filter((p) => p.role === "catcher");
-    if (catchers.length === 0) return null;
-    catchers.sort(
-      (a, b) => dist(player.zone!, a.loc) - dist(player.zone!, b.loc),
-    );
-    return catchers[0];
-  }
-
-  return null;
-}
-
-function updateCovererPerception(player: Player, targetCatcher: Player | null) {
-  if (targetCatcher) {
-    player.perceivedVel = { ...targetCatcher.vel };
-    player.perceivedLoc = { ...targetCatcher.loc };
-  } else {
-    player.perceivedLoc = { ...player.loc };
-    player.perceivedVel = { x: 0, y: 0 };
-  }
-}
-
-const catcherRouteVariance = new WeakMap<
-  Player,
-  { angleOffset: number; stemDrift: number }
->();
-
-export function getCatcherRouteVariance(player: Player) {
-  let variance = catcherRouteVariance.get(player);
-  if (!variance) {
-    variance = {
-      angleOffset: (Math.random() * 2 - 1) * ROUTE_BREAK_ANGLE_JITTER,
-      stemDrift: (Math.random() * 2 - 1) * ROUTE_STEM_DRIFT * player.maxSpeed,
-    };
-    catcherRouteVariance.set(player, variance);
-  }
-  return variance;
 }
 
 function stepSimulation() {
@@ -616,11 +521,4 @@ function resetSimulation(reason: PlayEndReason) {
   updateScoreboardUI(state.scoreboard);
 }
 
-export {
-  getCovererTargetCatcher,
-  resetSimulation,
-  resolveCollision,
-  state,
-  tick,
-  updateCovererPerception,
-};
+export { resetSimulation, resolveCollision, state, tick };
