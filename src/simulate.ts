@@ -6,7 +6,7 @@ import {
 } from "./playbook";
 import { attemptTackle, stepAsPlayer } from "./playerBehavior";
 import { getConstants } from "./ratings";
-import { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W } from "./render";
+import { ENDZONE_W, render, TOTAL_H, TOTAL_W, W } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
 import {
@@ -16,18 +16,14 @@ import {
   Player,
   Scoreboard,
   State,
-  Vector,
 } from "./types";
 import {
   applyDamping,
-  closestPointOnSegment,
   computeFirstDownLine,
   dist,
   distanceAfterFirstDown,
   getPocket,
   isCarryingBall,
-  isNoBreakRoute,
-  length,
   updateDownAndDistance,
   vectorToString,
   yardsFromPixels,
@@ -87,6 +83,7 @@ let state: State = createInitialState();
 assignCoverageTargets();
 let simStartTime = performance.now();
 let runCount = 1;
+let onPlayResetCallback: (() => void) | null = null;
 
 function assignCoverageTargets() {
   const catchers = [...state.players].filter((p) => p.role === "catcher");
@@ -145,7 +142,11 @@ function triggerMove(entity: Ball | Player) {
   entity.loc.x += entity.vel.x;
   entity.loc.y += entity.vel.y;
 
-  const margin = entity.radius / 2;
+  const radius =
+    entity.type === "ball"
+      ? entity.radius
+      : getConstants("size", entity).radius;
+  const margin = radius / 2;
   const leftBound = margin;
   const rightEndzone = W + ENDZONE_W;
   const rightBound = TOTAL_W - margin;
@@ -184,81 +185,33 @@ export let simSpeed = 1;
 const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
-const RUSHER_DAMPING_FACTOR = 0.77; // Reduce velocity to 85%
-const COVERER_DAMPING_FACTOR = 0.6;
-const RUN_BLOCK_DAMPING_FACTOR = 0.45;
 export const MIN_BLOCK_DISTANCE = 120;
 
 /* Rusher constants */
-const RANDOM_JITTER = 0.1; // 10% randomness
 const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
 export const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
-export const LATERAL_STRENGTH = 1; // How wide the rusher oscillates
-export const LATERAL_FREQ = 0.03; // How fast the rusher oscillates
 
 /* Runner constants */
-export const LOOK_AHEAD = 160; // How far ahead the runner scans for threats
-export const RUNNER_EARLY_AVOID_STRENGTH = 1.3;
-export const RUNNER_AVOID_STRENGTH = 2; // How aggressively the runner veers away
-
-export const RUNNER_INITIAL_STEER_DURATION = 60;
 export const ANGLE_ENDZONE_INTENT = 1;
-export const RUNNER_STEER_FACTOR = 1.5;
 
 /* Receiver constants */
 export const PIXELS_PER_STEP = 45;
-export const STOP_AFTER_BREAK_THRESHOLD = 10;
-export const CATCHER_AVOID_STRENGTH = 0.6;
 export const ROUTE_BREAK_ANGLE_JITTER = 3;
-export const ROUTE_STEM_DRIFT = 0.06;
-export const ROUTE_CUT_SPEED_RETAINED = 0.7;
-export const REACCELERATION_DURATION = 30;
-
-export const CATCH_SLOWDOWN_DURATION = 45;
-export const MIN_CATCH_SPEED_MULT = 0.8;
 
 /* Coverer constants */
-export const START_DELAY = 5; // Snap read — shorter so defenders aren't frozen at the LOS
-export const REACTION_DELAY = 47; // Route break reaction — longer lag on receiver changes
 export const LEAD_FRAMES = 28;
 export const ARRIVAL_RADIUS = 45;
 
-export const ZONE_PULL = 0.8;
-export const MAN_CUSHION = 0; // px behind the receiver toward the ball
-
 /* Pursuer constants */
-export const PREDICTION_FRAMES = 30;
 export const PURSUER_STEER_FACTOR = 0.5;
-export const PURSUER_HOMING_FACTOR = 0.1; // Blends the intercept with the direct chase
-export const PURSUER_CONTAIN_OFFSET = 10; // 90 if using 3x scale
 
 /* Passer constants */
-export const PASSER_STEER_FACTOR = 0.2;
-
-export const PASSER_LOOK_AHEAD = 240; // Radius where passer starts noticing rushers
-export const PASSER_AVOID_STRENGTH = 1.7; // Strength of the "push" from rushers
-
 export const BALL_GIVEN_STEPS = 250;
-export const MIN_THROW_STEP = 75; // Never throw before this, regardless of condition
-export const COMPLETION_RADIUS = 96;
-export const EARLY_THROW_SEPARATION = 115; // px of separation that tempts an early throw
-export const EARLY_THROW_CHANCE = 0.8; // 40% chance to actually take the early throw
-export const PANIC_RUSHER_DIST = 90; // px at which passer feels pressure to throw
-export const PANIC_THROW_CHANCE = 0.82; // 55% chance to throw under pressure
-
 export const PASSER_HANDOFF_SEPARATION = 80;
-
-export const QB_ACCURACY_SHORT = 0.9; // 95% completion chance under 15 yards
-export const QB_ACCURACY_DEEP = 0.8; // 65% completion chance over 15 yards
-export const QB_ACCURACY_PANIC_CHANGE = -0.1;
 export const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
 
 /* Tackle / Power constants */
 export const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
-export const TACKLE_PRESSURE_THRESHOLD = 1.0; // Pressure at which tackle is guaranteed regardless of power
-export const CARRIER_POWER = 0.5; // Ball carrier break-tackle strength (0–1). Tune per player later
-export const DEFENDER_TACKLE = 0.5; // Defender tackle strength (0–1). Tune per player later
-export const TACKLE_ATTEMPT_CHANCE = 0.3; // Per-frame probability of a tackle attempt while in contact
 export const BROKEN_TACKLE_SPEED_BURST = 0.7; // Speed multiplier when carrier breaks a tackle
 export const BROKEN_TACKLE_BURST_DURATION = 15;
 
@@ -267,7 +220,12 @@ function resolveCollision(a: Player, b: Entity) {
   const dx = b.loc.x - a.loc.x;
   const dy = b.loc.y - a.loc.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  const minDistance = a.radius + b.radius;
+  const aRadius = getConstants("size", a).radius;
+  const bRadius =
+    b.type === "ball"
+      ? (b as Ball).radius
+      : getConstants("size", b as Player).radius;
+  const minDistance = aRadius + bRadius;
 
   if (distance < minDistance) {
     if (b.type === "ball") {
@@ -516,10 +474,22 @@ function resetSimulation(reason: PlayEndReason) {
 
   // Draw scoreboard
   updateScoreboardUI(state.scoreboard);
+  onPlayResetCallback?.();
 }
 
 function setSimSpeed(value: number) {
   simSpeed = value;
 }
 
-export { resetSimulation, resolveCollision, setSimSpeed, state, tick };
+function onPlayReset(cb: () => void) {
+  onPlayResetCallback = cb;
+}
+
+export {
+  onPlayReset,
+  resetSimulation,
+  resolveCollision,
+  setSimSpeed,
+  state,
+  tick,
+};

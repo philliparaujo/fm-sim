@@ -1,4 +1,4 @@
-import { defaultRatings } from "./ratings";
+import { Attribute, defaultRatings, Ratings } from "./ratings";
 import { H, W } from "./render";
 import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
 import { emptyVector, randomRoute, randomRunVector } from "./util";
@@ -29,6 +29,26 @@ function generateBall(LOS: number): Ball {
   };
 }
 
+let offenseLabelIndex = 0;
+let defenseLabelIndex = 0;
+const OFFENSIVE_LABELS = ["LT", "C", "RT", "QB", "XR", "ZR", "TE", "RB"];
+const DEFENSIVE_LABELS = ["LE", "DT", "RE", "CB", "NB", "LB", "SS", "FS"];
+function nextOffenseLabel(): string {
+  return OFFENSIVE_LABELS[offenseLabelIndex++ % OFFENSIVE_LABELS.length];
+}
+function nextDefenseLabel(): string {
+  return DEFENSIVE_LABELS[defenseLabelIndex++ % DEFENSIVE_LABELS.length];
+}
+
+const savedRatings: Record<string, Partial<Ratings>> = {};
+function saveRating(label: string, attr: Attribute, value: number) {
+  if (!savedRatings[label]) savedRatings[label] = {};
+  savedRatings[label][attr] = value;
+}
+function getSavedRatings(label: string): Ratings {
+  return { ...defaultRatings, ...savedRatings[label] };
+}
+
 function generateOffensePlaycall(
   LOS: number,
   ball: Ball,
@@ -39,6 +59,7 @@ function generateOffensePlaycall(
   runAngle?: Vector;
   routes: Route[];
 } {
+  offenseLabelIndex = 0;
   const isPassPlay = Math.random() < PASS_PERCENT;
   const players: PartialPlayer[] = [];
 
@@ -55,12 +76,11 @@ function generateOffensePlaycall(
     players.push({
       type: "player",
       color: teamColor,
-      maxSpeed: BLOCKER_SPEED,
+      label: nextOffenseLabel(),
       position: "offense",
       role: "blocker",
       loc: { x: BLOCKER_X, y: BLOCKER_CENTER_Y + (i - 1) * BLOCKER_SPREAD_Y },
       vel: emptyVector(),
-      radius: BLOCKER_RADIUS,
     });
   }
 
@@ -69,13 +89,12 @@ function generateOffensePlaycall(
   const QB_RADIUS = DEFAULT_RADIUS;
   players.push({
     type: "player",
-    color: "orange",
-    maxSpeed: QB_SPEED,
+    color: teamColor,
+    label: nextOffenseLabel(),
     position: "offense",
     role: "passer",
     loc: { x: ball.loc.x, y: ball.loc.y },
     vel: emptyVector(),
-    radius: QB_RADIUS,
   });
 
   // Add one receiver on each side
@@ -87,7 +106,7 @@ function generateOffensePlaycall(
     players.push({
       type: "player",
       color: teamColor,
-      maxSpeed: OUTSIDE_RECEIVER_SPEED,
+      label: nextOffenseLabel(),
       position: "offense",
       role: "catcher",
       loc: {
@@ -95,7 +114,6 @@ function generateOffensePlaycall(
         y: CENTER_Y + (2 * i - 1) * OUTSIDE_RECEIVER_SPREAD_Y,
       },
       vel: emptyVector(),
-      radius: OUTSIDE_RECEIVER_RADIUS,
       route: randomRoute(),
     });
   }
@@ -112,12 +130,11 @@ function generateOffensePlaycall(
   players.push({
     type: "player",
     color: teamColor,
-    maxSpeed: SLOT_RECEIVER_SPEED,
+    label: nextOffenseLabel(),
     position: "offense",
     role: "catcher",
     loc: { x: SLOT_RECEIVER_X, y: SLOT_RECEIVER_Y },
     vel: emptyVector(),
-    radius: SLOT_RECEIVER_RADIUS,
     route: randomRoute(),
   });
 
@@ -131,13 +148,12 @@ function generateOffensePlaycall(
   players.push({
     type: "player",
     color: teamColor,
-    maxSpeed: RB_SPEED,
+    label: nextOffenseLabel(),
     position: "offense",
     role: RB_ROLE,
     loc: { x: RB_X, y: RB_Y },
     vel: emptyVector(),
     runAngle: RB_VEL,
-    radius: RB_RADIUS,
   });
 
   return {
@@ -158,6 +174,7 @@ function generateDefensivePlaycall(
   players: PartialPlayer[];
   coverage: "man" | "manBlitz" | "zone" | "zoneBlitz";
 } {
+  defenseLabelIndex = 0;
   const players: PartialPlayer[] = [];
 
   const CENTER_Y = H / 2;
@@ -173,12 +190,11 @@ function generateDefensivePlaycall(
     players.push({
       type: "player",
       color: teamColor,
-      maxSpeed: RUSHER_SPEED,
+      label: nextDefenseLabel(),
       position: "defense",
       role: "rusher",
       loc: { x: RUSHER_X, y: RUSHER_CENTER_Y + (i - 1) * RUSHER_SPREAD_Y },
       vel: emptyVector(),
-      radius: RUSHER_RADIUS,
     });
   }
 
@@ -206,12 +222,11 @@ function generateDefensivePlaycall(
     players.push({
       type: "player",
       color: teamColor,
-      maxSpeed: COVERER_SPEED,
+      label: nextDefenseLabel(),
       position: "defense",
       role: "coverer",
       loc: { x: COVERER_X, y: yPos },
       vel: { x: 0.5, y: 0 },
-      radius: COVERER_RADIUS,
       coverage: COVERER_COVERAGE,
     });
   });
@@ -226,13 +241,12 @@ function generateDefensivePlaycall(
   const LB_RADIUS = DEFAULT_RADIUS;
   players.push({
     type: "player",
-    color: "lightblue",
-    maxSpeed: LB_SPEED,
+    color: teamColor,
+    label: nextDefenseLabel(),
     position: "defense",
     role: LB_ROLE,
     loc: { x: LB_X, y: LB_Y },
     vel: emptyVector(),
-    radius: LB_RADIUS,
     coverage: "zone",
   });
 
@@ -242,13 +256,12 @@ function generateDefensivePlaycall(
   const S_RADIUS = DEFAULT_RADIUS;
   players.push({
     type: "player",
-    color: "lightblue",
-    maxSpeed: S_SPEED,
+    color: teamColor,
+    label: nextDefenseLabel(),
     position: "defense",
     role: "coverer",
     loc: { x: S_X, y: S_Y },
     vel: emptyVector(),
-    radius: S_RADIUS,
     coverage: "zone",
   });
 
@@ -268,15 +281,14 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
   for (const partial of partials) {
     const full: Player = {
       // TEMP: Ratings
-      ratings: defaultRatings,
+      ratings: getSavedRatings(partial.label),
 
       // General properties determined on creation
       type: partial.type,
       loc: partial.loc,
       vel: partial.vel,
-      radius: partial.radius,
       color: partial.color,
-      maxSpeed: partial.maxSpeed,
+      label: partial.label,
       position: partial.position,
       role: partial.role,
 
@@ -307,4 +319,5 @@ export {
   generateBall,
   generateDefensivePlaycall,
   generateOffensePlaycall,
+  saveRating,
 };

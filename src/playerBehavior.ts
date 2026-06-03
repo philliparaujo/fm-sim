@@ -6,7 +6,6 @@ import {
   BALL_GIVEN_STEPS,
   BROKEN_TACKLE_BURST_DURATION,
   BROKEN_TACKLE_SPEED_BURST,
-  CATCHER_AVOID_STRENGTH,
   LEAD_FRAMES,
   MIN_BLOCK_DISTANCE,
   PASSER_HANDOFF_SEPARATION,
@@ -34,6 +33,11 @@ import {
 
 function stepAsPlayer(player: Player, state: State) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
+  const { maxSpeed } = getConstants("speed", player);
+  const { avoidStrength, steerAvoidStrength, steerDuration } = getConstants(
+    "vision",
+    player,
+  );
 
   switch (player.role) {
     case "blocker": {
@@ -45,10 +49,6 @@ function stepAsPlayer(player: Player, state: State) {
       break;
     }
     case "runner": {
-      const { avoidStrength, steerAvoidStrength, steerDuration } = getConstants(
-        "vision",
-        player,
-      );
       const isEarlyInRun =
         state.steps - state.ballGivenAtStep < steerDuration && player.runAngle;
 
@@ -69,7 +69,7 @@ function stepAsPlayer(player: Player, state: State) {
       } else if (!isCarryingBall(player, state.ball)) {
         runRoute(player);
       } else {
-        runTowardsEndzone(player, CATCHER_AVOID_STRENGTH);
+        runTowardsEndzone(player, avoidStrength);
       }
       break;
     }
@@ -143,8 +143,8 @@ function stepAsPlayer(player: Player, state: State) {
           interceptPoint.y - player.loc.y,
           interceptPoint.x - player.loc.x,
         );
-        player.vel.x = Math.cos(angle) * player.maxSpeed;
-        player.vel.y = Math.sin(angle) * player.maxSpeed;
+        player.vel.x = Math.cos(angle) * maxSpeed;
+        player.vel.y = Math.sin(angle) * maxSpeed;
       }
     }
   }
@@ -152,8 +152,8 @@ function stepAsPlayer(player: Player, state: State) {
   function runTowardsBall(player: Player) {
     const toBall = diff(state.ball.loc, player.loc);
     const d = length(toBall);
-    player.vel.x = (toBall.x / d) * player.maxSpeed;
-    player.vel.y = (toBall.y / d) * player.maxSpeed;
+    player.vel.x = (toBall.x / d) * maxSpeed;
+    player.vel.y = (toBall.y / d) * maxSpeed;
   }
 
   function runTowardsEndzone(
@@ -189,26 +189,26 @@ function stepAsPlayer(player: Player, state: State) {
 
     // If this player recently caught a ball, slow them down
     const framesSinceCatch = state.steps - state.ballGivenAtStep;
-    let currentMaxSpeed = player.maxSpeed;
+    let currentSpeed = maxSpeed;
     if (
       framesSinceCatch < catchSlowdownDuration &&
       isCarryingBall(player, state.ball)
     ) {
       const progress = framesSinceCatch / catchSlowdownDuration;
       const multiplier = lerp(progress, minCatchSpeedMultiplier, 1);
-      currentMaxSpeed *= multiplier;
+      currentSpeed *= multiplier;
     }
 
     // If this player recently broke a tackle, change their velocity
     if (player.burstFrames && player.burstFrames > 0) {
-      currentMaxSpeed *= BROKEN_TACKLE_SPEED_BURST;
+      currentSpeed *= BROKEN_TACKLE_SPEED_BURST;
       player.burstFrames--;
     }
 
     // Apply this direction to the runner's velocity
     const d = length(targetDir);
-    const targetVelX = (targetDir.x / d) * currentMaxSpeed;
-    const targetVelY = (targetDir.y / d) * currentMaxSpeed;
+    const targetVelX = (targetDir.x / d) * currentSpeed;
+    const targetVelY = (targetDir.y / d) * currentSpeed;
     player.vel.x += (targetVelX - player.vel.x) * runnerSteerFactor;
     player.vel.y += (targetVelY - player.vel.y) * runnerSteerFactor;
     state.ball.vel.x = player.vel.x;
@@ -230,12 +230,12 @@ function stepAsPlayer(player: Player, state: State) {
 
     const { angleOffset, stemDrift } = getCatcherRouteVariance(player);
     const routeBreakThreshold = Math.floor(
-      (player.route.steps * PIXELS_PER_STEP) / player.maxSpeed,
+      (player.route.steps * PIXELS_PER_STEP) / maxSpeed,
     );
 
     if (state.steps < routeBreakThreshold) {
       // 1) Route stem
-      player.vel.x = player.maxSpeed;
+      player.vel.x = maxSpeed;
       player.vel.y = stemDrift;
     } else {
       // 2) Route break
@@ -246,7 +246,7 @@ function stepAsPlayer(player: Player, state: State) {
           (player.loc.y < H / 2 ? 1 : -1) *
           (Math.PI / 180);
         const newSpeed =
-          player.maxSpeed *
+          maxSpeed *
           (isNoBreakRoute(player.route) ? 1.0 : routeCutSpeedRetained);
         player.vel.x = Math.cos(newAngleRad) * newSpeed;
         player.vel.y = Math.sin(newAngleRad) * newSpeed;
@@ -267,7 +267,7 @@ function stepAsPlayer(player: Player, state: State) {
           const d = length(player.vel);
           if (d > 0) {
             const scale =
-              (player.maxSpeed * lerp(progress, routeCutSpeedRetained, 1)) / d;
+              (maxSpeed * lerp(progress, routeCutSpeedRetained, 1)) / d;
             player.vel.x *= scale;
             player.vel.y *= scale;
           }
@@ -328,8 +328,8 @@ function stepAsPlayer(player: Player, state: State) {
     player.vel.x *= 0.92;
     player.vel.y *= 0.92;
     if (mag > 0.05) {
-      const targetVelX = (targetDir.x / mag) * player.maxSpeed;
-      const targetVelY = (targetDir.y / mag) * player.maxSpeed;
+      const targetVelX = (targetDir.x / mag) * maxSpeed;
+      const targetVelY = (targetDir.y / mag) * maxSpeed;
 
       const velDiff =
         Math.abs(targetVelX - player.vel.x) +
@@ -437,7 +437,7 @@ function stepAsPlayer(player: Player, state: State) {
       // Move out of the way
       const direction = runAngleY > 0 ? -1 : 1;
       player.vel.x = -1;
-      player.vel.y = direction * player.maxSpeed;
+      player.vel.y = direction * maxSpeed;
     } else {
       // Stop moving if out of the way
       player.vel.x = 0;
@@ -464,8 +464,8 @@ function stepAsPlayer(player: Player, state: State) {
       lateralStrength;
 
     // Apply velocity
-    const targetVelX = (dirX + perpX * lateral) * player.maxSpeed;
-    const targetVelY = (dirY + perpY * lateral) * player.maxSpeed;
+    const targetVelX = (dirX + perpX * lateral) * maxSpeed;
+    const targetVelY = (dirY + perpY * lateral) * maxSpeed;
 
     player.vel.x += (targetVelX - player.vel.x) * RUSHER_STEER_FACTOR;
     player.vel.y += (targetVelY - player.vel.y) * RUSHER_STEER_FACTOR;
@@ -482,7 +482,7 @@ function stepAsPlayer(player: Player, state: State) {
     } = getConstants("pursuit", player);
 
     const toBall = dist(player.loc, state.ball.loc);
-    const timeToReach = toBall / player.maxSpeed;
+    const timeToReach = toBall / maxSpeed;
 
     // Project where the ball will be
     const totalLookAhead = timeToReach + predictionFrames;
@@ -532,8 +532,8 @@ function stepAsPlayer(player: Player, state: State) {
         ) * pursuitLateralStrength;
 
       // 5. Apply the lateral drift to the final velocity calculation
-      const targetVelX = (dirX + perpX * lateral) * player.maxSpeed;
-      const targetVelY = (dirY + perpY * lateral) * player.maxSpeed;
+      const targetVelX = (dirX + perpX * lateral) * maxSpeed;
+      const targetVelY = (dirY + perpY * lateral) * maxSpeed;
 
       player.vel.x += (targetVelX - player.vel.x) * PURSUER_STEER_FACTOR;
       player.vel.y += (targetVelY - player.vel.y) * PURSUER_STEER_FACTOR;
@@ -604,8 +604,8 @@ function stepAsPlayer(player: Player, state: State) {
       targetPoint.y - player.loc.y,
       targetPoint.x - player.loc.x,
     );
-    player.vel.x = Math.cos(angle) * player.maxSpeed * speedScale;
-    player.vel.y = Math.sin(angle) * player.maxSpeed * speedScale;
+    player.vel.x = Math.cos(angle) * maxSpeed * speedScale;
+    player.vel.y = Math.sin(angle) * maxSpeed * speedScale;
   }
 }
 
@@ -616,12 +616,13 @@ const catcherRouteVariance = new WeakMap<
 
 function getCatcherRouteVariance(player: Player) {
   const { routeStemDrift } = getConstants("routeRunning", player);
+  const { maxSpeed } = getConstants("speed", player);
 
   let variance = catcherRouteVariance.get(player);
   if (!variance) {
     variance = {
       angleOffset: (Math.random() * 2 - 1) * ROUTE_BREAK_ANGLE_JITTER,
-      stemDrift: (Math.random() * 2 - 1) * routeStemDrift * player.maxSpeed,
+      stemDrift: (Math.random() * 2 - 1) * routeStemDrift * maxSpeed,
     };
     catcherRouteVariance.set(player, variance);
   }
@@ -633,6 +634,8 @@ function attemptTackle(defender: Player, carrier: Player) {
     "power",
     carrier,
   );
+  const { maxSpeed } = getConstants("speed", carrier);
+
   const { defenderTackle, tackleAttemptChance } = getConstants(
     "tackling",
     defender,
@@ -671,13 +674,9 @@ function attemptTackle(defender: Player, carrier: Player) {
       const currentMag = Math.sqrt(carrier.vel.x ** 2 + carrier.vel.y ** 2);
       if (currentMag > 0) {
         carrier.vel.x =
-          (carrier.vel.x / currentMag) *
-          carrier.maxSpeed *
-          BROKEN_TACKLE_SPEED_BURST;
+          (carrier.vel.x / currentMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
         carrier.vel.y =
-          (carrier.vel.y / currentMag) *
-          carrier.maxSpeed *
-          BROKEN_TACKLE_SPEED_BURST;
+          (carrier.vel.y / currentMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
       }
     }
   }

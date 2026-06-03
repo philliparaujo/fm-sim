@@ -9,13 +9,13 @@ interface Entity {
   type: "ball" | "player";
   loc: Vector;
   vel: Vector;
-  radius: number;
 }
 
 interface Ball extends Entity {
   type: "ball";
   strokeWidth: number;
   laceWidth: number;
+  radius: number;
 }
 
 type Position = "offense" | "defense";
@@ -24,7 +24,7 @@ type Role = "blocker" | "runner" | "catcher" | "passer" | "rusher" | "coverer";
 interface PartialPlayer extends Entity {
   type: "player";
   color: string;
-  maxSpeed: number;
+  label: string;
   position: Position;
   role: Role;
 

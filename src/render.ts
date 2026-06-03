@@ -1,3 +1,4 @@
+import { getConstants } from "./ratings";
 import { state } from "./simulate";
 import { Player, Scoreboard } from "./types";
 
@@ -239,6 +240,8 @@ function drawPasserPocket(
 }
 
 function drawPlayer(player: Player) {
+  const { radius } = getConstants("size", player);
+
   if (player.role === "runner" && RUNNER_LOOK_AHEAD_ON) {
     ctx.beginPath();
     ctx.arc(
@@ -256,17 +259,21 @@ function drawPlayer(player: Player) {
 
   // 2. Draw the Player (Original logic)
   ctx.beginPath();
-  ctx.ellipse(
-    player.loc.x,
-    player.loc.y,
-    player.radius,
-    player.radius,
-    0,
-    0,
-    Math.PI * 2,
-  );
+  ctx.ellipse(player.loc.x, player.loc.y, radius, radius, 0, 0, Math.PI * 2);
   ctx.fillStyle = player.color;
   ctx.fill();
+
+  if (player.label) {
+    ctx.fillStyle = "#FFFFFF";
+
+    const fontSize = Math.floor(radius * 0.7);
+    ctx.font = `bold ${fontSize}px sans-serif`;
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillText(player.label.substring(0, 2), player.loc.x, player.loc.y);
+  }
 }
 
 /* High-level rendering functions */
