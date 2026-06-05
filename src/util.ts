@@ -1,5 +1,5 @@
 import { ENDZONE_W, H, TOTAL_H, W } from "./render";
-import { Scoreboard } from "./types";
+import { Scoreboard, Stats } from "./types";
 import {
   Ball,
   cornerRoute,
@@ -208,4 +208,17 @@ export function isNoBreakRoute(route: Route): boolean {
 
 export function lerp(rating: number, min: number, max: number): number {
   return min + (max - min) * rating;
+}
+
+export function numPlays(stats: Stats) {
+  return (
+    stats.coverage.man.count +
+    stats.coverage.manBlitz.count +
+    stats.coverage.zone.count +
+    stats.coverage.zoneBlitz.count
+  );
+}
+
+export function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }

@@ -9,9 +9,12 @@ import {
   OffensivePlayType,
   outRoute,
   PlaycallCoverageKey,
-  PlaycallCoverageStats,
+  PlayCallCoverageStats,
+  PlaycallCoverageYards,
   PlayEndReason,
   postRoute,
+  QBStats,
+  RBStats,
   Role,
   Route,
   slantRoute,
@@ -19,6 +22,7 @@ import {
   streakRoute,
   Vector,
 } from "./types";
+import { round2 } from "./util";
 
 const ROUTE_NAMES: [string, Route][] = [
   ["streak", streakRoute],
@@ -34,7 +38,7 @@ const ROUTE_NAMES: [string, Route][] = [
 
 const EMPTY_COUNT_YARDS = { count: 0, yards: 0, avg: 0 };
 
-function emptyPlaycallCoverageStats(): PlaycallCoverageStats {
+function emptyPlaycallCoverageYards(): PlaycallCoverageYards {
   return {
     runMan: { ...EMPTY_COUNT_YARDS },
     runManBlitz: { ...EMPTY_COUNT_YARDS },
@@ -45,6 +49,35 @@ function emptyPlaycallCoverageStats(): PlaycallCoverageStats {
     passZone: { ...EMPTY_COUNT_YARDS },
     passZoneBlitz: { ...EMPTY_COUNT_YARDS },
   };
+}
+
+function emptyPlaycallCoverageStats(): PlayCallCoverageStats {
+  return {
+    runMan: { ...emptyRBStats() },
+    runManBlitz: { ...emptyRBStats() },
+    runZone: { ...emptyRBStats() },
+    runZoneBlitz: { ...emptyRBStats() },
+    passMan: { ...emptyQBStats() },
+    passManBlitz: { ...emptyQBStats() },
+    passZone: { ...emptyQBStats() },
+    passZoneBlitz: { ...emptyQBStats() },
+  };
+}
+
+function emptyQBStats(): QBStats {
+  return {
+    attempts: 0,
+    completions: 0,
+    yards: 0,
+    ypa: 0,
+    cmp: 0,
+    tds: 0,
+    sacks: 0,
+  };
+}
+
+function emptyRBStats(): RBStats {
+  return { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 };
 }
 
 export function playcallCoverageKey(
@@ -60,17 +93,6 @@ export function playcallCoverageKey(
   return `${offense}${suffix[defense]}` as PlaycallCoverageKey;
 }
 
-function clonePlaycallCoverageStats(
-  stats: PlaycallCoverageStats,
-): PlaycallCoverageStats {
-  return Object.fromEntries(
-    (Object.keys(stats) as PlaycallCoverageKey[]).map((key) => [
-      key,
-      { ...stats[key] },
-    ]),
-  ) as PlaycallCoverageStats;
-}
-
 export function createEmptyStats(): Stats {
   return {
     playcalls: {
@@ -83,9 +105,10 @@ export function createEmptyStats(): Stats {
       zone: { ...EMPTY_COUNT_YARDS },
       zoneBlitz: { ...EMPTY_COUNT_YARDS },
     },
-    playcallCoverage: emptyPlaycallCoverageStats(),
-    qb: { attempts: 0, completions: 0, yards: 0, ypa: 0, tds: 0, sacks: 0 },
-    rb: { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 },
+    playcallCoverage: emptyPlaycallCoverageYards(),
+    playcallCoverageStats: emptyPlaycallCoverageStats(),
+    qb: { ...emptyQBStats() },
+    rb: { ...emptyRBStats() },
     runAngles: {},
     routes: {},
   };
@@ -145,103 +168,101 @@ export function updateStatsAfterPlay(
   ballCarrierRole?: Role,
   ballCarrierRoute?: Route,
 ): Stats {
-  const next: Stats = {
-    playcalls: {
-      run: { ...stats.playcalls.run },
-      pass: { ...stats.playcalls.pass },
-    },
-    coverage: {
-      man: { ...stats.coverage.man },
-      manBlitz: { ...stats.coverage.manBlitz },
-      zone: { ...stats.coverage.zone },
-      zoneBlitz: { ...stats.coverage.zoneBlitz },
-    },
-    playcallCoverage: clonePlaycallCoverageStats(stats.playcallCoverage),
-    qb: { ...stats.qb },
-    rb: { ...stats.rb },
-    runAngles: Object.fromEntries(
-      Object.entries(stats.runAngles).map(([key, value]) => [
-        key,
-        { ...value },
-      ]),
-    ),
-    routes: Object.fromEntries(
-      Object.entries(stats.routes).map(([key, value]) => [key, { ...value }]),
-    ),
-  };
+  const next: Stats = structuredClone(stats);
+  const matchupKey = playcallCoverageKey(play.offense, play.defense);
+  const completion = isPassCompletion(reason, ballGiven, ballCarrierRole);
+  const isRush = ballGiven && ballCarrierRole === "runner";
+  const isSack = reason === "sack";
 
+  // --- Playcall / coverage summary counts ---
   next.playcalls[play.offense].count++;
   next.playcalls[play.offense].yards += yards;
-  next.playcalls[play.offense].avg =
-    next.playcalls[play.offense].yards / next.playcalls[play.offense].count;
+  next.playcalls[play.offense].avg = round2(
+    next.playcalls[play.offense].yards / next.playcalls[play.offense].count,
+  );
+
   next.coverage[play.defense].count++;
   next.coverage[play.defense].yards += yards;
-  next.coverage[play.defense].avg =
-    next.coverage[play.defense].yards / next.coverage[play.defense].count;
+  next.coverage[play.defense].avg = round2(
+    next.coverage[play.defense].yards / next.coverage[play.defense].count,
+  );
 
-  const matchupKey = playcallCoverageKey(play.offense, play.defense);
   next.playcallCoverage[matchupKey].count++;
   next.playcallCoverage[matchupKey].yards += yards;
-  next.playcallCoverage[matchupKey].avg =
+  next.playcallCoverage[matchupKey].avg = round2(
     next.playcallCoverage[matchupKey].yards /
-    next.playcallCoverage[matchupKey].count;
+      next.playcallCoverage[matchupKey].count,
+  );
+
+  // --- playcallCoverageStats ---
+  const matchupStats = next.playcallCoverageStats[matchupKey];
 
   if (play.offense === "pass") {
-    next.qb.attempts++;
-    if (reason === "sack") {
+    const s = matchupStats as QBStats;
+    if (!isSack) s.attempts++;
+    if (isSack) {
+      s.sacks++;
+    } else if (completion) {
+      s.completions++;
+      s.yards += yards;
+      if (isTouchdown) s.tds++;
+    }
+    s.cmp = s.attempts > 0 ? round2(s.completions / s.attempts) : 0;
+    s.ypa = s.attempts > 0 ? round2(s.yards / s.attempts) : 0;
+  } else {
+    const s = matchupStats as RBStats;
+    if (isRush) {
+      s.rushes++;
+      s.yards += yards;
+      if (yards < 0) s.tfls++;
+      if (isTouchdown) s.tds++;
+      s.ypc = s.rushes > 0 ? round2(s.yards / s.rushes) : 0;
+    }
+  }
+
+  // --- Aggregate QB stats ---
+  if (play.offense === "pass") {
+    if (!isSack) next.qb.attempts++;
+    if (isSack) {
       next.qb.sacks++;
-      next.qb.attempts--;
-    } else if (isPassCompletion(reason, ballGiven, ballCarrierRole)) {
+    } else if (completion) {
       next.qb.completions++;
       next.qb.yards += yards;
-      if (isTouchdown) {
-        next.qb.tds++;
-      }
+      if (isTouchdown) next.qb.tds++;
     }
-    next.qb.ypa = next.qb.yards / next.qb.attempts;
+    next.qb.ypa =
+      next.qb.attempts > 0 ? round2(next.qb.yards / next.qb.attempts) : 0;
+    next.qb.cmp =
+      next.qb.attempts > 0 ? round2(next.qb.completions / next.qb.attempts) : 0;
 
     for (const route of play.routes) {
       bumpCountYards(next.routes, routeKey(route));
     }
-
-    if (
-      isPassCompletion(reason, ballGiven, ballCarrierRole) &&
-      ballCarrierRoute
-    ) {
+    if (completion && ballCarrierRoute) {
       const key = routeKey(ballCarrierRoute);
       if (next.routes[key]) {
-        next.routes[key] = {
-          ...next.routes[key],
-          yards: next.routes[key].yards + yards,
-        };
+        next.routes[key].yards += yards;
       }
     }
   } else {
-    const isRush = ballGiven && ballCarrierRole === "runner";
-
+    // --- Aggregate RB stats ---
     if (isRush) {
       next.rb.rushes++;
       next.rb.yards += yards;
-      if (yards < 0) {
-        next.rb.tfls++;
-      }
-      if (isTouchdown) {
-        next.rb.tds++;
-      }
-      next.rb.ypc = next.rb.yards / next.rb.rushes;
+      if (yards < 0) next.rb.tfls++;
+      if (isTouchdown) next.rb.tds++;
+      next.rb.ypc =
+        next.rb.rushes > 0 ? round2(next.rb.yards / next.rb.rushes) : 0;
     }
-
     if (play.runAngle) {
       const key = runAngleKey(play.runAngle);
-      if (!next.runAngles[key]) {
+      if (!next.runAngles[key])
         next.runAngles[key] = { count: 0, yards: 0, avg: 0 };
-      }
       next.runAngles[key].count++;
-      if (isRush) {
-        next.runAngles[key].yards += yards;
-      }
-      next.runAngles[key].avg =
-        next.runAngles[key].yards / next.runAngles[key].count;
+      if (isRush) next.runAngles[key].yards += yards;
+      next.runAngles[key].avg = round2(
+        next.runAngles[key].yards / next.runAngles[key].count,
+      );
     }
   }
 

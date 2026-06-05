@@ -33,6 +33,7 @@ import {
 
 function stepAsPlayer(player: Player, state: State) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
+  const isPassPlay = state.currentPlay.offense === "pass";
   const { maxSpeed } = getConstants("speed", player);
   const { avoidStrength, steerAvoidStrength, steerDuration } = getConstants(
     "vision",
@@ -52,7 +53,7 @@ function stepAsPlayer(player: Player, state: State) {
       const isEarlyInRun =
         state.steps - state.ballGivenAtStep < steerDuration && player.runAngle;
 
-      if (isBlocking) {
+      if (isBlocking || isPassPlay) {
         blockNearestDefender(player);
       } else if (!isCarryingBall(player, state.ball)) {
         runTowardsBall(player);
@@ -97,9 +98,13 @@ function stepAsPlayer(player: Player, state: State) {
   /* Specific actions a player can perform */
   function blockNearestDefender(player: Player) {
     // Rank all defenders by good it is to block them, get the best one
-    const defenders = state.players.filter(
-      (p) => p.role === "rusher" || p.role === "coverer",
-    );
+    // Use assigned target if available
+    const assignedDefender = state.blockingAssignments.get(player);
+    const defenders = assignedDefender
+      ? [assignedDefender]
+      : state.players.filter(
+          (p) => p.role === "rusher" || p.role === "coverer",
+        );
 
     const potentialBlocks = defenders.map((defender) => {
       let interceptPoint = closestPointOnSegment(

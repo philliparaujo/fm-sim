@@ -139,7 +139,7 @@ function generateOffensePlaycall(
   });
 
   // Choose what to do with RB (runner, blocker, catcher out wide)
-  const RB_ROLE = isPassPlay ? "blocker" : "runner";
+  const RB_ROLE = "runner";
   const RB_Y = CENTER_Y;
   const RB_X = ball.loc.x - (5 / 100) * W;
   const RB_SPEED = 5.7;

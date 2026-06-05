@@ -19,11 +19,13 @@ import {
 } from "./types";
 import {
   applyDamping,
+  closestPointOnSegment,
   computeFirstDownLine,
   dist,
   distanceAfterFirstDown,
   getPocket,
   isCarryingBall,
+  numPlays,
   updateDownAndDistance,
   vectorToString,
   yardsFromPixels,
@@ -66,6 +68,7 @@ const createInitialState = (startingLOS?: number): State => {
     ballGivenAtStep: 0,
     earlyThrowDecided: false,
     panicThrowDecided: false,
+    blockingAssignments: new Map<Player, Player>(),
     scoreboard: scoreboard,
     stats: createEmptyStats(),
     currentPlay: {
@@ -137,6 +140,69 @@ function assignCoverageTargets() {
   });
 }
 
+function assignBlockingTargets() {
+  const blockers = state.players.filter(
+    (p) =>
+      p.role === "blocker" ||
+      p.role === "runner" ||
+      (p.role === "catcher" &&
+        !isCarryingBall(p, state.ball) &&
+        state.ballGiven),
+  );
+  const defenders = state.players.filter((p) => p.role === "rusher");
+
+  // Release stale assignments
+  for (const [blocker, defender] of state.blockingAssignments) {
+    if (dist(blocker.loc, defender.loc) > 80) {
+      state.blockingAssignments.delete(blocker);
+    }
+  }
+
+  const assignedDefenders = new Set(state.blockingAssignments.values());
+  const freeDefenders = defenders.filter((d) => !assignedDefenders.has(d));
+  const freeBlockers = blockers.filter(
+    (b) => !state.blockingAssignments.has(b),
+  );
+
+  // Sort free defenders by threat (closest to ball first)
+  freeDefenders.sort(
+    (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
+  );
+
+  // 1-on-1 assignments
+  for (const defender of freeDefenders) {
+    if (freeBlockers.length === 0) break;
+    freeBlockers.sort(
+      (a, b) =>
+        dist(
+          a.loc,
+          closestPointOnSegment(a.loc, defender.loc, state.ball.loc),
+        ) -
+        dist(b.loc, closestPointOnSegment(b.loc, defender.loc, state.ball.loc)),
+    );
+    const assigned = freeBlockers.shift()!;
+    state.blockingAssignments.set(assigned, defender);
+  }
+
+  // Double-team assignment for leftover blockers (e.g. RB with no free rusher)
+  const DOUBLE_TEAM_THREAT_RADIUS = 180; // if a free defender is within this range, don't double team
+  for (const blocker of freeBlockers) {
+    // Only double team if no free (unblocked) defender is dangerously close
+    const nearbyFreeDefender = freeDefenders.find(
+      (d) => dist(d.loc, state.ball.loc) < DOUBLE_TEAM_THREAT_RADIUS,
+    );
+    if (nearbyFreeDefender) continue; // a free rusher is coming — handle elsewhere
+
+    // Double team the closest already-assigned defender to the ball
+    const closestAssigned = [...assignedDefenders].sort(
+      (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
+    )[0];
+    if (closestAssigned) {
+      state.blockingAssignments.set(blocker, closestAssigned);
+    }
+  }
+}
+
 // Applies velocity and field constraints
 function triggerMove(entity: Ball | Player) {
   entity.loc.x += entity.vel.x;
@@ -158,7 +224,7 @@ function triggerMove(entity: Ball | Player) {
     isCarryingBall(entity, state.ball) &&
     entity.loc.x > rightEndzone
   ) {
-    console.log("TOUCHDOWN!", entity);
+    // console.log("TOUCHDOWN!", entity);
     resetSimulation("touchdown");
   }
 
@@ -206,7 +272,7 @@ export const ARRIVAL_RADIUS = 45;
 export const PURSUER_STEER_FACTOR = 0.5;
 
 /* Passer constants */
-export const BALL_GIVEN_STEPS = 250;
+export const BALL_GIVEN_STEPS = 400;
 export const PASSER_HANDOFF_SEPARATION = 80;
 export const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
 
@@ -278,7 +344,12 @@ function resolveCollision(a: Player, b: Entity) {
       }
 
       // Initiate handoff
-      if (passer && runner && !state.ballGiven) {
+      if (
+        passer &&
+        runner &&
+        state.currentPlay.offense === "run" &&
+        !state.ballGiven
+      ) {
         state.ball.loc.x = runner.loc.x;
         state.ball.loc.y = runner.loc.y;
         state.ball.vel.x = runner.vel.x;
@@ -307,13 +378,11 @@ function ballCollideBehavior(player: Player) {
   switch (player.role) {
     case "blocker": {
       // If blocker collides with ball, simulation ends
-      // console.log("SACK");
       resetSimulation("sack");
       break;
     }
     case "rusher": {
       // If rusher collides with ball, simulation ends
-      // console.log("SACK");
       resetSimulation("sack");
       break;
     }
@@ -357,6 +426,7 @@ function stepSimulation() {
   // Player behavior
   state.steps++;
 
+  assignBlockingTargets();
   for (const player of state.players) {
     player.contactedThisFrame = false;
     stepAsPlayer(player, state);
@@ -396,7 +466,6 @@ async function tick(currentTime: number) {
   if (lastTime === 0) {
     lastTime = currentTime;
     simStartTime = currentTime;
-    console.log("--- Simulation Run #1 Started ---");
     updateScoreboardUI(state.scoreboard);
   }
 
@@ -441,8 +510,8 @@ function resetSimulation(reason: PlayEndReason) {
   );
 
   // Log simulation stats
-  // console.log(`Play Ended. New LOS: ${LOSToString(nextLOS)}`);
-  console.log(updatedStats);
+  if (numPlays(updatedStats) % 100 == 0)
+    console.log(numPlays(updatedStats), updatedStats);
 
   let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
   if (isTouchdown) {
@@ -465,6 +534,7 @@ function resetSimulation(reason: PlayEndReason) {
     ...downDistance,
   };
   state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;
+  state.blockingAssignments = new Map();
   assignCoverageTargets();
 
   // Reset timing logic

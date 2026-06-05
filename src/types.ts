@@ -90,7 +90,8 @@ type PlaycallCoverageKey =
   | "passZone"
   | "passZoneBlitz";
 
-type PlaycallCoverageStats = Record<PlaycallCoverageKey, CountYards>;
+type PlaycallCoverageYards = Record<PlaycallCoverageKey, CountYards>;
+type PlayCallCoverageStats = Record<PlaycallCoverageKey, QBStats | RBStats>;
 
 type CoverageStats = {
   man: CountYards;
@@ -104,6 +105,7 @@ type QBStats = {
   completions: number;
   yards: number;
   ypa: number;
+  cmp: number;
   tds: number;
   sacks: number;
 };
@@ -119,7 +121,8 @@ type RBStats = {
 type Stats = {
   playcalls: PlaycallStats;
   coverage: CoverageStats;
-  playcallCoverage: PlaycallCoverageStats;
+  playcallCoverage: PlaycallCoverageYards;
+  playcallCoverageStats: PlayCallCoverageStats;
   qb: QBStats;
   rb: RBStats;
   runAngles: Record<string, CountYards>;
@@ -179,6 +182,7 @@ type State = {
   ballGivenAtStep: number;
   earlyThrowDecided: boolean;
   panicThrowDecided: boolean;
+  blockingAssignments: Map<Player, Player>;
 };
 
 export {
@@ -201,9 +205,12 @@ export type {
   OffensivePlayType,
   PartialPlayer,
   PlaycallCoverageKey,
-  PlaycallCoverageStats,
+  PlayCallCoverageStats,
+  PlaycallCoverageYards,
   PlayEndReason,
   Player,
+  QBStats,
+  RBStats,
   Role,
   Route,
   Scoreboard,
