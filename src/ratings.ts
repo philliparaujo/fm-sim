@@ -113,12 +113,13 @@ export const ATTRIBUTE_CONFIG = {
 
   // Coverers
   manCoverage: (r: number) => ({
-    startDelay: lerp(r, 10, 0),
+    manStartDelay: lerp(r, 20, 0),
     reactionDelay: lerp(r, 60, 34),
     manCushion: lerp(r, 0, 0),
   }),
   zoneCoverage: (r: number) => ({
     zonePull: lerp(r, 0.4, 1),
+    zoneStartDelay: lerp(r, 30, 10),
   }),
   pursuit: (r: number) => ({
     predictionFrames: lerp(r, 50, 10),

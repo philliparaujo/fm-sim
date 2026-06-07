@@ -141,64 +141,93 @@ function assignCoverageTargets() {
 }
 
 function assignBlockingTargets() {
-  const blockers = state.players.filter(
-    (p) =>
-      p.role === "blocker" ||
-      p.role === "runner" ||
-      (p.role === "catcher" &&
-        !isCarryingBall(p, state.ball) &&
-        state.ballGiven),
-  );
-  const defenders = state.players.filter((p) => p.role === "rusher");
+  const isRunPlay = state.currentPlay.offense === "run";
 
-  // Release stale assignments
+  // --- Step 1: Assign OL blockers to rushers (1-on-1, no double teams) ---
+  const olBlockers = state.players.filter((p) => p.role === "blocker");
+  const rushers = state.players.filter((p) => p.role === "rusher");
+
+  // Release stale OL assignments
   for (const [blocker, defender] of state.blockingAssignments) {
-    if (dist(blocker.loc, defender.loc) > 80) {
+    if (blocker.role === "blocker" && dist(blocker.loc, defender.loc) > 80) {
       state.blockingAssignments.delete(blocker);
     }
   }
 
-  const assignedDefenders = new Set(state.blockingAssignments.values());
-  const freeDefenders = defenders.filter((d) => !assignedDefenders.has(d));
-  const freeBlockers = blockers.filter(
-    (b) => !state.blockingAssignments.has(b),
+  const assignedRushers = new Set(
+    [...state.blockingAssignments.entries()]
+      .filter(([blocker]) => blocker.role !== "runner")
+      .map(([, defender]) => defender),
   );
+  const freeRushers = rushers.filter((r) => !assignedRushers.has(r));
+  const freeOL = olBlockers.filter((b) => !state.blockingAssignments.has(b));
 
-  // Sort free defenders by threat (closest to ball first)
-  freeDefenders.sort(
+  freeRushers.sort(
     (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
   );
 
-  // 1-on-1 assignments
-  for (const defender of freeDefenders) {
-    if (freeBlockers.length === 0) break;
-    freeBlockers.sort(
+  for (const rusher of freeRushers) {
+    if (freeOL.length === 0) break;
+    freeOL.sort(
       (a, b) =>
-        dist(
-          a.loc,
-          closestPointOnSegment(a.loc, defender.loc, state.ball.loc),
-        ) -
-        dist(b.loc, closestPointOnSegment(b.loc, defender.loc, state.ball.loc)),
+        dist(a.loc, closestPointOnSegment(a.loc, rusher.loc, state.ball.loc)) -
+        dist(b.loc, closestPointOnSegment(b.loc, rusher.loc, state.ball.loc)),
     );
-    const assigned = freeBlockers.shift()!;
-    state.blockingAssignments.set(assigned, defender);
+    const assigned = freeOL.shift()!;
+    state.blockingAssignments.set(assigned, rusher);
   }
 
-  // Double-team assignment for leftover blockers (e.g. RB with no free rusher)
-  const DOUBLE_TEAM_THREAT_RADIUS = 180; // if a free defender is within this range, don't double team
-  for (const blocker of freeBlockers) {
-    // Only double team if no free (unblocked) defender is dangerously close
-    const nearbyFreeDefender = freeDefenders.find(
-      (d) => dist(d.loc, state.ball.loc) < DOUBLE_TEAM_THREAT_RADIUS,
-    );
-    if (nearbyFreeDefender) continue; // a free rusher is coming — handle elsewhere
+  // --- Step 2: Assign runner ---
+  const runner = state.players.find((p) => p.role === "runner");
+  if (runner && !isCarryingBall(runner, state.ball)) {
+    const runnerAssignment = state.blockingAssignments.get(runner);
+    if (runnerAssignment && dist(runner.loc, runnerAssignment.loc) > 200) {
+      state.blockingAssignments.delete(runner);
+    }
+    if (!state.blockingAssignments.has(runner)) {
+      if (!isRunPlay) {
+        // First, check for any free rusher not already covered by OL
+        const allAssignedRushers = new Set(state.blockingAssignments.values());
+        const freeRusher = rushers
+          .filter((r) => !allAssignedRushers.has(r))
+          .sort(
+            (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
+          )[0];
 
-    // Double team the closest already-assigned defender to the ball
-    const closestAssigned = [...assignedDefenders].sort(
-      (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
-    )[0];
-    if (closestAssigned) {
-      state.blockingAssignments.set(blocker, closestAssigned);
+        // Fall back to double-teaming the most dangerous rusher
+        const target =
+          freeRusher ??
+          rushers.sort(
+            (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
+          )[0];
+
+        if (target) {
+          state.blockingAssignments.set(runner, target);
+        }
+      }
+    }
+  }
+
+  // --- Step 3: On run plays, assign catchers to their man coverer ---
+  if (isRunPlay) {
+    const catchers = state.players.filter(
+      (p) => p.role === "catcher" && !isCarryingBall(p, state.ball),
+    );
+
+    // Release stale catcher assignments
+    for (const catcher of catchers) {
+      const assignment = state.blockingAssignments.get(catcher);
+      if (assignment && dist(catcher.loc, assignment.loc) > 120) {
+        state.blockingAssignments.delete(catcher);
+      }
+    }
+
+    for (const coverer of state.players) {
+      if (coverer.role !== "coverer" || !coverer.assignedTarget) continue;
+      const catcher = catchers.find((c) => c === coverer.assignedTarget);
+      if (catcher && !state.blockingAssignments.has(catcher)) {
+        state.blockingAssignments.set(catcher, coverer);
+      }
     }
   }
 }

@@ -477,6 +477,16 @@ function stepAsPlayer(player: Player, state: State) {
   }
 
   function pursueBallCarrier(player: Player) {
+    const { manStartDelay } = getConstants("manCoverage", player);
+    const { zoneStartDelay } = getConstants("zoneCoverage", player);
+    const startDelay =
+      player.coverage === "man" ? manStartDelay : zoneStartDelay;
+
+    // Carry over the same reaction delay used in coverage —
+    // reactionTimer was already ticking in cover(), so this is seamless
+    player.reactionTimer++;
+    if (player.reactionTimer < startDelay) return;
+
     // 1. Fetch both pursuit and bend attributes simultaneously
     const {
       predictionFrames,
@@ -546,11 +556,13 @@ function stepAsPlayer(player: Player, state: State) {
   }
 
   function cover(player: Player) {
-    const { startDelay, reactionDelay, manCushion } = getConstants(
+    const { manStartDelay, reactionDelay, manCushion } = getConstants(
       "manCoverage",
       player,
     );
-    const { zonePull } = getConstants("zoneCoverage", player);
+    const { zonePull, zoneStartDelay } = getConstants("zoneCoverage", player);
+    const startDelay =
+      player.coverage === "man" ? manStartDelay : zoneStartDelay;
 
     // Update perceived catcher details after any start/reaction delays
     player.reactionTimer++;
