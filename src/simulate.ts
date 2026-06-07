@@ -25,6 +25,7 @@ import {
   distanceAfterFirstDown,
   getPocket,
   isCarryingBall,
+  length,
   numPlays,
   updateDownAndDistance,
   vectorToString,
@@ -281,6 +282,7 @@ const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
 export const MIN_BLOCK_DISTANCE = 120;
+const RUN_BLOCK_PUSH_STRENGTH = 1.5; // max px/frame push an elite blocker applies
 
 /* Rusher constants */
 const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
@@ -358,13 +360,28 @@ function resolveCollision(a: Player, b: Entity) {
         );
         const { randomJitter } = getConstants("blockShedding", defender);
 
+        const isRunBlock = state.currentPlay.offense === "run";
         const damping =
           defender.role === "rusher"
-            ? state.currentPlay.offense === "run"
+            ? isRunBlock
               ? runBlockDampingFactor
               : rusherDampingFactor
             : covererDampingFactor;
+
         applyDamping(defender, damping, randomJitter);
+
+        // On run plays, good blockers drive defenders forward
+        if (isRunBlock && defender.role === "rusher") {
+          // Push strength is inverse of damping — elite blocker (low damping) pushes harder
+          const pushStrength =
+            (1 - runBlockDampingFactor) * RUN_BLOCK_PUSH_STRENGTH;
+          // Drive in the blocker's current direction of travel
+          const blockerSpeed = length(blocker.vel);
+          if (blockerSpeed > 0.1) {
+            defender.vel.x += (blocker.vel.x / blockerSpeed) * pushStrength;
+            defender.vel.y += (blocker.vel.y / blockerSpeed) * pushStrength;
+          }
+        }
       }
 
       // Initiate tackle attempt
