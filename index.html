@@ -17,6 +17,20 @@
     </header>
 
     <main id="root">
+      <div id="speed-control">
+        <label for="sim-speed-slider"
+          >Speed: <span id="speed-label">1×</span></label
+        >
+        <input
+          type="range"
+          id="sim-speed-slider"
+          min="0"
+          max="13"
+          step="1"
+          value="2"
+        />
+      </div>
+
       <div id="scoreboard" class="scoreboard">
         <div class="team-container">
           <div id="team-red" class="team-box">
@@ -44,20 +58,6 @@
       </div>
 
       <canvas id="field"></canvas>
-
-      <div id="speed-control">
-        <label for="sim-speed-slider"
-          >Speed: <span id="speed-label">1×</span></label
-        >
-        <input
-          type="range"
-          id="sim-speed-slider"
-          min="0"
-          max="7"
-          step="1"
-          value="2"
-        />
-      </div>
 
       <div id="player-dashboard"></div>
     </main>

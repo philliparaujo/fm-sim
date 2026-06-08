@@ -301,6 +301,7 @@ function fillOutPlayers(partials: PartialPlayer[]): Player[] {
 
       // Specific properties determined later
       assignedTarget: null,
+      decisionTicks: undefined,
       perceivedLoc: null,
       perceivedVel: null,
       reactionTimer: 0,

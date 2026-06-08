@@ -36,6 +36,9 @@ interface PartialPlayer extends Entity {
 interface Player extends PartialPlayer {
   ratings: Ratings;
 
+  // For passers
+  decisionTicks: number | undefined;
+
   // For receivers
   path: Vector[];
   breakFrame: number | null;

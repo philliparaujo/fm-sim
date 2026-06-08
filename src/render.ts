@@ -22,6 +22,8 @@ const RUNNER_PATH_ON = true;
 const PASSER_POCKET_ON = true;
 const RUNNER_LOOK_AHEAD_ON = false;
 
+const ONLY_SIMULATE = false;
+
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 const scoreboard = document.getElementById("scoreboard") as HTMLDivElement;
@@ -281,6 +283,7 @@ function render(
   pocket: { cx: number; cy: number; rx: number; ry: number },
   scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">,
 ) {
+  if (ONLY_SIMULATE) return;
   drawField(scoreboard);
 
   // Draw traces first so they are under the players

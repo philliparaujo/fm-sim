@@ -520,9 +520,18 @@ async function tick(currentTime: number) {
 
   timeAccumulator += deltaTime * simSpeed;
 
+  const loopStartTime = performance.now();
+  let loopCount = 0;
   while (timeAccumulator >= LOGIC_TICK_MS) {
     stepSimulation();
     timeAccumulator -= LOGIC_TICK_MS;
+    loopCount++;
+
+    if (performance.now() - loopStartTime > LOGIC_TICK_MS) {
+      timeAccumulator = 0; // discard backed-up ticks rather than trying to catch up
+      console.warn(`CPU overload: ran ${loopCount} ticks before aborting.`);
+      break;
+    }
   }
 
   render(getPocket(state.scoreboard.LOS), state.scoreboard);

@@ -52,9 +52,9 @@ export const ATTRIBUTE_CONFIG = {
     qbAccuracyPanicChange: lerp(r, -0.2, 0),
   }),
   decisionMaking: (r: number) => ({
-    minThrowStep: lerp(r, 100, 50),
+    minThrowStep: lerp(r, 60, 20),
     earlyThrowChance: lerp(r, 0.6, 1),
-    earlyThrowSeparation: lerp(r, 145, 85),
+    earlyThrowSeparation: lerp(r, 100, 50),
   }),
   shortAccuracy: (r: number) => ({
     shortAccuracy: lerp(r, 0.8, 1),
@@ -95,7 +95,7 @@ export const ATTRIBUTE_CONFIG = {
 
   // Blockers
   passBlock: (r: number) => ({
-    rusherDampingFactor: lerp(r, 0.94, 0.6),
+    rusherDampingFactor: lerp(r, 1.2, 0.7),
   }),
   runBlock: (r: number) => ({
     runBlockDampingFactor: lerp(r, 0.7, 0.2),
