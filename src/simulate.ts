@@ -326,9 +326,9 @@ function resolveCollision(a: Player, b: Entity) {
 
   if (distance < minDistance) {
     if (b.type === "ball") {
-      if (isCarryingBall(a, b as Ball)) {
-        ballCollideBehavior(a);
-      }
+      // if (isCarryingBall(a, b as Ball)) {
+      ballCollideBehavior(a);
+      // }
     } else if (b.type === "player") {
       const playerB = b as Player;
 
@@ -414,8 +414,17 @@ function resolveCollision(a: Player, b: Entity) {
 
       a.loc.x -= moveX;
       a.loc.y -= moveY;
+      if (isCarryingBall(a, state.ball)) {
+        state.ball.loc.x -= moveX;
+        state.ball.loc.y -= moveY;
+      }
+
       playerB.loc.x += moveX;
       playerB.loc.y += moveY;
+      if (isCarryingBall(playerB, state.ball)) {
+        state.ball.loc.x += moveX;
+        state.ball.loc.y += moveY;
+      }
     }
   }
 }
@@ -424,7 +433,7 @@ function ballCollideBehavior(player: Player) {
   switch (player.role) {
     case "blocker": {
       // If blocker collides with ball, simulation ends
-      resetSimulation("sack");
+      // resetSimulation("sack");
       break;
     }
     case "rusher": {
@@ -433,7 +442,9 @@ function ballCollideBehavior(player: Player) {
       break;
     }
     case "runner": {
-      // If runner collides with ball, runner carries ball
+      // If runner collides with ball on running play, runner carries ball
+      if (state.currentPlay.offense === "pass" && !state.ballGiven) return;
+
       state.ballGiven = true;
       state.ball.vel.x = player.vel.x;
       state.ball.vel.y = player.vel.y;
