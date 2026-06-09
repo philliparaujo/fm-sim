@@ -491,7 +491,7 @@ function ballCollideBehavior(player: Player) {
     }
     case "coverer": {
       // If coverer collides with ball, simulation ends (turnover)
-      resetSimulation("turnover");
+      // resetSimulation("turnover");
       break;
     }
     case "passer": {

@@ -174,21 +174,39 @@ export function updateStatsAfterPlay(
   const isRush = ballGiven && ballCarrierRole === "runner";
   const isSack = reason === "sack";
 
+  // Realized pass play vs QB scramble check
+  const isPassAttempt =
+    play.offense === "pass" &&
+    !isSack &&
+    (reason === "incomplete" || reason === "turnover" || completion);
+  const isScramble =
+    play.offense === "pass" &&
+    !isSack &&
+    !isPassAttempt &&
+    (reason === "tackle" || reason === "touchdown");
+
+  // Determine actual net yards gained by the offense on this play
+  let netYardsGained = yards;
+  if (play.offense === "pass" && !completion && !isSack && !isScramble) {
+    // Incomplete passes or interceptions result in 0 yards gained for the team passing totals
+    netYardsGained = 0;
+  }
+
   // --- Playcall / coverage summary counts ---
   next.playcalls[play.offense].count++;
-  next.playcalls[play.offense].yards += yards;
+  next.playcalls[play.offense].yards += netYardsGained;
   next.playcalls[play.offense].avg = round2(
     next.playcalls[play.offense].yards / next.playcalls[play.offense].count,
   );
 
   next.coverage[play.defense].count++;
-  next.coverage[play.defense].yards += yards;
+  next.coverage[play.defense].yards += netYardsGained;
   next.coverage[play.defense].avg = round2(
     next.coverage[play.defense].yards / next.coverage[play.defense].count,
   );
 
   next.playcallCoverage[matchupKey].count++;
-  next.playcallCoverage[matchupKey].yards += yards;
+  next.playcallCoverage[matchupKey].yards += netYardsGained;
   next.playcallCoverage[matchupKey].avg = round2(
     next.playcallCoverage[matchupKey].yards /
       next.playcallCoverage[matchupKey].count,
@@ -199,7 +217,7 @@ export function updateStatsAfterPlay(
 
   if (play.offense === "pass") {
     const s = matchupStats as QBStats;
-    if (!isSack) s.attempts++;
+    if (isPassAttempt) s.attempts++;
     if (isSack) {
       s.sacks++;
     } else if (completion) {
@@ -222,7 +240,7 @@ export function updateStatsAfterPlay(
 
   // --- Aggregate QB stats ---
   if (play.offense === "pass") {
-    if (!isSack) next.qb.attempts++;
+    if (isPassAttempt) next.qb.attempts++;
     if (isSack) {
       next.qb.sacks++;
     } else if (completion) {
@@ -235,13 +253,25 @@ export function updateStatsAfterPlay(
     next.qb.cmp =
       next.qb.attempts > 0 ? round2(next.qb.completions / next.qb.attempts) : 0;
 
-    for (const route of play.routes) {
-      bumpCountYards(next.routes, routeKey(route));
-    }
-    if (completion && ballCarrierRoute) {
-      const key = routeKey(ballCarrierRoute);
-      if (next.routes[key]) {
-        next.routes[key].yards += yards;
+    // Route tracking
+    if (isPassAttempt || isSack) {
+      for (const route of play.routes) {
+        bumpCountYards(next.routes, routeKey(route));
+      }
+      if (completion && ballCarrierRoute) {
+        const key = routeKey(ballCarrierRoute);
+        if (next.routes[key]) {
+          next.routes[key].yards += yards;
+        }
+      }
+      // Recalculate averages for updated routes
+      for (const route of play.routes) {
+        const key = routeKey(route);
+        if (next.routes[key]) {
+          (next.routes[key] as any).avg = round2(
+            next.routes[key].yards / next.routes[key].count,
+          );
+        }
       }
     }
   } else {
@@ -254,12 +284,14 @@ export function updateStatsAfterPlay(
       next.rb.ypc =
         next.rb.rushes > 0 ? round2(next.rb.yards / next.rb.rushes) : 0;
     }
-    if (play.runAngle) {
+
+    // Only track run angles if a valid rush attempt actually took place
+    if (play.runAngle && isRush) {
       const key = runAngleKey(play.runAngle);
       if (!next.runAngles[key])
         next.runAngles[key] = { count: 0, yards: 0, avg: 0 };
       next.runAngles[key].count++;
-      if (isRush) next.runAngles[key].yards += yards;
+      next.runAngles[key].yards += yards;
       next.runAngles[key].avg = round2(
         next.runAngles[key].yards / next.runAngles[key].count,
       );

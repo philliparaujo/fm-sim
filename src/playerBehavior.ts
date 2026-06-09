@@ -498,8 +498,8 @@ function stepAsPlayer(player: Player, state: State) {
     if (intercepted) {
       // resetSimulation("turnover");
     } else if (!isCatchable) {
-      state.ball.loc.x = throwTarget.x;
-      state.ball.loc.y = throwTarget.y;
+      state.ball.loc.x = state.scoreboard.LOS;
+      // state.ball.loc.y = throwTarget.y;
       resetSimulation("incomplete");
     } else {
       state.ball.loc.x = bestOption.catcher.loc.x;
