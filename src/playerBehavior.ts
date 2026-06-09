@@ -92,7 +92,9 @@ function stepAsPlayer(player: Player, state: State) {
     }
   }
 
-  resolveCollision(player, state.ball);
+  if (state.ballGiven || player.role === "passer") {
+    resolveCollision(player, state.ball);
+  }
 
   /* Specific actions a player can perform */
   function blockNearestDefender(player: Player) {
@@ -494,7 +496,7 @@ function stepAsPlayer(player: Player, state: State) {
     );
 
     if (intercepted) {
-      resetSimulation("turnover");
+      // resetSimulation("turnover");
     } else if (!isCatchable) {
       state.ball.loc.x = throwTarget.x;
       state.ball.loc.y = throwTarget.y;

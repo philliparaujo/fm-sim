@@ -31,6 +31,47 @@
         />
       </div>
 
+      <div id="replay-controls" style="margin: 10px 0; display: flex; gap: 5px">
+        <button
+          id="btn-replay-live"
+          class="replay-btn active-mode"
+          style="
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+          "
+        >
+          Live
+        </button>
+        <button
+          id="btn-replay-1"
+          class="replay-btn"
+          disabled
+          style="padding: 6px 12px; cursor: pointer; border-radius: 4px"
+        >
+          1 Play Ago
+        </button>
+        <button
+          id="btn-replay-2"
+          class="replay-btn"
+          disabled
+          style="padding: 6px 12px; cursor: pointer; border-radius: 4px"
+        >
+          2 Plays Ago
+        </button>
+        <button
+          id="btn-replay-3"
+          class="replay-btn"
+          disabled
+          style="padding: 6px 12px; cursor: pointer; border-radius: 4px"
+        >
+          3 Plays Ago
+        </button>
+      </div>
+
       <div id="scoreboard" class="scoreboard">
         <div class="team-container">
           <div id="team-red" class="team-box">

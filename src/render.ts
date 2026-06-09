@@ -1,6 +1,7 @@
 import { getConstants } from "./ratings";
 import { state } from "./simulate";
-import { Player, Scoreboard } from "./types";
+import { Ball, Player, Scoreboard, State } from "./types";
+import { getPocket } from "./util";
 
 const W = 720 * 3;
 const H = 400 * 3;
@@ -123,26 +124,26 @@ function drawField(
   }
 }
 
-function drawBall() {
+function drawBall(ball: Ball) {
   ctx.beginPath();
 
   // Ball body (oval)
   ctx.save();
-  ctx.translate(state.ball.loc.x, state.ball.loc.y);
+  ctx.translate(ball.loc.x, ball.loc.y);
   ctx.beginPath();
-  ctx.ellipse(0, 0, state.ball.radius, state.ball.radius, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, ball.radius, ball.radius, 0, 0, Math.PI * 2);
   ctx.fillStyle = BALL_COLOR;
   ctx.fill();
   ctx.strokeStyle = BALL_STROKE_COLOR;
-  ctx.lineWidth = state.ball.strokeWidth;
+  ctx.lineWidth = ball.strokeWidth;
   ctx.stroke();
 
   // Lace
   ctx.strokeStyle = BALL_LACE_COLOR;
-  ctx.lineWidth = state.ball.laceWidth;
+  ctx.lineWidth = ball.laceWidth;
   ctx.beginPath();
-  ctx.moveTo(-state.ball.radius / 2, 0);
-  ctx.lineTo(state.ball.radius / 2, 0);
+  ctx.moveTo(-ball.radius / 2, 0);
+  ctx.lineTo(ball.radius / 2, 0);
   ctx.stroke();
   ctx.restore();
 }
@@ -279,10 +280,10 @@ function drawPlayer(player: Player) {
 }
 
 /* High-level rendering functions */
-function render(
-  pocket: { cx: number; cy: number; rx: number; ry: number },
-  scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">,
-) {
+function render(state: State) {
+  const pocket = getPocket(state.scoreboard.LOS);
+  const scoreboard = state.scoreboard;
+
   if (ONLY_SIMULATE) return;
   drawField(scoreboard);
 
@@ -305,7 +306,7 @@ function render(
   for (const player of state.players) {
     drawPlayer(player);
   }
-  drawBall();
+  drawBall(state.ball);
 }
 
 export { H, render, W, ENDZONE_W, TOTAL_H, TOTAL_W };

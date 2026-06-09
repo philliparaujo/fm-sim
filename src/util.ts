@@ -1,5 +1,5 @@
 import { ENDZONE_W, H, TOTAL_H, W } from "./render";
-import { Scoreboard, Stats } from "./types";
+import { Scoreboard, State, Stats } from "./types";
 import {
   Ball,
   cornerRoute,

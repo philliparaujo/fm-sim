@@ -1,4 +1,5 @@
 import {
+  fillOutPlayer,
   fillOutPlayers,
   generateBall,
   generateDefensivePlaycall,
@@ -14,6 +15,7 @@ import {
   Entity,
   PlayEndReason,
   Player,
+  ReplayFrame,
   Scoreboard,
   State,
 } from "./types";
@@ -88,6 +90,38 @@ assignCoverageTargets();
 let simStartTime = performance.now();
 let runCount = 1;
 let onPlayResetCallback: (() => void) | null = null;
+
+let currentPlayFrames: ReplayFrame[] = [];
+let completedPlays: ReplayFrame[][] = []; // Stores up to 3 plays. [0] = 1 play ago, [1] = 2 ago, [2] = 3 ago
+export let replayMode: "live" | 0 | 1 | 2 = "live";
+let replayFrameIndex = 0;
+
+function setReplayMode(mode: "live" | 0 | 1 | 2) {
+  replayMode = mode;
+  replayFrameIndex = 0; // Reset animation playhead on switch
+}
+
+function getCompletedPlaysCount(): number {
+  return completedPlays.length;
+}
+
+function captureReplayFrame() {
+  currentPlayFrames.push({
+    ballLoc: { x: state.ball.loc.x, y: state.ball.loc.y },
+    ballVel: { x: state.ball.vel.x, y: state.ball.vel.y },
+    players: state.players.map((p) => ({
+      loc: { x: p.loc.x, y: p.loc.y },
+      vel: { x: p.vel.x, y: p.vel.y },
+      label: p.label,
+      color: p.color,
+      role: p.role,
+      type: "player",
+      position: p.position,
+    })),
+    // Create a deep value copy of the scoreboard state
+    scoreboard: JSON.parse(JSON.stringify(state.scoreboard)),
+  });
+}
 
 function assignCoverageTargets() {
   const catchers = [...state.players].filter((p) => p.role === "catcher");
@@ -398,8 +432,6 @@ function resolveCollision(a: Player, b: Entity) {
       ) {
         state.ball.loc.x = runner.loc.x;
         state.ball.loc.y = runner.loc.y;
-        state.ball.vel.x = runner.vel.x;
-        state.ball.vel.y = runner.vel.y;
         state.ballGiven = true;
       }
 
@@ -446,8 +478,6 @@ function ballCollideBehavior(player: Player) {
       if (state.currentPlay.offense === "pass" && !state.ballGiven) return;
 
       state.ballGiven = true;
-      state.ball.vel.x = player.vel.x;
-      state.ball.vel.y = player.vel.y;
       state.ball.loc.x = player.loc.x;
       state.ball.loc.y = player.loc.y;
       break;
@@ -455,8 +485,6 @@ function ballCollideBehavior(player: Player) {
     case "catcher": {
       // If catcher collides with ball, catcher carries ball
       state.ballGiven = true;
-      state.ball.vel.x = player.vel.x;
-      state.ball.vel.y = player.vel.y;
       state.ball.loc.x = player.loc.x;
       state.ball.loc.y = player.loc.y;
       break;
@@ -469,8 +497,6 @@ function ballCollideBehavior(player: Player) {
     case "passer": {
       // If passer collides with ball, passer holds it
       if (!state.ballGiven) {
-        state.ball.vel.x = player.vel.x;
-        state.ball.vel.y = player.vel.y;
         state.ball.loc.x = player.loc.x;
         state.ball.loc.y = player.loc.y;
       }
@@ -512,40 +538,88 @@ function stepSimulation() {
 let lastTime = 0;
 let timeAccumulator = 0;
 
-async function tick(currentTime: number) {
-  if (currentTime < state.pausedUntil) {
-    lastTime = currentTime;
-    render(getPocket(state.scoreboard.LOS), state.scoreboard);
-    requestAnimationFrame(tick);
-    return;
+async function tick(timestamp: number = performance.now()) {
+  // 1. Initialize or compute frame delta time
+  if (lastTime === null) {
+    lastTime = timestamp;
   }
+  let dt = timestamp - lastTime;
+  lastTime = timestamp;
 
-  if (lastTime === 0) {
-    lastTime = currentTime;
-    simStartTime = currentTime;
-    updateScoreboardUI(state.scoreboard);
-  }
+  // Cap extreme delta spikes (e.g., when switching browser tabs) to prevent physics explosions
+  if (dt > 100) dt = 16.666;
 
-  const deltaTime = currentTime - lastTime;
-  lastTime = currentTime;
+  // 2. Process simulation timing based on the current mode
+  if (replayMode === "live") {
+    // If the live game is in a post-play pause window, skip simulation updates but keep animating
+    if (timestamp < state.pausedUntil) {
+      render(state);
+      updateScoreboardUI(state.scoreboard);
+      requestAnimationFrame(tick);
+      return;
+    }
 
-  timeAccumulator += deltaTime * simSpeed;
+    // Apply the speed slider multiplier to the live delta time accumulation
+    timeAccumulator += dt * simSpeed;
 
-  const loopStartTime = performance.now();
-  let loopCount = 0;
-  while (timeAccumulator >= LOGIC_TICK_MS) {
-    stepSimulation();
-    timeAccumulator -= LOGIC_TICK_MS;
-    loopCount++;
+    // Fixed-timestep execution loop for live gameplay
+    while (timeAccumulator >= LOGIC_TICK_MS) {
+      // --- START OF YOUR EXISTING LIVE GAMESTEP LOGIC ---
+      // (This updates player movements, pathing, checks collisions, fumbles, etc.)
+      stepSimulation();
+      timeAccumulator -= LOGIC_TICK_MS;
+      // Example/Typical implementation names:
+      // stepSimulation();
+      // or your inline loop: state.players.forEach(p => stepAsPlayer(p, state));
 
-    if (performance.now() - loopStartTime > LOGIC_TICK_MS) {
-      timeAccumulator = 0; // discard backed-up ticks rather than trying to catch up
-      console.warn(`CPU overload: ran ${loopCount} ticks before aborting.`);
-      break;
+      // --- END OF YOUR EXISTING LIVE GAMESTEP LOGIC ---
+
+      // Record a perfect frame snapshot immediately following the step resolution
+      captureReplayFrame();
+
+      timeAccumulator -= LOGIC_TICK_MS;
+    }
+  } else {
+    // Replay Mode: The live simulation completely pauses.
+    // We pass dt through the identical slider scale to control history playback speed!
+    timeAccumulator += dt * simSpeed;
+
+    const activePlay = completedPlays[replayMode];
+    if (activePlay && activePlay.length > 0) {
+      while (timeAccumulator >= LOGIC_TICK_MS) {
+        // Step the replay animation forward frame-by-frame, looping seamlessly
+        replayFrameIndex = (replayFrameIndex + 1) % activePlay.length;
+        timeAccumulator -= LOGIC_TICK_MS;
+      }
     }
   }
 
-  render(getPocket(state.scoreboard.LOS), state.scoreboard);
+  // 3. Frame Routing & Render Pass
+  if (replayMode === "live") {
+    // Render standard ongoing game state
+    render(state);
+    updateScoreboardUI(state.scoreboard);
+  } else {
+    // Render historical frames from the replay buffer
+    const activePlay = completedPlays[replayMode];
+    if (activePlay && activePlay[replayFrameIndex]) {
+      const frame = activePlay[replayFrameIndex];
+
+      // Map the frame values into a temporary mock state structure for the renderer
+      const mockState: State = {
+        ...state,
+        ball: { ...state.ball, loc: frame.ballLoc, vel: frame.ballVel },
+        players: frame.players.map((fp) => fillOutPlayer(fp)),
+        scoreboard: frame.scoreboard,
+      };
+
+      // Feed the visual blueprint into your canvas engine & UI layer
+      render(mockState);
+      updateScoreboardUI(frame.scoreboard);
+    }
+  }
+
+  // Continuously pump the main animation loop
   requestAnimationFrame(tick);
 }
 
@@ -591,6 +665,18 @@ function resetSimulation(reason: PlayEndReason) {
     downDistance = updateDownAndDistance(prevScoreboard, nextLOS);
   }
 
+  // Update replays
+  if (currentPlayFrames.length > 0) {
+    completedPlays.unshift([...currentPlayFrames]);
+    if (completedPlays.length > 3) {
+      completedPlays.pop();
+    }
+    currentPlayFrames = [];
+
+    // Dispatch a custom window event so app.ts knows to unlock history buttons
+    window.dispatchEvent(new CustomEvent("playRecorded"));
+  }
+
   // Reset state
   state = createInitialState(nextLOS);
   state.stats = updatedStats;
@@ -622,9 +708,11 @@ function onPlayReset(cb: () => void) {
 }
 
 export {
+  getCompletedPlaysCount,
   onPlayReset,
   resetSimulation,
   resolveCollision,
+  setReplayMode,
   setSimSpeed,
   state,
   tick,

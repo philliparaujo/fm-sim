@@ -275,47 +275,51 @@ function generateDefensivePlaycall(
   return { players, coverage };
 }
 
+function fillOutPlayer(partial: PartialPlayer): Player {
+  return {
+    // TEMP: Ratings
+    ratings: getSavedRatings(partial.label),
+
+    // General properties determined on creation
+    type: partial.type,
+    loc: partial.loc,
+    vel: partial.vel,
+    color: partial.color,
+    label: partial.label,
+    position: partial.position,
+    role: partial.role,
+
+    // Specific properties determined on creation
+    runAngle: partial.runAngle,
+    route: partial.route,
+    path: [],
+    breakFrame: null,
+    coverage: partial.coverage,
+
+    // Specific properties determined later
+    assignedTarget: null,
+    decisionTicks: undefined,
+    perceivedLoc: null,
+    perceivedVel: null,
+    reactionTimer: 0,
+    zone: emptyVector(),
+
+    contactedThisFrame: false,
+  };
+}
+
 function fillOutPlayers(partials: PartialPlayer[]): Player[] {
   const players: Player[] = [];
 
   for (const partial of partials) {
-    const full: Player = {
-      // TEMP: Ratings
-      ratings: getSavedRatings(partial.label),
-
-      // General properties determined on creation
-      type: partial.type,
-      loc: partial.loc,
-      vel: partial.vel,
-      color: partial.color,
-      label: partial.label,
-      position: partial.position,
-      role: partial.role,
-
-      // Specific properties determined on creation
-      runAngle: partial.runAngle,
-      route: partial.route,
-      path: [],
-      breakFrame: null,
-      coverage: partial.coverage,
-
-      // Specific properties determined later
-      assignedTarget: null,
-      decisionTicks: undefined,
-      perceivedLoc: null,
-      perceivedVel: null,
-      reactionTimer: 0,
-      zone: emptyVector(),
-
-      contactedThisFrame: false,
-    };
-    players.push(full);
+    players.push(fillOutPlayer(partial));
   }
 
   return players;
 }
 
 export {
+  fillOutPlayer,
   fillOutPlayers,
   generateBall,
   generateDefensivePlaycall,

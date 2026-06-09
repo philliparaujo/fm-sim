@@ -266,7 +266,5 @@ export function updateStatsAfterPlay(
     }
   }
 
-  console.log("PLAY OVER.", yards);
-
   return next;
 }

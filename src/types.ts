@@ -171,6 +171,13 @@ type Scoreboard = {
   teams: ScoreboardTeam[];
 };
 
+type ReplayFrame = {
+  ballLoc: Vector;
+  ballVel: Vector;
+  players: Array<PartialPlayer>;
+  scoreboard: Scoreboard;
+};
+
 type State = {
   ball: Ball;
   players: Player[];
@@ -214,6 +221,7 @@ export type {
   Player,
   QBStats,
   RBStats,
+  ReplayFrame,
   Role,
   Route,
   Scoreboard,
