@@ -1,5 +1,4 @@
 import { getConstants } from "./ratings";
-import { state } from "./simulate";
 import { Ball, Player, Scoreboard, State } from "./types";
 import { getPocket } from "./util";
 
@@ -309,4 +308,4 @@ function render(state: State) {
   drawBall(state.ball);
 }
 
-export { H, render, W, ENDZONE_W, TOTAL_H, TOTAL_W };
+export { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W };

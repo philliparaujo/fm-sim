@@ -1,15 +1,14 @@
-import { ATTRIBUTE_CONFIG } from "./ratings";
+import { saveRating } from "./playbook";
+import { Attribute } from "./ratings";
 import {
-  tick,
-  setSimSpeed,
-  state,
+  getCompletedPlaysCount,
   onPlayReset,
   setReplayMode,
-  getCompletedPlaysCount,
+  setSimSpeed,
+  state,
+  tick,
 } from "./simulate";
-import { Attribute } from "./ratings";
 import { Player } from "./types";
-import { saveRating } from "./playbook";
 
 // Which attributes are relevant per role
 const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {

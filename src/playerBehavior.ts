@@ -443,8 +443,6 @@ function stepAsPlayer(player: Player, state: State) {
     let shouldThrow = false;
 
     // Initialize a stateful decision ticker on the player if it doesn't exist
-    if (player.decisionTicks === undefined) player.decisionTicks = 0;
-
     if (state.steps >= BALL_GIVEN_STEPS) {
       shouldThrow = true; // Clock ran out — must throw
     } else if (underPressure) {
@@ -743,9 +741,6 @@ function attemptTackle(defender: Player, carrier: Player) {
 
   // Tackle pressure slowly builds and guarantees a tackle
   carrier.contactedThisFrame = true;
-  carrier.tacklePressure =
-    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
-
   carrier.tacklePressure =
     (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
 

@@ -25,7 +25,6 @@ import {
   computeFirstDownLine,
   dist,
   distanceAfterFirstDown,
-  getPocket,
   isCarryingBall,
   length,
   numPlays,
@@ -69,8 +68,6 @@ const createInitialState = (startingLOS?: number): State => {
     pausedUntil: 0,
     ballGiven: false,
     ballGivenAtStep: 0,
-    earlyThrowDecided: false,
-    panicThrowDecided: false,
     blockingAssignments: new Map<Player, Player>(),
     scoreboard: scoreboard,
     stats: createEmptyStats(),
@@ -110,13 +107,9 @@ function captureReplayFrame() {
     ballLoc: { x: state.ball.loc.x, y: state.ball.loc.y },
     ballVel: { x: state.ball.vel.x, y: state.ball.vel.y },
     players: state.players.map((p) => ({
+      ...p,
       loc: { x: p.loc.x, y: p.loc.y },
       vel: { x: p.vel.x, y: p.vel.y },
-      label: p.label,
-      color: p.color,
-      role: p.role,
-      type: "player",
-      position: p.position,
     })),
     // Create a deep value copy of the scoreboard state
     scoreboard: JSON.parse(JSON.stringify(state.scoreboard)),
@@ -360,9 +353,9 @@ function resolveCollision(a: Player, b: Entity) {
 
   if (distance < minDistance) {
     if (b.type === "ball") {
-      // if (isCarryingBall(a, b as Ball)) {
-      ballCollideBehavior(a);
-      // }
+      if (isCarryingBall(a, b as Ball)) {
+        ballCollideBehavior(a);
+      }
     } else if (b.type === "player") {
       const playerB = b as Player;
 
@@ -540,9 +533,6 @@ let timeAccumulator = 0;
 
 async function tick(timestamp: number = performance.now()) {
   // 1. Initialize or compute frame delta time
-  if (lastTime === null) {
-    lastTime = timestamp;
-  }
   let dt = timestamp - lastTime;
   lastTime = timestamp;
 
@@ -576,8 +566,6 @@ async function tick(timestamp: number = performance.now()) {
 
       // Record a perfect frame snapshot immediately following the step resolution
       captureReplayFrame();
-
-      timeAccumulator -= LOGIC_TICK_MS;
     }
   } else {
     // Replay Mode: The live simulation completely pauses.

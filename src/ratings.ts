@@ -90,7 +90,7 @@ export const ATTRIBUTE_CONFIG = {
     minCatchSpeedMultiplier: lerp(r, 0.6, 1),
   }),
   catchRadius: (r: number) => ({
-    completionRadius: lerp(r, 112, 80),
+    completionRadius: lerp(r, 162, 130),
   }),
 
   // Blockers

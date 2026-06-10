@@ -1,5 +1,4 @@
-import { ENDZONE_W, H, TOTAL_H, W } from "./render";
-import { Scoreboard, State, Stats } from "./types";
+import { ENDZONE_W, H, W } from "./render";
 import {
   Ball,
   cornerRoute,
@@ -12,7 +11,9 @@ import {
   Player,
   postRoute,
   Route,
+  Scoreboard,
   slantRoute,
+  Stats,
   streakRoute,
   Vector,
 } from "./types";

@@ -37,7 +37,7 @@ interface Player extends PartialPlayer {
   ratings: Ratings;
 
   // For passers
-  decisionTicks: number | undefined;
+  decisionTicks: number;
 
   // For receivers
   path: Vector[];
@@ -190,8 +190,6 @@ type State = {
   steps: number;
   ballGiven: boolean;
   ballGivenAtStep: number;
-  earlyThrowDecided: boolean;
-  panicThrowDecided: boolean;
   blockingAssignments: Map<Player, Player>;
 };
 
