@@ -17,18 +17,66 @@
     </header>
 
     <main id="root">
-      <div id="speed-control">
-        <label for="sim-speed-slider"
-          >Speed: <span id="speed-label">1×</span></label
-        >
-        <input
-          type="range"
-          id="sim-speed-slider"
-          min="0"
-          max="13"
-          step="1"
-          value="2"
-        />
+      <div class="controls-container">
+        <div class="control-row">
+          <div class="slider-group">
+            <label for="sim-speed-slider"
+              >Speed: <span id="speed-label">1×</span></label
+            >
+            <input
+              type="range"
+              id="sim-speed-slider"
+              min="0"
+              max="13"
+              step="1"
+              value="2"
+            />
+          </div>
+        </div>
+
+        <div class="control-row playbook-row" id="playbook-controls">
+          <div class="slider-group">
+            <label for="pass-slider"
+              >Pass Mix: <span id="pass-label">50%</span></label
+            >
+            <input
+              type="range"
+              id="pass-slider"
+              min="0"
+              max="1"
+              step="0.5"
+              value="0.5"
+            />
+          </div>
+
+          <div class="slider-group">
+            <label for="man-slider"
+              >Man Coverage Mix: <span id="man-label">50%</span></label
+            >
+            <input
+              type="range"
+              id="man-slider"
+              min="0"
+              max="1"
+              step="0.5"
+              value="0.5"
+            />
+          </div>
+
+          <div class="slider-group">
+            <label for="blitz-slider"
+              >Blitz Mix: <span id="blitz-label">50%</span></label
+            >
+            <input
+              type="range"
+              id="blitz-slider"
+              min="0"
+              max="1"
+              step="0.5"
+              value="0.5"
+            />
+          </div>
+        </div>
       </div>
 
       <div id="replay-controls" style="margin: 10px 0; display: flex; gap: 5px">

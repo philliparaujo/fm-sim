@@ -1,4 +1,4 @@
-import { saveRating } from "./playbook";
+import { PLAYBOOK_CONFIG, saveRating } from "./playbook";
 import { Attribute } from "./ratings";
 import {
   getCompletedPlaysCount,
@@ -187,6 +187,40 @@ function setupReplayFeatures() {
   });
 }
 
+function setupPlaybookSliders() {
+  const configs = [
+    {
+      sliderId: "pass-slider",
+      labelId: "pass-label",
+      configKey: "passPercent",
+    },
+    { sliderId: "man-slider", labelId: "man-label", configKey: "manPercent" },
+    {
+      sliderId: "blitz-slider",
+      labelId: "blitz-label",
+      configKey: "blitzPercent",
+    },
+  ] as const;
+
+  configs.forEach(({ sliderId, labelId, configKey }) => {
+    const slider = document.getElementById(sliderId) as HTMLInputElement;
+    const label = document.getElementById(labelId) as HTMLSpanElement;
+
+    if (!slider || !label) return;
+
+    // Synchronize slider changes dynamically with the underlying engine state
+    slider.addEventListener("input", () => {
+      const numericValue = parseFloat(slider.value);
+
+      // Update our simulation playbook state object on-the-fly
+      PLAYBOOK_CONFIG[configKey] = numericValue;
+
+      // Update user interface text labels to mirror selection
+      label.textContent = `${numericValue * 100}%`;
+    });
+  });
+}
+
 async function init() {
   // Speed slider
   const slider = document.getElementById(
@@ -210,6 +244,9 @@ async function init() {
 
   // Replays
   setupReplayFeatures();
+
+  // Playbook variable listeners
+  setupPlaybookSliders();
 
   requestAnimationFrame(tick);
 }

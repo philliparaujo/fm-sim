@@ -1,57 +1,83 @@
-#speed-control {
+.controls-container {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 16px;
   padding: 12px 0;
-  font-size: 40px;
+  margin-bottom: 20px;
 }
 
-#speed-control label {
+/* Individual Row Alignment rules */
+.control-row {
   display: flex;
   align-items: center;
-  width: 240px;
+  width: 100%;
 }
 
-#speed-label {
-  display: inline-block;
-  width: 80px;
-  margin-left: 8px;
+/* Forces playbook components into an organized, wrapping horizontal row */
+.playbook-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 32px;
 }
 
-#sim-speed-slider {
+/* Standardized configuration for all text, labels, and spans */
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px; /* Identical font scaling for all modules */
+  color: black;
+}
+
+.slider-group label {
+  display: flex;
+  align-items: center;
+  width: 260px; /* Fixed alignment baseline for textual components */
+  font-weight: 500;
+}
+
+.slider-group label span {
+  margin-left: auto;
+  padding-right: 10px;
+  font-weight: bold;
+}
+
+/* Shared styling properties for all track inputs ending in "-slider" */
+[id$="-slider"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 480px;
-  height: 20px;
-  border-radius: 10px;
+  width: 340px; /* Unified slider width */
+  height: 18px;
+  border-radius: 9px;
   background: #444;
   outline: none;
   cursor: pointer;
 }
 
-#sim-speed-slider::-webkit-slider-thumb {
+[id$="-slider"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #f70000;
   cursor: pointer;
-  margin-top: -8px;
+  margin-top: -7px;
 }
 
-#sim-speed-slider::-moz-range-thumb {
-  width: 36px;
-  height: 36px;
+[id$="-slider"]::-moz-range-thumb {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #f70000;
   cursor: pointer;
   border: none;
 }
 
-#sim-speed-slider::-moz-range-track {
-  height: 20px;
-  border-radius: 10px;
-  background: #444;
+#speed-label {
+  display: inline-block;
+  width: 80px;
+  margin-left: 8px;
 }
 
 #player-dashboard {

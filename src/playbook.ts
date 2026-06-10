@@ -3,16 +3,11 @@ import { H, W } from "./render";
 import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
 import { emptyVector, randomRoute, randomRunVector } from "./util";
 
-// Offensive playcall
-const PASS_PERCENT = 0.5;
-const RUN_PERCENT = 1 - PASS_PERCENT;
-
-// Defensive underneath coverage playcall
-const MAN_PERCENT = 0.5;
-const ZONE_PERCENT = 1 - MAN_PERCENT;
-
-// Cover 1 blitz or Cover 2 shell
-const BLITZ_PERCENT = 0.5;
+const PLAYBOOK_CONFIG = {
+  passPercent: 0.5, // Offensive playcall
+  manPercent: 0.5, // Defensive underneath coverage
+  blitzPercent: 0.5, // Cover 1 blitz or cover 2 shell
+};
 
 function generateBall(LOS: number): Ball {
   const BALL_RADIUS = 18;
@@ -60,7 +55,7 @@ function generateOffensePlaycall(
   routes: Route[];
 } {
   offenseLabelIndex = 0;
-  const isPassPlay = Math.random() < PASS_PERCENT;
+  const isPassPlay = Math.random() < PLAYBOOK_CONFIG.passPercent;
   const players: PartialPlayer[] = [];
 
   const CENTER_Y = H / 2;
@@ -202,7 +197,8 @@ function generateDefensivePlaycall(
   const COVERER_X = LOS + (1 / 10) * W;
   const COVERER_SPEED = 4.8;
   const COVERER_RADIUS = DEFAULT_RADIUS;
-  const COVERER_COVERAGE = Math.random() < MAN_PERCENT ? "man" : "zone";
+  const COVERER_COVERAGE =
+    Math.random() < PLAYBOOK_CONFIG.manPercent ? "man" : "zone";
 
   const catchers = offensivePlayers.filter((p) => p.role === "catcher");
 
@@ -232,7 +228,7 @@ function generateDefensivePlaycall(
   });
 
   // Choose what to do with LB/S (Cover 2 or Cover 1 blitz)
-  const isBlitz = Math.random() < BLITZ_PERCENT;
+  const isBlitz = Math.random() < PLAYBOOK_CONFIG.blitzPercent;
 
   const LB_ROLE = isBlitz ? "rusher" : "coverer";
   const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
@@ -324,5 +320,6 @@ export {
   generateBall,
   generateDefensivePlaycall,
   generateOffensePlaycall,
+  PLAYBOOK_CONFIG,
   saveRating,
 };
