@@ -121,6 +121,29 @@ type RBStats = {
   tfls: number;
 };
 
+type PlayAdvancedData = {
+  throwFrame?: number; // state.steps when throw occurred
+  airYards?: number; // pixels from LOS to catcher at throw time
+  wasOffTarget?: boolean; // throw was uncatchable
+  wasUnderPressure: boolean; // at least one frame under pressure this play
+  separationAtCatch?: number; // nearest defender dist in pixels at catch
+  catchX?: number; // ball.loc.x when catcher caught the ball
+  firstContactX?: number; // ball.loc.x on first tackle pressure frame
+};
+
+// Averaged advanced stats
+type AdvancedStats = {
+  intendedAirYards: number;
+  completedAirYards: number;
+  timeToThrow: number;
+  offTargetThrowRate: number;
+  pressureRate: number;
+  rushYardsBeforeContact: number;
+  rushYardsAfterContact: number;
+  receiverSeparation: number;
+  receiverYardsAfterCatch: number;
+};
+
 type Stats = {
   playcalls: PlaycallStats;
   coverage: CoverageStats;
@@ -130,6 +153,7 @@ type Stats = {
   rb: RBStats;
   runAngles: Record<string, CountYards>;
   routes: Record<string, CountYards>;
+  advanced: AdvancedStats;
 };
 
 type CurrentPlay = {
@@ -182,8 +206,10 @@ type State = {
   ball: Ball;
   players: Player[];
   scoreboard: Scoreboard;
-  stats: Stats;
   currentPlay: CurrentPlay;
+
+  stats: Stats;
+  playAdvanced: PlayAdvancedData;
 
   pausedUntil: number;
 
@@ -205,6 +231,7 @@ export {
   streakRoute,
 };
 export type {
+  AdvancedStats,
   Ball,
   Coverage,
   CurrentPlay,
@@ -212,6 +239,7 @@ export type {
   Entity,
   OffensivePlayType,
   PartialPlayer,
+  PlayAdvancedData,
   PlaycallCoverageKey,
   PlayCallCoverageStats,
   PlaycallCoverageYards,

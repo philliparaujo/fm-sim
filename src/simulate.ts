@@ -71,6 +71,9 @@ const createInitialState = (startingLOS?: number): State => {
     blockingAssignments: new Map<Player, Player>(),
     scoreboard: scoreboard,
     stats: createEmptyStats(),
+    playAdvanced: {
+      wasUnderPressure: false,
+    },
     currentPlay: {
       offense: offensePlay.playType,
       defense: defensePlay.coverage,
@@ -413,6 +416,12 @@ function resolveCollision(a: Player, b: Entity) {
 
       // Initiate tackle attempt
       if (defender && carrier) {
+        if (
+          carrier.role !== "passer" &&
+          state.playAdvanced.firstContactX === undefined
+        ) {
+          state.playAdvanced.firstContactX = carrier.loc.x;
+        }
         attemptTackle(defender, carrier);
       }
 
@@ -470,14 +479,12 @@ function ballCollideBehavior(player: Player) {
       // If runner collides with ball on running play, runner carries ball
       if (state.currentPlay.offense === "pass" && !state.ballGiven) return;
 
-      state.ballGiven = true;
       state.ball.loc.x = player.loc.x;
       state.ball.loc.y = player.loc.y;
       break;
     }
     case "catcher": {
       // If catcher collides with ball, catcher carries ball
-      state.ballGiven = true;
       state.ball.loc.x = player.loc.x;
       state.ball.loc.y = player.loc.y;
       break;
@@ -635,6 +642,9 @@ function resetSimulation(reason: PlayEndReason) {
     ballGiven,
     ballCarrier?.role,
     ballCarrier?.route,
+    state.playAdvanced,
+    state.scoreboard.LOS,
+    endBallX,
   );
 
   // Log simulation stats

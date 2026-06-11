@@ -1,4 +1,6 @@
+import { ENDZONE_W, W } from "./render";
 import {
+  AdvancedStats,
   cornerRoute,
   curlRoute,
   CurrentPlay,
@@ -8,6 +10,7 @@ import {
   inRoute,
   OffensivePlayType,
   outRoute,
+  PlayAdvancedData,
   PlaycallCoverageKey,
   PlayCallCoverageStats,
   PlaycallCoverageYards,
@@ -22,7 +25,7 @@ import {
   streakRoute,
   Vector,
 } from "./types";
-import { round2 } from "./util";
+import { round2, yardsFromPixels } from "./util";
 
 const ROUTE_NAMES: [string, Route][] = [
   ["streak", streakRoute],
@@ -80,6 +83,20 @@ function emptyRBStats(): RBStats {
   return { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 };
 }
 
+function emptyAdvancedStats(): AdvancedStats {
+  return {
+    completedAirYards: 0,
+    intendedAirYards: 0,
+    offTargetThrowRate: 0,
+    pressureRate: 0,
+    receiverSeparation: 0,
+    receiverYardsAfterCatch: 0,
+    rushYardsAfterContact: 0,
+    rushYardsBeforeContact: 0,
+    timeToThrow: 0,
+  };
+}
+
 export function playcallCoverageKey(
   offense: OffensivePlayType,
   defense: DefensiveCoverageType,
@@ -111,6 +128,7 @@ export function createEmptyStats(): Stats {
     rb: { ...emptyRBStats() },
     runAngles: {},
     routes: {},
+    advanced: { ...emptyAdvancedStats() },
   };
 }
 
@@ -167,6 +185,9 @@ export function updateStatsAfterPlay(
   ballGiven: boolean,
   ballCarrierRole?: Role,
   ballCarrierRoute?: Route,
+  playAdvanced?: PlayAdvancedData,
+  los?: number,
+  finalBallX?: number,
 ): Stats {
   const next: Stats = structuredClone(stats);
   const matchupKey = playcallCoverageKey(play.offense, play.defense);
@@ -294,6 +315,91 @@ export function updateStatsAfterPlay(
       next.runAngles[key].yards += yards;
       next.runAngles[key].avg = round2(
         next.runAngles[key].yards / next.runAngles[key].count,
+      );
+    }
+  }
+
+  // --- Advanced stats ---
+  if (playAdvanced) {
+    const adv = next.advanced;
+    const completionCount = next.qb.completions;
+    const passCount = next.qb.attempts;
+    const dropbackCount = next.qb.attempts + next.qb.sacks; // total dropbacks so far
+
+    // Time to Throw (seconds): only on pass attempts, not sacks
+    if (isPassAttempt && playAdvanced.throwFrame !== undefined) {
+      const ttt = playAdvanced.throwFrame / 60;
+      adv.timeToThrow = round2(
+        (adv.timeToThrow * (dropbackCount - 1) + ttt) / dropbackCount,
+      );
+    }
+
+    // Air Yards: average over pass attempts only
+    if (isPassAttempt && playAdvanced.airYards !== undefined) {
+      const airYardsYds = yardsFromPixels(Math.max(0, playAdvanced.airYards));
+      adv.intendedAirYards = round2(
+        (adv.intendedAirYards * (passCount - 1) + airYardsYds) / passCount,
+      );
+      if (completion) {
+        adv.completedAirYards = round2(
+          (adv.completedAirYards * (passCount - 1) + airYardsYds) /
+            completionCount,
+        );
+      }
+    }
+
+    // Off-target throw %
+    if (isPassAttempt && playAdvanced.wasOffTarget !== undefined) {
+      const badCount =
+        adv.offTargetThrowRate * (dropbackCount - 1) +
+        (playAdvanced.wasOffTarget ? 1 : 0);
+      adv.offTargetThrowRate = round2(badCount / dropbackCount);
+    }
+
+    // Pressure rate: pressured plays / total dropbacks
+    if (play.offense === "pass") {
+      const totalDropbacks = dropbackCount;
+      const prevPressured = adv.pressureRate * (totalDropbacks - 1);
+      adv.pressureRate = round2(
+        (prevPressured + (playAdvanced.wasUnderPressure ? 1 : 0)) /
+          totalDropbacks,
+      );
+    }
+
+    // Separation at catch: average over completions only
+    if (
+      completion &&
+      playAdvanced.separationAtCatch !== undefined &&
+      isFinite(playAdvanced.separationAtCatch)
+    ) {
+      const sepYds = yardsFromPixels(playAdvanced.separationAtCatch);
+      const cmpCount = next.qb.completions;
+      adv.receiverSeparation = round2(
+        (adv.receiverSeparation * (cmpCount - 1) + sepYds) / cmpCount,
+      );
+    }
+
+    // YBC / YAC: split from firstContactX and catchX
+    if (isRush && los && playAdvanced.firstContactX !== undefined) {
+      const ybc = yardsFromPixels(playAdvanced.firstContactX - los);
+      const yac = yards - ybc;
+      const n = next.rb.rushes;
+      adv.rushYardsBeforeContact = round2(
+        (adv.rushYardsBeforeContact * (n - 1) + ybc) / n,
+      );
+      adv.rushYardsAfterContact = round2(
+        (adv.rushYardsAfterContact * (n - 1) + Math.max(0, yac)) / n,
+      );
+    }
+
+    // Receiver YAC: yards from catchX to tackle
+    if (completion && finalBallX && playAdvanced.catchX !== undefined) {
+      const endX = isTouchdown ? W + ENDZONE_W : finalBallX;
+      const yac = Math.max(0, yardsFromPixels(endX - playAdvanced.catchX));
+      const cmpCount = next.qb.completions;
+      adv.receiverYardsAfterCatch = round2(
+        (adv.receiverYardsAfterCatch * (cmpCount - 1) + Math.max(0, yac)) /
+          cmpCount,
       );
     }
   }

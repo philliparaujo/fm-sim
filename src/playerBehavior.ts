@@ -493,6 +493,12 @@ function stepAsPlayer(player: Player, state: State) {
       (cov) => dist(throwTarget, cov.loc) < catchableRadius * 0.7,
     );
 
+    state.playAdvanced.throwFrame = state.steps;
+    state.playAdvanced.airYards =
+      bestOption.catcher.loc.x - state.scoreboard.LOS;
+    // state.playAdvanced.wasOffTarget = !isCatchable;
+    state.playAdvanced.wasUnderPressure = underPressure;
+
     if (intercepted) {
       // resetSimulation("turnover");
     } else if (!isCatchable) {
@@ -503,7 +509,12 @@ function stepAsPlayer(player: Player, state: State) {
       state.ball.loc.x = bestOption.catcher.loc.x;
       state.ball.loc.y = bestOption.catcher.loc.y;
       state.ballGiven = true;
+      state.playAdvanced.catchX = bestOption.catcher.loc.x;
       state.ballGivenAtStep = state.steps;
+
+      if (isFinite(bestOption.nearestDefDist)) {
+        state.playAdvanced.separationAtCatch = bestOption.nearestDefDist;
+      }
     }
   }
 
