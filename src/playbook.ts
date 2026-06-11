@@ -1,7 +1,20 @@
-import { Attribute, defaultRatings, Ratings } from "./ratings";
+import {
+  Attribute,
+  createBaseRatings,
+  getDefaultRatingForLabel,
+  Ratings,
+} from "./ratings";
 import { H, W } from "./render";
 import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
 import { emptyVector, randomRoute, randomRunVector } from "./util";
+
+const BLOCKERS_INCLUDED = true;
+const PASSER_INCLUDED = true;
+const CATCHERS_INCLUDED = true;
+const RUNNER_INCLUDED = true;
+const RUSHERS_INCLUDED = true;
+const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
+const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
   passPercent: 0.5, // Offensive playcall
@@ -26,8 +39,20 @@ function generateBall(LOS: number): Ball {
 
 let offenseLabelIndex = 0;
 let defenseLabelIndex = 0;
-const OFFENSIVE_LABELS = ["LT", "C", "RT", "QB", "XR", "ZR", "TE", "RB"];
-const DEFENSIVE_LABELS = ["LE", "DT", "RE", "CB", "NB", "LB", "SS", "FS"];
+// --- Build Dynamic Offensive Labels ---
+const OFFENSIVE_LABELS: string[] = [
+  ...(BLOCKERS_INCLUDED ? ["LT", "C", "RT"] : []),
+  ...(PASSER_INCLUDED ? ["QB"] : []),
+  ...(CATCHERS_INCLUDED ? ["XR", "ZR", "TE"] : []),
+  ...(RUNNER_INCLUDED ? ["RB"] : []),
+];
+
+// --- Build Dynamic Defensive Labels ---
+const DEFENSIVE_LABELS: string[] = [
+  ...(RUSHERS_INCLUDED ? ["LE", "DT", "RE"] : []),
+  ...(COVERERS_INCLUDED ? ["CB", "NB", "LB"] : []),
+  ...(SAFETIES_INCLUDED ? ["SS", "FS"] : []),
+];
 function nextOffenseLabel(): string {
   return OFFENSIVE_LABELS[offenseLabelIndex++ % OFFENSIVE_LABELS.length];
 }
@@ -41,7 +66,7 @@ function saveRating(label: string, attr: Attribute, value: number) {
   savedRatings[label][attr] = value;
 }
 function getSavedRatings(label: string): Ratings {
-  return { ...defaultRatings, ...savedRatings[label] };
+  return { ...getDefaultRatingForLabel(label), ...savedRatings[label] };
 }
 
 function generateOffensePlaycall(
@@ -62,94 +87,102 @@ function generateOffensePlaycall(
   const DEFAULT_RADIUS = 24;
 
   // Add 3 blockers
-  const BLOCKER_X = LOS;
-  const BLOCKER_CENTER_Y = CENTER_Y;
-  const BLOCKER_SPREAD_Y = (0.4 / 4) * H;
-  const BLOCKER_SPEED = 3;
-  const BLOCKER_RADIUS = DEFAULT_RADIUS;
-  for (let i = 0; i < 3; i++) {
+  if (BLOCKERS_INCLUDED) {
+    const BLOCKER_X = LOS;
+    const BLOCKER_CENTER_Y = CENTER_Y;
+    const BLOCKER_SPREAD_Y = (0.4 / 4) * H;
+    const BLOCKER_SPEED = 3;
+    const BLOCKER_RADIUS = DEFAULT_RADIUS;
+    for (let i = 0; i < 3; i++) {
+      players.push({
+        type: "player",
+        color: teamColor,
+        label: nextOffenseLabel(),
+        position: "offense",
+        role: "blocker",
+        loc: { x: BLOCKER_X, y: BLOCKER_CENTER_Y + (i - 1) * BLOCKER_SPREAD_Y },
+        vel: emptyVector(),
+      });
+    }
+  }
+
+  // Add quarterback
+  if (PASSER_INCLUDED) {
+    const QB_SPEED = 4.2;
+    const QB_RADIUS = DEFAULT_RADIUS;
     players.push({
       type: "player",
       color: teamColor,
       label: nextOffenseLabel(),
       position: "offense",
-      role: "blocker",
-      loc: { x: BLOCKER_X, y: BLOCKER_CENTER_Y + (i - 1) * BLOCKER_SPREAD_Y },
+      role: "passer",
+      loc: { x: ball.loc.x, y: ball.loc.y },
       vel: emptyVector(),
     });
   }
 
-  // Add quarterback
-  const QB_SPEED = 4.2;
-  const QB_RADIUS = DEFAULT_RADIUS;
-  players.push({
-    type: "player",
-    color: teamColor,
-    label: nextOffenseLabel(),
-    position: "offense",
-    role: "passer",
-    loc: { x: ball.loc.x, y: ball.loc.y },
-    vel: emptyVector(),
-  });
+  if (CATCHERS_INCLUDED) {
+    // Add one receiver on each side
+    const OUTSIDE_RECEIVER_X = LOS;
+    const OUTSIDE_RECEIVER_SPREAD_Y = (1.3 / 4) * H;
+    const OUTSIDE_RECEIVER_SPEED = 4.8;
+    const OUTSIDE_RECEIVER_RADIUS = DEFAULT_RADIUS;
+    for (let i = 0; i < 2; i++) {
+      players.push({
+        type: "player",
+        color: teamColor,
+        label: nextOffenseLabel(),
+        position: "offense",
+        role: "catcher",
+        loc: {
+          x: OUTSIDE_RECEIVER_X,
+          y: CENTER_Y + (2 * i - 1) * OUTSIDE_RECEIVER_SPREAD_Y,
+        },
+        vel: emptyVector(),
+        route: randomRoute(),
+      });
+    }
 
-  // Add one receiver on each side
-  const OUTSIDE_RECEIVER_X = LOS;
-  const OUTSIDE_RECEIVER_SPREAD_Y = (1.3 / 4) * H;
-  const OUTSIDE_RECEIVER_SPEED = 4.8;
-  const OUTSIDE_RECEIVER_RADIUS = DEFAULT_RADIUS;
-  for (let i = 0; i < 2; i++) {
+    // Choose where to place last receiver
+    const SLOT_RECEIVER_X = LOS - (2 * W) / 100;
+    const SLOT_RECEIVER_SPREAD_Y = (OUTSIDE_RECEIVER_SPREAD_Y * 3) / 5;
+    const SLOT_RECEIVER_SPEED = 4.8;
+    const SLOT_RECEIVER_RADIUS = DEFAULT_RADIUS;
+    const SLOT_RECEIVER_Y =
+      Math.random() < 0.5
+        ? CENTER_Y - SLOT_RECEIVER_SPREAD_Y
+        : CENTER_Y + SLOT_RECEIVER_SPREAD_Y;
     players.push({
       type: "player",
       color: teamColor,
       label: nextOffenseLabel(),
       position: "offense",
       role: "catcher",
-      loc: {
-        x: OUTSIDE_RECEIVER_X,
-        y: CENTER_Y + (2 * i - 1) * OUTSIDE_RECEIVER_SPREAD_Y,
-      },
+      loc: { x: SLOT_RECEIVER_X, y: SLOT_RECEIVER_Y },
       vel: emptyVector(),
       route: randomRoute(),
     });
   }
 
-  // Choose where to place last receiver
-  const SLOT_RECEIVER_X = LOS - (2 * W) / 100;
-  const SLOT_RECEIVER_SPREAD_Y = (OUTSIDE_RECEIVER_SPREAD_Y * 3) / 5;
-  const SLOT_RECEIVER_SPEED = 4.8;
-  const SLOT_RECEIVER_RADIUS = DEFAULT_RADIUS;
-  const SLOT_RECEIVER_Y =
-    Math.random() < 0.5
-      ? CENTER_Y - SLOT_RECEIVER_SPREAD_Y
-      : CENTER_Y + SLOT_RECEIVER_SPREAD_Y;
-  players.push({
-    type: "player",
-    color: teamColor,
-    label: nextOffenseLabel(),
-    position: "offense",
-    role: "catcher",
-    loc: { x: SLOT_RECEIVER_X, y: SLOT_RECEIVER_Y },
-    vel: emptyVector(),
-    route: randomRoute(),
-  });
-
   // Choose what to do with RB (runner, blocker, catcher out wide)
-  const RB_ROLE = "runner";
-  const RB_Y = CENTER_Y;
-  const RB_X = ball.loc.x - (5 / 100) * W;
-  const RB_SPEED = 5.7;
   const RB_VEL = isPassPlay ? emptyVector() : randomRunVector();
-  const RB_RADIUS = DEFAULT_RADIUS;
-  players.push({
-    type: "player",
-    color: teamColor,
-    label: nextOffenseLabel(),
-    position: "offense",
-    role: RB_ROLE,
-    loc: { x: RB_X, y: RB_Y },
-    vel: emptyVector(),
-    runAngle: RB_VEL,
-  });
+  if (RUNNER_INCLUDED) {
+    const RB_ROLE = "runner";
+    const RB_Y = CENTER_Y;
+    const RB_X = ball.loc.x - (5 / 100) * W;
+    const RB_SPEED = 5.7;
+    const RB_RADIUS = DEFAULT_RADIUS;
+    players.push({
+      type: "player",
+      color: teamColor,
+      label: nextOffenseLabel(),
+      position: "offense",
+      role: RB_ROLE,
+      loc: { x: RB_X, y: RB_Y },
+      vel: emptyVector(),
+      runAngle: RB_VEL,
+    });
+  }
 
   return {
     players,
@@ -176,90 +209,95 @@ function generateDefensivePlaycall(
   const DEFAULT_RADIUS = 24;
 
   // Add 3 rushers on LOS
-  const RUSHER_X = LOS + (5 / 100) * W;
-  const RUSHER_CENTER_Y = CENTER_Y;
-  const RUSHER_SPREAD_Y = (1 / 7) * H;
-  const RUSHER_SPEED = 4.5;
-  const RUSHER_RADIUS = DEFAULT_RADIUS;
-  for (let i = 0; i < 3; i++) {
+  if (RUSHERS_INCLUDED) {
+    const RUSHER_X = LOS + (5 / 100) * W;
+    const RUSHER_CENTER_Y = CENTER_Y;
+    const RUSHER_SPREAD_Y = (1 / 7) * H;
+    const RUSHER_SPEED = 4.5;
+    const RUSHER_RADIUS = DEFAULT_RADIUS;
+    for (let i = 0; i < 3; i++) {
+      players.push({
+        type: "player",
+        color: teamColor,
+        label: nextDefenseLabel(),
+        position: "defense",
+        role: "rusher",
+        loc: { x: RUSHER_X, y: RUSHER_CENTER_Y + (i - 1) * RUSHER_SPREAD_Y },
+        vel: emptyVector(),
+      });
+    }
+  }
+
+  // Match coverers with catchers
+  const COVERER_COVERAGE =
+    Math.random() < PLAYBOOK_CONFIG.manPercent ? "man" : "zone";
+  if (COVERERS_INCLUDED) {
+    const COVERER_X = LOS + (1 / 10) * W;
+    const COVERER_SPEED = 4.8;
+    const COVERER_RADIUS = DEFAULT_RADIUS;
+
+    const catchers = offensivePlayers.filter((p) => p.role === "catcher");
+
+    const zoneMargin = H * 0.1;
+    const availableSpace = H - zoneMargin * 2;
+    const zoneStep =
+      catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
+
+    catchers.forEach((catcher, index) => {
+      const yPos =
+        COVERER_COVERAGE === "man"
+          ? catcher.loc.y
+          : catchers.length > 1
+            ? zoneMargin + index * zoneStep
+            : H / 2;
+
+      players.push({
+        type: "player",
+        color: teamColor,
+        label: nextDefenseLabel(),
+        position: "defense",
+        role: "coverer",
+        loc: { x: COVERER_X, y: yPos },
+        vel: { x: 0.5, y: 0 },
+        coverage: COVERER_COVERAGE,
+      });
+    });
+  }
+
+  // Choose what to do with LB/S (Cover 2 or Cover 1 blitz)
+  const isBlitz = Math.random() < PLAYBOOK_CONFIG.blitzPercent;
+  if (SAFETIES_INCLUDED) {
+    const LB_ROLE = isBlitz ? "rusher" : "coverer";
+    const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
+    const LB_Y = isBlitz ? (Math.random() < 0.5 ? H * 0.25 : H * 0.75) : H / 3;
+    const LB_SPEED = isBlitz ? 4.5 : 4.8;
+    const LB_RADIUS = DEFAULT_RADIUS;
     players.push({
       type: "player",
       color: teamColor,
       label: nextDefenseLabel(),
       position: "defense",
-      role: "rusher",
-      loc: { x: RUSHER_X, y: RUSHER_CENTER_Y + (i - 1) * RUSHER_SPREAD_Y },
+      role: LB_ROLE,
+      loc: { x: LB_X, y: LB_Y },
       vel: emptyVector(),
+      coverage: "zone",
     });
-  }
 
-  // Match coverers with catchers
-  const COVERER_X = LOS + (1 / 10) * W;
-  const COVERER_SPEED = 4.8;
-  const COVERER_RADIUS = DEFAULT_RADIUS;
-  const COVERER_COVERAGE =
-    Math.random() < PLAYBOOK_CONFIG.manPercent ? "man" : "zone";
-
-  const catchers = offensivePlayers.filter((p) => p.role === "catcher");
-
-  const zoneMargin = H * 0.1;
-  const availableSpace = H - zoneMargin * 2;
-  const zoneStep =
-    catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
-
-  catchers.forEach((catcher, index) => {
-    const yPos =
-      COVERER_COVERAGE === "man"
-        ? catcher.loc.y
-        : catchers.length > 1
-          ? zoneMargin + index * zoneStep
-          : H / 2;
-
+    const S_X = LOS + (35 / 100) * W;
+    const S_Y = isBlitz ? H / 2 : (2 * H) / 3;
+    const S_SPEED = 4.8;
+    const S_RADIUS = DEFAULT_RADIUS;
     players.push({
       type: "player",
       color: teamColor,
       label: nextDefenseLabel(),
       position: "defense",
       role: "coverer",
-      loc: { x: COVERER_X, y: yPos },
-      vel: { x: 0.5, y: 0 },
-      coverage: COVERER_COVERAGE,
+      loc: { x: S_X, y: S_Y },
+      vel: emptyVector(),
+      coverage: "zone",
     });
-  });
-
-  // Choose what to do with LB/S (Cover 2 or Cover 1 blitz)
-  const isBlitz = Math.random() < PLAYBOOK_CONFIG.blitzPercent;
-
-  const LB_ROLE = isBlitz ? "rusher" : "coverer";
-  const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
-  const LB_Y = isBlitz ? (Math.random() < 0.5 ? H * 0.25 : H * 0.75) : H / 3;
-  const LB_SPEED = isBlitz ? 4.5 : 4.8;
-  const LB_RADIUS = DEFAULT_RADIUS;
-  players.push({
-    type: "player",
-    color: teamColor,
-    label: nextDefenseLabel(),
-    position: "defense",
-    role: LB_ROLE,
-    loc: { x: LB_X, y: LB_Y },
-    vel: emptyVector(),
-    coverage: "zone",
-  });
-
-  const S_X = LOS + (35 / 100) * W;
-  const S_Y = isBlitz ? H / 2 : (2 * H) / 3;
-  const S_SPEED = 4.8;
-  const S_RADIUS = DEFAULT_RADIUS;
-  players.push({
-    type: "player",
-    color: teamColor,
-    label: nextDefenseLabel(),
-    position: "defense",
-    role: "coverer",
-    loc: { x: S_X, y: S_Y },
-    vel: emptyVector(),
-    coverage: "zone",
-  });
+  }
 
   const underneathCoverage = COVERER_COVERAGE;
   const coverage = isBlitz

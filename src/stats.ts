@@ -93,6 +93,7 @@ function emptyAdvancedStats(): AdvancedStats {
     receiverYardsAfterCatch: 0,
     rushYardsAfterContact: 0,
     rushYardsBeforeContact: 0,
+    sackRate: 0,
     timeToThrow: 0,
   };
 }
@@ -380,16 +381,19 @@ export function updateStatsAfterPlay(
     }
 
     // YBC / YAC: split from firstContactX and catchX
-    if (isRush && los && playAdvanced.firstContactX !== undefined) {
-      const ybc = yardsFromPixels(playAdvanced.firstContactX - los);
+    if (isRush && los) {
+      let ybc;
+      if (playAdvanced.firstContactX === undefined) {
+        ybc = yards;
+      } else {
+        ybc = yardsFromPixels(playAdvanced.firstContactX - los);
+      }
       const yac = yards - ybc;
       const n = next.rb.rushes;
-      adv.rushYardsBeforeContact = round2(
-        (adv.rushYardsBeforeContact * (n - 1) + ybc) / n,
-      );
-      adv.rushYardsAfterContact = round2(
-        (adv.rushYardsAfterContact * (n - 1) + Math.max(0, yac)) / n,
-      );
+      adv.rushYardsBeforeContact =
+        (adv.rushYardsBeforeContact * (n - 1) + ybc) / n;
+      adv.rushYardsAfterContact =
+        (adv.rushYardsAfterContact * (n - 1) + yac) / n;
     }
 
     // Receiver YAC: yards from catchX to tackle
@@ -402,6 +406,8 @@ export function updateStatsAfterPlay(
           cmpCount,
       );
     }
+
+    adv.sackRate = round2(next.qb.sacks / next.playcalls.pass.count);
   }
 
   return next;

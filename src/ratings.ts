@@ -37,7 +37,7 @@ const GRADE_MAP: Record<Grades, number> = {
 
 export const ATTRIBUTE_CONFIG = {
   // All Positions
-  speed: (r: number) => ({ maxSpeed: lerp(r, 2, 6) }),
+  speed: (r: number) => ({ maxSpeed: lerp(r, 2.82, 4.13) }),
   size: (r: number) => ({ radius: lerp(r, 18, 30) }),
 
   // Passers
@@ -138,9 +138,52 @@ export const ATTRIBUTE_CONFIG = {
 
 type Attribute = keyof typeof ATTRIBUTE_CONFIG;
 type Ratings = Record<Attribute, number>;
-const defaultRatings = Object.fromEntries(
-  Object.keys(ATTRIBUTE_CONFIG).map((attr) => [attr, 0.5]),
-) as Ratings;
+const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
+  speed: 0.75,
+  size: 0.5,
+  pocketPresence: 0.5,
+  pressureFeel: 0.5,
+  decisionMaking: 0.5,
+  shortAccuracy: 0.5,
+  deepAccuracy: 0.5,
+  vision: 0.5,
+  power: 0.5,
+  changeOfDirection: 0.5,
+  routeRunning: 0.5,
+  catchAcceleration: 0.5,
+  catchRadius: 0.5,
+  passBlock: 0.5,
+  runBlock: 0.5,
+  blockShedding: 0.5,
+  bend: 0.5,
+  manCoverage: 0.5,
+  zoneCoverage: 0.5,
+  pursuit: 0.5,
+  tackling: 0.5,
+  ...overrides,
+});
+
+const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
+  QB: createBaseRatings({ speed: 0.75 }),
+  RB: createBaseRatings({ speed: 0.81 }),
+  XR: createBaseRatings({ speed: 0.91 }),
+  ZR: createBaseRatings({ speed: 0.89 }),
+  TE: createBaseRatings({ speed: 0.7 }),
+  LT: createBaseRatings({ speed: 0.45 }),
+  C: createBaseRatings({ speed: 0.43 }),
+  RT: createBaseRatings({ speed: 0.45 }),
+  LE: createBaseRatings({ speed: 0.56 }),
+  DT: createBaseRatings({ speed: 0.43 }),
+  RE: createBaseRatings({ speed: 0.56 }),
+  CB: createBaseRatings({ speed: 0.9 }),
+  NB: createBaseRatings({ speed: 0.87 }),
+  LB: createBaseRatings({ speed: 0.7 }),
+  SS: createBaseRatings({ speed: 0.77 }),
+  FS: createBaseRatings({ speed: 0.86 }),
+};
+function getDefaultRatingForLabel(label: string): Ratings {
+  return DEFAULT_RATINGS_BY_LABEL[label] ?? createBaseRatings();
+}
 
 function getConstants<K extends Attribute>(
   attribute: K,
@@ -151,5 +194,10 @@ function getConstants<K extends Attribute>(
   return transformer(rating);
 }
 
-export { defaultRatings, getConstants };
+export {
+  createBaseRatings,
+  DEFAULT_RATINGS_BY_LABEL,
+  getConstants,
+  getDefaultRatingForLabel,
+};
 export type { Attribute, Ratings };

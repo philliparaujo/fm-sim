@@ -142,6 +142,7 @@ type AdvancedStats = {
   rushYardsAfterContact: number;
   receiverSeparation: number;
   receiverYardsAfterCatch: number;
+  sackRate: number;
 };
 
 type Stats = {
