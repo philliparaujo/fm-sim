@@ -37,8 +37,11 @@ const GRADE_MAP: Record<Grades, number> = {
 
 export const ATTRIBUTE_CONFIG = {
   // All Positions
-  speed: (r: number) => ({ maxSpeed: lerp(r, 2.82, 4.13) }),
-  size: (r: number) => ({ radius: lerp(r, 18, 30) }),
+  speed: (r: number) => ({
+    maxSpeed: lerp(r, 2.82, 4.13),
+    acceleration: lerp(r, 0.18, 0.32),
+  }),
+  size: (r: number) => ({ radius: lerp(r, 22, 30) }),
 
   // Passers
   pocketPresence: (r: number) => ({
@@ -140,7 +143,7 @@ type Attribute = keyof typeof ATTRIBUTE_CONFIG;
 type Ratings = Record<Attribute, number>;
 const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   speed: 0.75,
-  size: 0.5,
+  size: 0.3,
   pocketPresence: 0.5,
   pressureFeel: 0.5,
   decisionMaking: 0.5,
@@ -163,23 +166,33 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   ...overrides,
 });
 
+// Setup realistic weights/sizes per position using the 0.0 - 1.0 scale
 const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
-  QB: createBaseRatings({ speed: 0.75 }),
-  RB: createBaseRatings({ speed: 0.81 }),
-  XR: createBaseRatings({ speed: 0.91 }),
-  ZR: createBaseRatings({ speed: 0.89 }),
-  TE: createBaseRatings({ speed: 0.7 }),
-  LT: createBaseRatings({ speed: 0.45 }),
-  C: createBaseRatings({ speed: 0.43 }),
-  RT: createBaseRatings({ speed: 0.45 }),
-  LE: createBaseRatings({ speed: 0.56 }),
-  DT: createBaseRatings({ speed: 0.43 }),
-  RE: createBaseRatings({ speed: 0.56 }),
-  CB: createBaseRatings({ speed: 0.9 }),
-  NB: createBaseRatings({ speed: 0.87 }),
-  LB: createBaseRatings({ speed: 0.7 }),
-  SS: createBaseRatings({ speed: 0.77 }),
-  FS: createBaseRatings({ speed: 0.86 }),
+  // Passers
+  QB: createBaseRatings({ speed: 0.75, size: 0.3 }),
+
+  // Runners/Catchers
+  RB: createBaseRatings({ speed: 0.81, size: 0.23 }),
+  XR: createBaseRatings({ speed: 0.91, size: 0.13 }),
+  ZR: createBaseRatings({ speed: 0.89, size: 0.1 }),
+  TE: createBaseRatings({ speed: 0.7, size: 0.47 }),
+
+  // Blockers
+  LT: createBaseRatings({ speed: 0.45, size: 0.93 }),
+  C: createBaseRatings({ speed: 0.43, size: 0.87 }),
+  RT: createBaseRatings({ speed: 0.45, size: 0.96 }),
+
+  // Rushers
+  LE: createBaseRatings({ speed: 0.56, size: 0.6 }),
+  DT: createBaseRatings({ speed: 0.43, size: 0.83 }),
+  RE: createBaseRatings({ speed: 0.56, size: 0.57 }),
+
+  // Coverers/Defenders
+  CB: createBaseRatings({ speed: 0.9, size: 0.08 }),
+  NB: createBaseRatings({ speed: 0.87, size: 0.07 }),
+  LB: createBaseRatings({ speed: 0.7, size: 0.4 }),
+  SS: createBaseRatings({ speed: 0.77, size: 0.2 }),
+  FS: createBaseRatings({ speed: 0.83, size: 0.1 }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {
   return DEFAULT_RATINGS_BY_LABEL[label] ?? createBaseRatings();

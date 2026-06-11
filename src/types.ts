@@ -35,6 +35,7 @@ interface PartialPlayer extends Entity {
 
 interface Player extends PartialPlayer {
   ratings: Ratings;
+  prevVel: Vector;
 
   // For passers
   decisionTicks: number;

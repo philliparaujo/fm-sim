@@ -313,6 +313,7 @@ function fillOutPlayer(partial: PartialPlayer): Player {
   return {
     // TEMP: Ratings
     ratings: getSavedRatings(partial.label),
+    prevVel: emptyVector(),
 
     // General properties determined on creation
     type: partial.type,

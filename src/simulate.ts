@@ -508,11 +508,24 @@ function ballCollideBehavior(player: Player) {
 function stepSimulation() {
   // Player behavior
   state.steps++;
-
   assignBlockingTargets();
+
   for (const player of state.players) {
+    player.prevVel = { x: player.vel.x, y: player.vel.y };
     player.contactedThisFrame = false;
     stepAsPlayer(player, state);
+  }
+
+  for (const player of state.players) {
+    const { acceleration } = getConstants("speed", player);
+    const dvx = player.vel.x - player.prevVel.x;
+    const dvy = player.vel.y - player.prevVel.y;
+    const dvMag = Math.sqrt(dvx * dvx + dvy * dvy);
+    if (dvMag > acceleration) {
+      const scale = acceleration / dvMag;
+      player.vel.x = player.prevVel.x + dvx * scale;
+      player.vel.y = player.prevVel.y + dvy * scale;
+    }
   }
 
   // Resolve player collisions
