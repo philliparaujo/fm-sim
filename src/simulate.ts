@@ -271,7 +271,7 @@ function triggerMove(entity: Ball | Player) {
   const radius =
     entity.type === "ball"
       ? entity.radius
-      : getConstants("size", entity).radius;
+      : getConstants("SIZE", entity).radius;
   const margin = radius / 2;
   const leftBound = margin;
   const rightEndzone = W + ENDZONE_W;
@@ -347,11 +347,11 @@ function resolveCollision(a: Player, b: Entity) {
   const dx = b.loc.x - a.loc.x;
   const dy = b.loc.y - a.loc.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  const aRadius = getConstants("size", a).radius;
+  const aRadius = getConstants("SIZE", a).radius;
   const bRadius =
     b.type === "ball"
       ? (b as Ball).radius
-      : getConstants("size", b as Player).radius;
+      : getConstants("SIZE", b as Player).radius;
   const minDistance = aRadius + bRadius;
 
   if (distance < minDistance) {
@@ -517,7 +517,7 @@ function stepSimulation() {
   }
 
   for (const player of state.players) {
-    const { acceleration } = getConstants("speed", player);
+    const { acceleration } = getConstants("SPEED", player);
     const dvx = player.vel.x - player.prevVel.x;
     const dvy = player.vel.y - player.prevVel.y;
     const dvMag = Math.sqrt(dvx * dvx + dvy * dvy);

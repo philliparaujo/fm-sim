@@ -1,6 +1,6 @@
 import { getConstants } from "./ratings";
 import { Ball, Player, Scoreboard, State } from "./types";
-import { getPocket } from "./util";
+import { getPocket, isCarryingBall } from "./util";
 
 const W = 720 * 3;
 const H = 400 * 3;
@@ -20,7 +20,7 @@ const CATCHER_TRACE_ON = true;
 const COVERER_ZONE_ON = true;
 const RUNNER_PATH_ON = true;
 const PASSER_POCKET_ON = true;
-const RUNNER_LOOK_AHEAD_ON = false;
+const RUNNER_LOOK_AHEAD_ON = true;
 
 const ONLY_SIMULATE = false;
 
@@ -187,24 +187,20 @@ function drawCovererZone(player: Player) {
   ctx.setLineDash([]); // Reset dash
 }
 
-function drawRunnerPath(player: Player) {
-  if (player.role !== "runner" || player.path.length < 2) return;
+function drawRunnerPath(player: Player, ctx: CanvasRenderingContext2D) {
+  if (!player.path || player.path.length < 2) return;
 
+  ctx.save();
   ctx.beginPath();
-  ctx.setLineDash([9, 3]); // Optional: make it a dashed "playbook" line
-  ctx.strokeStyle = "rgba(25, 25, 25, 0.5)"; // White semi-transparent
-  ctx.lineWidth = 6;
-
-  // Start at the beginning of the path
   ctx.moveTo(player.path[0].x, player.path[0].y);
-
-  // Connect all points
   for (let i = 1; i < player.path.length; i++) {
     ctx.lineTo(player.path[i].x, player.path[i].y);
   }
-
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.lineWidth = 3.5;
+  ctx.setLineDash([6, 6]); // Football dash trail style
   ctx.stroke();
-  ctx.setLineDash([]); // Reset dash for other drawing operations
+  ctx.restore();
 }
 
 function drawPasserPocket(
@@ -241,23 +237,56 @@ function drawPasserPocket(
   ctx.setLineDash([]);
 }
 
-function drawPlayer(player: Player) {
-  const { radius } = getConstants("size", player);
+function drawContextSteeringRays(
+  player: Player,
+  ctx: CanvasRenderingContext2D,
+) {
+  const rays = (player as any).contextRays;
+  if (!rays || rays.length === 0) return;
 
-  if (player.role === "runner" && RUNNER_LOOK_AHEAD_ON) {
+  ctx.save();
+  const BASE_RAY_LENGTH = 55;
+
+  for (const ray of rays) {
+    const scoreVal = ray.score;
+    // Scale line length visually with rating score
+    const lengthScale = Math.max(0.15, scoreVal + 1.0);
+    const currentLength = BASE_RAY_LENGTH * lengthScale;
+
+    const targetX = player.loc.x + ray.dir.x * currentLength;
+    const targetY = player.loc.y + ray.dir.y * currentLength;
+
     ctx.beginPath();
-    ctx.arc(
-      player.loc.x,
-      player.loc.y,
-      160, // The fixed radius for the outline
-      0,
-      Math.PI * 2,
-    );
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; // Semi-transparent white
-    ctx.setLineDash([5, 5]); // Optional: makes it a dashed line
+    ctx.moveTo(player.loc.x, player.loc.y);
+    ctx.lineTo(targetX, targetY);
+
+    if (scoreVal > 0) {
+      // Clear lane: render bright translucent green lines
+      const opacity = Math.min(1.0, 0.25 + scoreVal * 0.75);
+      ctx.strokeStyle = `rgba(46, 204, 113, ${opacity})`;
+      ctx.lineWidth = 2.5;
+    } else {
+      // Impeded lane: render fine faint red lines
+      const opacity = Math.min(0.5, Math.abs(scoreVal) * 0.2);
+      ctx.strokeStyle = `rgba(231, 76, 60, ${opacity})`;
+      ctx.lineWidth = 1.0;
+    }
     ctx.stroke();
-    ctx.setLineDash([]); // Reset dash for the rest of the rendering
+
+    // Draw bullet dot over chosen target direction index
+    const chosen = (player as any).chosenRayDir;
+    if (chosen && chosen.x === ray.dir.x && chosen.y === ray.dir.y) {
+      ctx.beginPath();
+      ctx.arc(targetX, targetY, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#F1C40F"; // Gold bullet marker
+      ctx.fill();
+    }
   }
+  ctx.restore();
+}
+
+function drawPlayer(player: Player) {
+  const { radius } = getConstants("SIZE", player);
 
   // 2. Draw the Player (Original logic)
   ctx.beginPath();
@@ -295,7 +324,7 @@ function render(state: State) {
       drawCovererZone(player);
     }
     if (RUNNER_PATH_ON) {
-      drawRunnerPath(player);
+      drawRunnerPath(player, ctx);
     }
     if (PASSER_POCKET_ON) {
       drawPasserPocket(player, pocket);
@@ -304,6 +333,10 @@ function render(state: State) {
 
   for (const player of state.players) {
     drawPlayer(player);
+
+    if (isCarryingBall(player, state.ball) && RUNNER_LOOK_AHEAD_ON) {
+      drawContextSteeringRays(player, ctx);
+    }
   }
   drawBall(state.ball);
 }

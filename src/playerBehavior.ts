@@ -33,9 +33,9 @@ import {
 function stepAsPlayer(player: Player, state: State) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
   const isPassPlay = state.currentPlay.offense === "pass";
-  const { maxSpeed } = getConstants("speed", player);
+  const { maxSpeed } = getConstants("SPEED", player);
   const { avoidStrength, steerAvoidStrength, steerDuration } = getConstants(
-    "vision",
+    "VISION",
     player,
   );
 
@@ -164,36 +164,26 @@ function stepAsPlayer(player: Player, state: State) {
 
   function runTowardsEndzone(
     player: Player,
-    avoidStrength: number,
+    avoidStrength: number, // Intact for signature matching
     targetDir: Vector = { x: 1.0, y: 0 },
   ) {
-    const { lookAhead } = getConstants("vision", player);
+    const { maxSpeed } = getConstants("SPEED", player);
     const { runnerSteerFactor } = getConstants("changeOfDirection", player);
     const { catchSlowdownDuration, minCatchSpeedMultiplier } = getConstants(
       "catchAcceleration",
       player,
     );
 
-    // Calculate the direction to travel to avoid other defenders
-    const defenders = state.players.filter(
-      (p) => p.role === "rusher" || p.role === "coverer",
-    );
-    defenders.forEach((defender) => {
-      const toPlayer = diff(player.loc, defender.loc);
-      const d = length(toPlayer);
+    // CRITICAL PATH FIX: Push a DEEP COPY of player position coordinates.
+    // Pushing 'player.loc' passes an object reference, causing every point in the history
+    // array to match current coordinates simultaneously, which blanks out the line!
+    if (!player.path) player.path = [];
+    player.path.push({ x: player.loc.x, y: player.loc.y });
 
-      if (d < lookAhead) {
-        const weight = (lookAhead - d) / lookAhead;
-        const pushX = (toPlayer.x / d) * weight * avoidStrength;
-        const pushY = (toPlayer.y / d) * weight * avoidStrength;
+    // 1. OVERRIDE TARGET DIRECTION VIA CONTEXT STEERING MAP
+    const optimizedTargetDir = getContextSteering(player, state, targetDir);
 
-        targetDir.x += pushX < 0 ? pushX * 0.3 : pushX;
-        targetDir.y += pushY;
-      }
-    });
-    targetDir.x = Math.max(ANGLE_ENDZONE_INTENT, targetDir.x);
-
-    // If this player recently caught a ball, slow them down
+    // 2. PRESERVE POST-CATCH SLOWDOWN MECHANICS
     const framesSinceCatch = state.steps - state.ballGivenAtStep;
     let currentSpeed = maxSpeed;
     if (
@@ -205,20 +195,37 @@ function stepAsPlayer(player: Player, state: State) {
       currentSpeed *= multiplier;
     }
 
-    // If this player recently broke a tackle, change their velocity
+    // 3. PRESERVE BROKEN TACKLE SPEED BURSTS
     if (player.burstFrames && player.burstFrames > 0) {
       currentSpeed *= BROKEN_TACKLE_SPEED_BURST;
       player.burstFrames--;
     }
 
-    // Apply this direction to the runner's velocity
-    const d = length(targetDir);
-    const targetVelX = (targetDir.x / d) * currentSpeed;
-    const targetVelY = (targetDir.y / d) * currentSpeed;
-    player.vel.x += (targetVelX - player.vel.x) * runnerSteerFactor;
-    player.vel.y += (targetVelY - player.vel.y) * runnerSteerFactor;
-    state.ball.vel.x = player.vel.x;
-    state.ball.vel.y = player.vel.y;
+    // 4. SMOOTH PHYSICS MODEL STEERING
+    const choiceDiscrepancy = Math.abs(
+      Math.atan2(optimizedTargetDir.y, optimizedTargetDir.x) -
+        Math.atan2(targetDir.y, targetDir.x),
+    );
+    const dynamicSteerFactor =
+      choiceDiscrepancy > 0.2
+        ? Math.min(0.85, runnerSteerFactor * 3.5)
+        : runnerSteerFactor;
+
+    const d = length(optimizedTargetDir);
+    if (d > 0) {
+      // Both axes utilize the correct optimized context steering elements
+      const targetVelX = (optimizedTargetDir.x / d) * currentSpeed;
+      const targetVelY = (optimizedTargetDir.y / d) * currentSpeed;
+
+      player.vel.x += (targetVelX - player.vel.x) * dynamicSteerFactor;
+      player.vel.y += (targetVelY - player.vel.y) * dynamicSteerFactor;
+    }
+
+    // 5. SYNC BALL POSITION TO CARRIER
+    if (isCarryingBall(player, state.ball)) {
+      state.ball.vel.x = player.vel.x;
+      state.ball.vel.y = player.vel.y;
+    }
   }
 
   function runRoute(player: Player) {
@@ -719,7 +726,7 @@ const catcherRouteVariance = new WeakMap<
 
 function getCatcherRouteVariance(player: Player) {
   const { routeStemDrift } = getConstants("routeRunning", player);
-  const { maxSpeed } = getConstants("speed", player);
+  const { maxSpeed } = getConstants("SPEED", player);
 
   let variance = catcherRouteVariance.get(player);
   if (!variance) {
@@ -737,7 +744,7 @@ function attemptTackle(defender: Player, carrier: Player) {
     "power",
     carrier,
   );
-  const { maxSpeed } = getConstants("speed", carrier);
+  const { maxSpeed } = getConstants("SPEED", carrier);
 
   const { defenderTackle, tackleAttemptChance } = getConstants(
     "tackling",
@@ -814,6 +821,115 @@ function updateCovererPerception(player: Player, targetCatcher: Player | null) {
     player.perceivedLoc = { ...player.loc };
     player.perceivedVel = { x: 0, y: 0 };
   }
+}
+
+function getContextSteering(
+  player: Player,
+  state: State,
+  baseIntent: Vector,
+): Vector {
+  const { lookAhead } = getConstants("VISION", player);
+
+  const NUM_RAYS = 64;
+  const rays: {
+    dir: Vector;
+    interest: number;
+    danger: number;
+    score: number;
+  }[] = [];
+
+  // 1. Initialize rays and map baseline downfield Interest
+  const intentLen = length(baseIntent) || 1;
+  const normIntent = {
+    x: baseIntent.x / intentLen,
+    y: baseIntent.y / intentLen,
+  };
+
+  for (let i = 0; i < NUM_RAYS; i++) {
+    const angle = (i / NUM_RAYS) * Math.PI * 2;
+    const rayDir = { x: Math.cos(angle), y: Math.sin(angle) };
+
+    // Baseline interest aligns with general heading towards endzone
+    let interest = rayDir.x * normIntent.x + rayDir.y * normIntent.y;
+
+    // Severely penalize running backwards toward our own endzone
+    if (rayDir.x < -0.2) {
+      interest *= 0.1;
+    }
+    // Give a minor acceleration bias for pushing straight downfield
+    if (rayDir.x > 0.1) {
+      interest += 0.2;
+    }
+
+    rays.push({
+      dir: rayDir,
+      interest: Math.max(0, interest),
+      danger: 0,
+      score: 0,
+    });
+  }
+
+  // 2. Project Danger weights from defenders inside lookup distance
+  const defenders = state.players.filter(
+    (p) => p.role === "rusher" || p.role === "coverer",
+  );
+
+  for (const defender of defenders) {
+    const toDef = diff(defender.loc, player.loc);
+    const distance = length(toDef);
+
+    if (distance < lookAhead && distance > 0) {
+      const normToDef = { x: toDef.x / distance, y: toDef.y / distance };
+
+      // Threat intensity scales up exponentially as defender gets closer
+      const proximity = (lookAhead - distance) / lookAhead;
+      const urgency = Math.pow(proximity, 2);
+
+      for (const ray of rays) {
+        const dot = ray.dir.x * normToDef.x + ray.dir.y * normToDef.y;
+        if (dot > 0) {
+          // Cubing the dot product focuses threat weight inside a tighter corridor
+          ray.danger += Math.pow(dot, 3) * urgency * 3.5;
+        }
+      }
+    }
+  }
+
+  // 3. Keep runner inside field geometry bounds (Sideline Danger mitigation)
+  const SIDELINE_CUSHION = 110;
+  if (player.loc.y < SIDELINE_CUSHION) {
+    const scale = (SIDELINE_CUSHION - player.loc.y) / SIDELINE_CUSHION;
+    for (const ray of rays) {
+      if (ray.dir.y < 0) {
+        ray.danger += Math.abs(ray.dir.y) * scale * 3.0;
+      }
+    }
+  } else if (player.loc.y > H - SIDELINE_CUSHION) {
+    const scale = (player.loc.y - (H - SIDELINE_CUSHION)) / SIDELINE_CUSHION;
+    for (const ray of rays) {
+      if (ray.dir.y > 0) {
+        ray.danger += ray.dir.y * scale * 3.0;
+      }
+    }
+  }
+
+  // 4. Subtract danger from interest and select the winning vector
+  let bestRay = rays[0];
+  let maxScore = -Infinity;
+
+  for (const ray of rays) {
+    ray.score = ray.interest - ray.danger;
+    if (ray.score > maxScore) {
+      maxScore = ray.score;
+      bestRay = ray;
+    }
+  }
+
+  // Attach metadata dynamically to player object for render visualization
+  (player as any).contextRays = rays;
+  (player as any).chosenRayDir = bestRay.dir;
+
+  return bestRay.dir;
 }
 
 export { attemptTackle, stepAsPlayer };

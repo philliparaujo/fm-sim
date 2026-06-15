@@ -13,27 +13,27 @@ import { Player } from "./types";
 // Which attributes are relevant per role
 const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
   passer: [
-    "speed",
-    "size",
+    "SPEED",
+    "SIZE",
     "pocketPresence",
     "pressureFeel",
     "decisionMaking",
     "shortAccuracy",
     "deepAccuracy",
   ],
-  runner: ["speed", "size", "vision", "power", "changeOfDirection"],
+  runner: ["SPEED", "SIZE", "VISION", "power", "changeOfDirection"],
   catcher: [
-    "speed",
-    "size",
+    "SPEED",
+    "SIZE",
     "routeRunning",
     "catchAcceleration",
     "catchRadius",
   ],
-  blocker: ["speed", "size", "passBlock", "runBlock"],
-  rusher: ["speed", "size", "blockShedding", "bend"],
+  blocker: ["SPEED", "SIZE", "passBlock", "runBlock"],
+  rusher: ["SPEED", "SIZE", "blockShedding", "bend"],
   coverer: [
-    "speed",
-    "size",
+    "SPEED",
+    "SIZE",
     "manCoverage",
     "zoneCoverage",
     "pursuit",
@@ -43,14 +43,14 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
 
 // Human-readable label per attribute key
 const ATTR_LABELS: Partial<Record<Attribute, string>> = {
-  speed: "Speed",
-  size: "Size",
+  SPEED: "Speed",
+  SIZE: "Size",
   pocketPresence: "Pocket Presence",
   pressureFeel: "Pressure Feel",
   decisionMaking: "Decision Making",
   shortAccuracy: "Short Accuracy",
   deepAccuracy: "Deep Accuracy",
-  vision: "Vision",
+  VISION: "Vision",
   power: "Power",
   changeOfDirection: "Change of Direction",
   routeRunning: "Route Running",
@@ -98,7 +98,7 @@ function buildDashboard() {
     cardsRow.className = "dash-cards-row";
 
     for (const player of group.players) {
-      const attrs = ROLE_ATTRIBUTES[player.role] ?? ["speed"];
+      const attrs = ROLE_ATTRIBUTES[player.role] ?? ["SPEED"];
       const card = document.createElement("div");
       card.className = "dash-card";
 
