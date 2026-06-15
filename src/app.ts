@@ -36,7 +36,7 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
     "SIZE",
     "manCoverage",
     "zoneCoverage",
-    "pursuit",
+    "PURSUIT",
     "TACKLING",
   ],
 };
@@ -61,7 +61,7 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   bend: "Bend",
   manCoverage: "Man Coverage",
   zoneCoverage: "Zone Coverage",
-  pursuit: "Pursuit",
+  PURSUIT: "Pursuit",
   TACKLING: "Tackling",
 };
 

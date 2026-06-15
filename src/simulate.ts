@@ -599,6 +599,20 @@ function stepSimulation() {
     }
   }
 
+  const activeCarrier = state.players.find((p) =>
+    isCarryingBall(p, state.ball),
+  );
+
+  if (activeCarrier) {
+    // Hard-set the ball's incoming velocity to perfectly match the player's vector
+    state.ball.vel.x = activeCarrier.vel.x;
+    state.ball.vel.y = activeCarrier.vel.y;
+
+    // Hard-align the coordinates so there is 0% positional drift during heavy cuts
+    state.ball.loc.x = activeCarrier.loc.x;
+    state.ball.loc.y = activeCarrier.loc.y;
+  }
+
   // Move entities
   triggerMove(state.ball);
   for (const player of state.players) {

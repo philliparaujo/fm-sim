@@ -635,7 +635,7 @@ function stepAsPlayer(player: Player, state: State) {
       pursuerContainOffset,
       pursuitLateralFreq,
       pursuitLateralStrength,
-    } = getConstants("pursuit", player);
+    } = getConstants("PURSUIT", player);
 
     const toBall = dist(player.loc, state.ball.loc);
     const timeToReach = toBall / maxSpeed;

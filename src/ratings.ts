@@ -125,10 +125,11 @@ export const ATTRIBUTE_CONFIG = {
     zonePull: lerp(r, 0.4, 1),
     zoneStartDelay: lerp(r, 30, 10),
   }),
-  pursuit: (r: number) => ({
+  // Best = ~0.5
+  PURSUIT: (r: number) => ({
     predictionFrames: lerp(r, 50, 10),
-    pursuerHomingFactor: lerp(r, 0, 0.2),
-    pursuerContainOffset: lerp(r, 0, 20),
+    pursuerHomingFactor: lerp(r, 0.01, 0.2),
+    pursuerContainOffset: lerp(r, -5, 20),
     pursuitLateralStrength: lerp(r, 0.4, 0),
     pursuitLateralFreq: lerp(r, 0.01, 0.05),
   }),
@@ -161,7 +162,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   bend: 0.5,
   manCoverage: 0.5,
   zoneCoverage: 0.5,
-  pursuit: 0.5,
+  PURSUIT: 0.3,
   TACKLING: 0.5,
   ...overrides,
 });
@@ -188,11 +189,11 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   RE: createBaseRatings({ SPEED: 0.56, SIZE: 0.57 }),
 
   // Coverers/Defenders
-  CB: createBaseRatings({ SPEED: 0.9, SIZE: 0.08 }),
-  NB: createBaseRatings({ SPEED: 0.87, SIZE: 0.07 }),
-  LB: createBaseRatings({ SPEED: 0.7, SIZE: 0.4 }),
-  SS: createBaseRatings({ SPEED: 0.77, SIZE: 0.2 }),
-  FS: createBaseRatings({ SPEED: 0.83, SIZE: 0.1 }),
+  CB: createBaseRatings({ SPEED: 0.9, SIZE: 0.08, TACKLING: 0.3 }),
+  NB: createBaseRatings({ SPEED: 0.87, SIZE: 0.07, TACKLING: 0.35 }),
+  LB: createBaseRatings({ SPEED: 0.7, SIZE: 0.4, TACKLING: 0.7 }),
+  SS: createBaseRatings({ SPEED: 0.77, SIZE: 0.2, PURSUIT: 0.7 }),
+  FS: createBaseRatings({ SPEED: 0.83, SIZE: 0.1, PURSUIT: 0.6 }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {
   return DEFAULT_RATINGS_BY_LABEL[label] ?? createBaseRatings();
