@@ -45,7 +45,11 @@ function stepAsPlayer(player: Player, state: State) {
       break;
     }
     case "rusher": {
-      rushTowardsBall(player);
+      if (!state.ballGiven) {
+        rushTowardsBall(player);
+      } else {
+        pursueBallCarrier(player);
+      }
       break;
     }
     case "runner": {
@@ -64,7 +68,7 @@ function stepAsPlayer(player: Player, state: State) {
       break;
     }
     case "catcher": {
-      if (isBlocking) {
+      if (isBlocking || state.currentPlay.offense === "pass") {
         blockNearestDefender(player);
       } else if (!isCarryingBall(player, state.ball)) {
         runRoute(player);
@@ -98,8 +102,6 @@ function stepAsPlayer(player: Player, state: State) {
 
   /* Specific actions a player can perform */
   function blockNearestDefender(player: Player) {
-    // Rank all defenders by good it is to block them, get the best one
-    // Use assigned target if available
     const assignedDefender = state.blockingAssignments.get(player);
     const defenders = assignedDefender
       ? [assignedDefender]
@@ -107,47 +109,75 @@ function stepAsPlayer(player: Player, state: State) {
           (p) => p.role === "rusher" || p.role === "coverer",
         );
 
-    const potentialBlocks = defenders.map((defender) => {
-      let interceptPoint = closestPointOnSegment(
-        player.loc,
-        defender.loc,
-        state.ball.loc,
-      );
+    // 1. Identify the target defender
+    let targetDefender: Player | null = assignedDefender || null;
+    if (!targetDefender) {
+      // If no hard assignment, find the absolute closest threat to the player
+      let minD = Infinity;
+      defenders.forEach((d) => {
+        const distance = dist(player.loc, d.loc);
+        if (distance < minD) {
+          minD = distance;
+          targetDefender = d;
+        }
+      });
+    }
 
-      if (dist(interceptPoint, state.ball.loc) < MIN_BLOCK_DISTANCE) {
-        const toDefender = diff(defender.loc, state.ball.loc);
-        const d = length(toDefender);
-        interceptPoint = {
-          x: state.ball.loc.x + (toDefender.x / d) * MIN_BLOCK_DISTANCE,
-          y: state.ball.loc.y + (toDefender.y / d) * MIN_BLOCK_DISTANCE,
+    if (targetDefender) {
+      let targetLoc = { x: 0, y: 0 };
+      const distanceToDefender = dist(player.loc, targetDefender.loc);
+
+      // 2. THE FIX: If the player is a catcher or runner and hasn't engaged yet,
+      // run directly AT the defender to establish contact/leverage, completely ignoring the ball position.
+      if (
+        (player.role === "catcher" || player.role === "runner") &&
+        distanceToDefender > 30
+      ) {
+        // Dynamic Inside Leverage Logic:
+        // Identify the horizontal centerline of the field
+        const fieldCenterY = H / 2;
+
+        // If defender is above the centerline, inside leverage means shading DOWN (+Y).
+        // If defender is below the centerline, inside leverage means shading UP (-Y).
+        const insideShadeDirection =
+          targetDefender.loc.y < fieldCenterY ? 1 : -1;
+
+        // LEVERAGE TUNING CONSTANTS
+        const UPFIELD_SEAL_X = 15; // How many pixels ahead of the defender they aim (X-axis)
+        const INSIDE_SEAL_Y = 50; // How wide of an inside wall they establish (Y-axis)
+
+        targetLoc = {
+          x: targetDefender.loc.x + UPFIELD_SEAL_X,
+          y: targetDefender.loc.y + insideShadeDirection * INSIDE_SEAL_Y,
         };
+      } else {
+        // Traditional line-blocking/downfield-intercept behavior once close or for interior blockers
+        let interceptPoint = closestPointOnSegment(
+          player.loc,
+          targetDefender.loc,
+          state.ball.loc,
+        );
+
+        if (dist(interceptPoint, state.ball.loc) < MIN_BLOCK_DISTANCE) {
+          const toDefender = diff(targetDefender.loc, state.ball.loc);
+          const d = length(toDefender);
+          interceptPoint = {
+            x: state.ball.loc.x + (toDefender.x / d) * MIN_BLOCK_DISTANCE,
+            y: state.ball.loc.y + (toDefender.y / d) * MIN_BLOCK_DISTANCE,
+          };
+        }
+        targetLoc = interceptPoint;
       }
 
-      const distToIntercept = dist(player.loc, interceptPoint);
-      const threatIndex =
-        dist(defender.loc, state.ball.loc) * 0.2 + distToIntercept;
-
-      return {
-        interceptPoint,
-        threatIndex,
-        distToIntercept,
-      };
-    });
-
-    potentialBlocks.sort((a, b) => a.threatIndex - b.threatIndex);
-    const bestBlock = potentialBlocks[0];
-
-    // Move to block their path with the ball
-    if (bestBlock) {
-      const { interceptPoint, distToIntercept } = bestBlock;
-      if (distToIntercept < 2) {
-        // Dead zone to prevent jittering when in position
+      // 3. Apply velocities toward the corrected target location
+      const distToTarget = dist(player.loc, targetLoc);
+      if (distToTarget < 2) {
         player.vel.x = 0;
         player.vel.y = 0;
       } else {
         const angle = Math.atan2(
-          interceptPoint.y - player.loc.y,
-          interceptPoint.x - player.loc.x,
+          targetLoc.y - player.loc.y,
+          targetLoc.x - player.loc.x,
         );
         player.vel.x = Math.cos(angle) * maxSpeed;
         player.vel.y = Math.sin(angle) * maxSpeed;
@@ -745,19 +775,24 @@ function attemptTackle(defender: Player, carrier: Player) {
     carrier,
   );
   const { maxSpeed } = getConstants("SPEED", carrier);
-
   const { defenderTackle, tackleAttemptChance } = getConstants(
     "tackling",
     defender,
   );
 
-  // Passer cannot break tackles
   if (carrier.role === "passer") {
     resetSimulation("sack");
     return;
   }
 
-  // Tackle pressure slowly builds and guarantees a tackle
+  // 1. Structural Cooldown Guard (from the frame-rate fix)
+  defender.tackleCooldownTicks = defender.tackleCooldownTicks ?? 0;
+  if (defender.tackleCooldownTicks > 0) {
+    defender.tackleCooldownTicks--;
+    return;
+  }
+
+  // Attrition pressure accumulates on contact
   carrier.contactedThisFrame = true;
   carrier.tacklePressure =
     (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
@@ -767,24 +802,69 @@ function attemptTackle(defender: Player, carrier: Player) {
     return;
   }
 
-  // Defenders individually try to tackle carriers
+  // 2. Calculate the Approach Angle Factor
+  let angleModifier = 1.0; // Default baseline (side tackle)
+
+  const carrierMag = Math.sqrt(carrier.vel.x ** 2 + carrier.vel.y ** 2);
+  if (carrierMag > 0) {
+    // Normalized heading vector of the ball carrier
+    const carrierHeading = {
+      x: carrier.vel.x / carrierMag,
+      y: carrier.vel.y / carrierMag,
+    };
+
+    // Vector pointing from the carrier to the defender, then normalized
+    const toDefender = {
+      x: defender.loc.x - carrier.loc.x,
+      y: defender.loc.y - carrier.loc.y,
+    };
+    const distToDefender = Math.sqrt(toDefender.x ** 2 + toDefender.y ** 2);
+
+    if (distToDefender > 0) {
+      const dirToDefender = {
+        x: toDefender.x / distToDefender,
+        y: toDefender.y / distToDefender,
+      };
+
+      // Dot Product: 1 = Head-on, -1 = From Behind, 0 = Directly from the side
+      const approachDot =
+        carrierHeading.x * dirToDefender.x + carrierHeading.y * dirToDefender.y;
+
+      if (approachDot > 0) {
+        // HEAD-ON: Linearly scale up tackle effectiveness up to +25%
+        // An approachDot of 1.0 means maximum leverage
+        angleModifier = 1.0 + approachDot * 0.25;
+      } else {
+        // FROM BEHIND: Linearly scale down tackle effectiveness by up to -40%
+        // An approachDot of -1.0 means trailing directly behind the heels
+        angleModifier = 1.0 + approachDot * 0.4;
+      }
+    }
+  }
+
+  // 3. Roll for the Distinct Tackle Attempt
   if (Math.random() < tackleAttemptChance) {
-    const tackleChance = defenderTackle / (defenderTackle + carrierPower);
+    // Apply the angle modifier directly to the defender's physical rolling strength
+    const adjustedDefenderTackle = defenderTackle * angleModifier;
+    const tackleChance =
+      adjustedDefenderTackle / (adjustedDefenderTackle + carrierPower);
 
     if (Math.random() < tackleChance) {
       resetSimulation("tackle");
     } else {
-      // Broken tackle
+      // Broken tackle logic
       carrier.tacklePressure = 0;
       carrier.burstFrames = BROKEN_TACKLE_BURST_DURATION;
+      carrier.isBursting = true;
 
-      const currentMag = Math.sqrt(carrier.vel.x ** 2 + carrier.vel.y ** 2);
-      if (currentMag > 0) {
+      if (carrierMag > 0) {
         carrier.vel.x =
-          (carrier.vel.x / currentMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
+          (carrier.vel.x / carrierMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
         carrier.vel.y =
-          (carrier.vel.y / currentMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
+          (carrier.vel.y / carrierMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
       }
+
+      defender.tackleCooldownTicks = 45; // Put defender on cooldown
     }
   }
 }

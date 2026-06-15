@@ -210,7 +210,7 @@ function generateDefensivePlaycall(
 
   // Add 3 rushers on LOS
   if (RUSHERS_INCLUDED) {
-    const RUSHER_X = LOS + (5 / 100) * W;
+    const RUSHER_X = LOS + (3 / 100) * W;
     const RUSHER_CENTER_Y = CENTER_Y;
     const RUSHER_SPREAD_Y = (1 / 7) * H;
     const RUSHER_SPEED = 4.5;
@@ -340,6 +340,7 @@ function fillOutPlayer(partial: PartialPlayer): Player {
     zone: emptyVector(),
 
     contactedThisFrame: false,
+    isBursting: false,
   };
 }
 

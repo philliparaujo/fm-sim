@@ -53,7 +53,9 @@ interface Player extends PartialPlayer {
 
   // Tackle state
   tacklePressure?: number;
+  tackleCooldownTicks?: number;
   burstFrames?: number;
+  isBursting: boolean;
   contactedThisFrame: boolean;
 }
 

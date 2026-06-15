@@ -29,7 +29,7 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
     "catchAcceleration",
     "catchRadius",
   ],
-  blocker: ["SPEED", "SIZE", "passBlock", "runBlock"],
+  blocker: ["SPEED", "SIZE", "passBlock", "RUNBLOCK"],
   rusher: ["SPEED", "SIZE", "blockShedding", "bend"],
   coverer: [
     "SPEED",
@@ -57,7 +57,7 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   catchAcceleration: "Catch Acceleration",
   catchRadius: "Catch Radius",
   passBlock: "Pass Block",
-  runBlock: "Run Block",
+  RUNBLOCK: "Run Block",
   blockShedding: "Block Shedding",
   bend: "Bend",
   manCoverage: "Man Coverage",

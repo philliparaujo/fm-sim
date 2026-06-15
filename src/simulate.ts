@@ -312,7 +312,6 @@ const LOGIC_TICK_MS = 1000 / 60;
 
 /* Blocker constants */
 export const MIN_BLOCK_DISTANCE = 120;
-const RUN_BLOCK_PUSH_STRENGTH = 1.5; // max px/frame push an elite blocker applies
 
 /* Rusher constants */
 const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
@@ -384,10 +383,11 @@ function resolveCollision(a: Player, b: Entity) {
       // Initiate blocking
       if (blocker && defender) {
         const { rusherDampingFactor } = getConstants("passBlock", blocker);
-        const { runBlockDampingFactor, covererDampingFactor } = getConstants(
-          "runBlock",
-          blocker,
-        );
+        const {
+          runBlockDampingFactor,
+          covererDampingFactor,
+          runBlockPushStrength,
+        } = getConstants("RUNBLOCK", blocker);
         const { randomJitter } = getConstants("blockShedding", defender);
 
         const isRunBlock = state.currentPlay.offense === "run";
@@ -404,7 +404,7 @@ function resolveCollision(a: Player, b: Entity) {
         if (isRunBlock && defender.role === "rusher") {
           // Push strength is inverse of damping — elite blocker (low damping) pushes harder
           const pushStrength =
-            (1 - runBlockDampingFactor) * RUN_BLOCK_PUSH_STRENGTH;
+            (1 - runBlockDampingFactor) * runBlockPushStrength;
           // Drive in the blocker's current direction of travel
           const blockerSpeed = length(blocker.vel);
           if (blockerSpeed > 0.1) {

@@ -36,14 +36,14 @@ const GRADE_MAP: Record<Grades, number> = {
 };
 
 export const ATTRIBUTE_CONFIG = {
-  // All Positions
+  /* All Positions */
   SPEED: (r: number) => ({
     maxSpeed: lerp(r, 2.82, 4.13),
     acceleration: lerp(r, 0.18, 0.32),
   }),
   SIZE: (r: number) => ({ radius: lerp(r, 22, 30) }),
 
-  // Passers
+  /* Passers */
   pocketPresence: (r: number) => ({
     passerLookAhead: lerp(r, 180, 300),
     passerAvoidStrength: lerp(r, 1.0, 2.4),
@@ -66,22 +66,23 @@ export const ATTRIBUTE_CONFIG = {
     deepAccuracy: lerp(r, 0.6, 1),
   }),
 
-  // Runners
+  /* Runners */
+  // Best = ~0.50
   VISION: (r: number) => ({
     lookAhead: lerp(r, 100, 220),
     avoidStrength: lerp(r, 1, 3),
     steerAvoidStrength: lerp(r, 0.2, 1.6),
-    steerDuration: lerp(r, 90, 30),
+    steerDuration: lerp(r, 110, 50),
   }),
   power: (r: number) => ({
-    carrierPower: lerp(r, 0.5, 1.5),
-    tacklePressureThreshold: lerp(r, 1, 2),
+    carrierPower: lerp(r, 0.2, 1.2),
+    tacklePressureThreshold: lerp(r, 0.3, 1.3),
   }),
   changeOfDirection: (r: number) => ({
     runnerSteerFactor: lerp(r, 0.5, 1.5),
   }),
 
-  // Catchers
+  /* Catchers */
   routeRunning: (r: number) => ({
     stopAfterBreakThreshold: lerp(r, 20, 0),
     routeStemDrift: lerp(r, 0.12, 0),
@@ -96,16 +97,17 @@ export const ATTRIBUTE_CONFIG = {
     completionRadius: lerp(r, 162, 130),
   }),
 
-  // Blockers
+  /* Blockers */
   passBlock: (r: number) => ({
     rusherDampingFactor: lerp(r, 1.2, 0.7),
   }),
-  runBlock: (r: number) => ({
-    runBlockDampingFactor: lerp(r, 0.7, 0.2),
-    covererDampingFactor: lerp(r, 0.8, 0.4),
+  RUNBLOCK: (r: number) => ({
+    runBlockDampingFactor: lerp(r, 1.2, 0.4),
+    covererDampingFactor: lerp(r, 0.7, 0.3),
+    runBlockPushStrength: lerp(r, -0.8, 1),
   }),
 
-  // Rushers
+  /* Rushers */
   blockShedding: (r: number) => ({
     randomJitter: lerp(r, 0, 0),
   }),
@@ -114,7 +116,7 @@ export const ATTRIBUTE_CONFIG = {
     lateralFreq: lerp(r, 0.01, 0.05),
   }),
 
-  // Coverers
+  /* Coverers */
   manCoverage: (r: number) => ({
     manStartDelay: lerp(r, 20, 0),
     reactionDelay: lerp(r, 60, 34),
@@ -132,10 +134,10 @@ export const ATTRIBUTE_CONFIG = {
     pursuitLateralFreq: lerp(r, 0.01, 0.05),
   }),
 
-  // Defenders
+  /* Defenders */
   tackling: (r: number) => ({
-    defenderTackle: lerp(r, 0.4, 0.6),
-    tackleAttemptChance: lerp(r, 0.05, 0.2),
+    defenderTackle: lerp(r, 0.75, 0.95),
+    tackleAttemptChance: lerp(r, 0.15, 0.35),
   }),
 } as const;
 
@@ -156,7 +158,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   catchAcceleration: 0.5,
   catchRadius: 0.5,
   passBlock: 0.5,
-  runBlock: 0.5,
+  RUNBLOCK: 0.3,
   blockShedding: 0.5,
   bend: 0.5,
   manCoverage: 0.5,
@@ -178,9 +180,9 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   TE: createBaseRatings({ SPEED: 0.7, SIZE: 0.47 }),
 
   // Blockers
-  LT: createBaseRatings({ SPEED: 0.45, SIZE: 0.93 }),
-  C: createBaseRatings({ SPEED: 0.43, SIZE: 0.87 }),
-  RT: createBaseRatings({ SPEED: 0.45, SIZE: 0.96 }),
+  LT: createBaseRatings({ SPEED: 0.45, SIZE: 0.93, RUNBLOCK: 0.5 }),
+  C: createBaseRatings({ SPEED: 0.43, SIZE: 0.87, RUNBLOCK: 0.5 }),
+  RT: createBaseRatings({ SPEED: 0.45, SIZE: 0.96, RUNBLOCK: 0.5 }),
 
   // Rushers
   LE: createBaseRatings({ SPEED: 0.56, SIZE: 0.6 }),
