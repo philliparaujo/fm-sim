@@ -74,12 +74,9 @@ export const ATTRIBUTE_CONFIG = {
     steerAvoidStrength: lerp(r, 0.2, 1.6),
     steerDuration: lerp(r, 110, 50),
   }),
-  power: (r: number) => ({
+  POWER: (r: number) => ({
     carrierPower: lerp(r, 0.2, 1.2),
-    tacklePressureThreshold: lerp(r, 0.3, 1.3),
-  }),
-  changeOfDirection: (r: number) => ({
-    runnerSteerFactor: lerp(r, 0.5, 1.5),
+    tacklePressureThreshold: lerp(r, 0.05, 0.7),
   }),
 
   /* Catchers */
@@ -102,14 +99,16 @@ export const ATTRIBUTE_CONFIG = {
     rusherDampingFactor: lerp(r, 1.2, 0.7),
   }),
   RUNBLOCK: (r: number) => ({
-    runBlockDampingFactor: lerp(r, 1.2, 0.4),
+    runBlockDampingFactor: lerp(r, 0.8, 0.4),
     covererDampingFactor: lerp(r, 0.7, 0.3),
-    runBlockPushStrength: lerp(r, -0.8, 1),
+    runBlockPushStrength: lerp(r, 0.6, 2.5),
+    antiBlockShed: lerp(r, 0.9, 1.7),
   }),
 
   /* Rushers */
-  blockShedding: (r: number) => ({
-    randomJitter: lerp(r, 0, 0),
+  BLOCKSHEDDING: (r: number) => ({
+    blockShed: lerp(r, 0, 2),
+    randomJitter: lerp(r, -0.5, 0.6),
   }),
   bend: (r: number) => ({
     lateralStrength: lerp(r, 0.5, 1.5),
@@ -135,9 +134,9 @@ export const ATTRIBUTE_CONFIG = {
   }),
 
   /* Defenders */
-  tackling: (r: number) => ({
-    defenderTackle: lerp(r, 0.75, 0.95),
-    tackleAttemptChance: lerp(r, 0.15, 0.35),
+  TACKLING: (r: number) => ({
+    defenderTackle: lerp(r, 0.7, 0.9),
+    tackleAttemptChance: lerp(r, 0.1, 0.3),
   }),
 } as const;
 
@@ -152,19 +151,18 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   shortAccuracy: 0.5,
   deepAccuracy: 0.5,
   VISION: 0,
-  power: 0.5,
-  changeOfDirection: 0.5,
+  POWER: 0.5,
   routeRunning: 0.5,
   catchAcceleration: 0.5,
   catchRadius: 0.5,
   passBlock: 0.5,
-  RUNBLOCK: 0.3,
-  blockShedding: 0.5,
+  RUNBLOCK: 0.25,
+  BLOCKSHEDDING: 0.5,
   bend: 0.5,
   manCoverage: 0.5,
   zoneCoverage: 0.5,
   pursuit: 0.5,
-  tackling: 0.5,
+  TACKLING: 0.5,
   ...overrides,
 });
 
@@ -180,9 +178,9 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   TE: createBaseRatings({ SPEED: 0.7, SIZE: 0.47 }),
 
   // Blockers
-  LT: createBaseRatings({ SPEED: 0.45, SIZE: 0.93, RUNBLOCK: 0.5 }),
-  C: createBaseRatings({ SPEED: 0.43, SIZE: 0.87, RUNBLOCK: 0.5 }),
-  RT: createBaseRatings({ SPEED: 0.45, SIZE: 0.96, RUNBLOCK: 0.5 }),
+  LT: createBaseRatings({ SPEED: 0.45, SIZE: 0.93, RUNBLOCK: 0.45 }),
+  C: createBaseRatings({ SPEED: 0.43, SIZE: 0.87, RUNBLOCK: 0.45 }),
+  RT: createBaseRatings({ SPEED: 0.45, SIZE: 0.96, RUNBLOCK: 0.45 }),
 
   // Rushers
   LE: createBaseRatings({ SPEED: 0.56, SIZE: 0.6 }),

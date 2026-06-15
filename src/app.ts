@@ -21,7 +21,7 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
     "shortAccuracy",
     "deepAccuracy",
   ],
-  runner: ["SPEED", "SIZE", "VISION", "power", "changeOfDirection"],
+  runner: ["SPEED", "SIZE", "VISION", "POWER"],
   catcher: [
     "SPEED",
     "SIZE",
@@ -30,14 +30,14 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
     "catchRadius",
   ],
   blocker: ["SPEED", "SIZE", "passBlock", "RUNBLOCK"],
-  rusher: ["SPEED", "SIZE", "blockShedding", "bend"],
+  rusher: ["SPEED", "SIZE", "BLOCKSHEDDING", "bend"],
   coverer: [
     "SPEED",
     "SIZE",
     "manCoverage",
     "zoneCoverage",
     "pursuit",
-    "tackling",
+    "TACKLING",
   ],
 };
 
@@ -51,19 +51,18 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   shortAccuracy: "Short Accuracy",
   deepAccuracy: "Deep Accuracy",
   VISION: "Vision",
-  power: "Power",
-  changeOfDirection: "Change of Direction",
+  POWER: "Power",
   routeRunning: "Route Running",
   catchAcceleration: "Catch Acceleration",
   catchRadius: "Catch Radius",
   passBlock: "Pass Block",
   RUNBLOCK: "Run Block",
-  blockShedding: "Block Shedding",
+  BLOCKSHEDDING: "Block Shedding",
   bend: "Bend",
   manCoverage: "Man Coverage",
   zoneCoverage: "Zone Coverage",
   pursuit: "Pursuit",
-  tackling: "Tackling",
+  TACKLING: "Tackling",
 };
 
 const SPEED_STEPS = [0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];

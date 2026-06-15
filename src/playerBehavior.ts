@@ -45,11 +45,7 @@ function stepAsPlayer(player: Player, state: State) {
       break;
     }
     case "rusher": {
-      if (!state.ballGiven) {
-        rushTowardsBall(player);
-      } else {
-        pursueBallCarrier(player);
-      }
+      rushTowardsBall(player);
       break;
     }
     case "runner": {
@@ -198,7 +194,6 @@ function stepAsPlayer(player: Player, state: State) {
     targetDir: Vector = { x: 1.0, y: 0 },
   ) {
     const { maxSpeed } = getConstants("SPEED", player);
-    const { runnerSteerFactor } = getConstants("changeOfDirection", player);
     const { catchSlowdownDuration, minCatchSpeedMultiplier } = getConstants(
       "catchAcceleration",
       player,
@@ -236,10 +231,7 @@ function stepAsPlayer(player: Player, state: State) {
       Math.atan2(optimizedTargetDir.y, optimizedTargetDir.x) -
         Math.atan2(targetDir.y, targetDir.x),
     );
-    const dynamicSteerFactor =
-      choiceDiscrepancy > 0.2
-        ? Math.min(0.85, runnerSteerFactor * 3.5)
-        : runnerSteerFactor;
+    const dynamicSteerFactor = choiceDiscrepancy > 0.2 ? 3.5 : 1;
 
     const d = length(optimizedTargetDir);
     if (d > 0) {
@@ -577,25 +569,50 @@ function stepAsPlayer(player: Player, state: State) {
 
   function rushTowardsBall(player: Player) {
     const { lateralStrength, lateralFreq } = getConstants("bend", player);
+    const { maxSpeed } = getConstants("SPEED", player);
 
-    const toBall = diff(state.ball.loc, player.loc);
-    const d = length(toBall);
+    const isRunPlay = state.currentPlay.offense === "run";
+    let targetLoc = { ...state.ball.loc };
 
-    // Get unit vectors toward ball, perpendicular from ball
-    const dirX = toBall.x / d;
-    const dirY = toBall.y / d;
+    // 1. GAP CONTAINMENT: If it's a run play and the ball hasn't crossed the line of scrimmage,
+    // hold down containment vectors rather than diving backwards into a mosh pit.
+    if (isRunPlay && state.ball.loc.x < state.scoreboard.LOS) {
+      // Edge rushers (outermost indices) should guard their horizontal lanes
+      const playerIndex = state.players.indexOf(player);
+      const isOuterRusher = playerIndex === 0 || playerIndex === 2; // Adjust based on your lineup indices
+
+      if (isOuterRusher) {
+        // Force them to anchor near the Line of Scrimmage horizontally, protecting the outside edge
+        targetLoc.x = state.scoreboard.LOS + 10;
+      }
+    }
+
+    const toTarget = diff(targetLoc, player.loc);
+    const d = length(toTarget);
+
+    if (d === 0) return;
+
+    const dirX = toTarget.x / d;
+    const dirY = toTarget.y / d;
+
+    // 2. BEND CONTEXT: Only apply the swaying 'bend' math on pass plays (pass rushing)
+    let lateral = 0;
+    if (!isRunPlay) {
+      const phaseOffset = state.players.indexOf(player) * 2.1;
+      lateral =
+        Math.sin(state.steps * 0.166 * lateralFreq + phaseOffset) *
+        lateralStrength;
+    }
+
     const perpX = -dirY;
     const perpY = dirX;
 
-    // Slow, lateral drift driven purely by simulation steps
-    const phaseOffset = state.players.indexOf(player) * 2.1;
-    const lateral =
-      Math.sin(state.steps * 0.166 * lateralFreq + phaseOffset) *
-      lateralStrength;
+    // 3. BLOCK DECAY OVERRIDE: Check if the player was blocked/contacted this frame.
+    // If they are engaged in a block, scale down their maximum tracking velocity.
+    const speedModifier = player.contactedThisFrame ? 0.25 : 1.0;
 
-    // Apply velocity
-    const targetVelX = (dirX + perpX * lateral) * maxSpeed;
-    const targetVelY = (dirY + perpY * lateral) * maxSpeed;
+    const targetVelX = (dirX + perpX * lateral) * maxSpeed * speedModifier;
+    const targetVelY = (dirY + perpY * lateral) * maxSpeed * speedModifier;
 
     player.vel.x += (targetVelX - player.vel.x) * RUSHER_STEER_FACTOR;
     player.vel.y += (targetVelY - player.vel.y) * RUSHER_STEER_FACTOR;
@@ -771,12 +788,12 @@ function getCatcherRouteVariance(player: Player) {
 
 function attemptTackle(defender: Player, carrier: Player) {
   const { carrierPower, tacklePressureThreshold } = getConstants(
-    "power",
+    "POWER",
     carrier,
   );
   const { maxSpeed } = getConstants("SPEED", carrier);
   const { defenderTackle, tackleAttemptChance } = getConstants(
-    "tackling",
+    "TACKLING",
     defender,
   );
 

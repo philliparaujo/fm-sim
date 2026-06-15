@@ -20,7 +20,7 @@ const CATCHER_TRACE_ON = true;
 const COVERER_ZONE_ON = true;
 const RUNNER_PATH_ON = true;
 const PASSER_POCKET_ON = true;
-const RUNNER_LOOK_AHEAD_ON = true;
+const RUNNER_LOOK_AHEAD_ON = false;
 
 const ONLY_SIMULATE = false;
 

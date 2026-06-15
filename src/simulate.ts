@@ -23,6 +23,7 @@ import {
   applyDamping,
   closestPointOnSegment,
   computeFirstDownLine,
+  diff,
   dist,
   distanceAfterFirstDown,
   isCarryingBall,
@@ -374,21 +375,80 @@ function resolveCollision(a: Player, b: Entity) {
           : playerB.role === "rusher" || playerB.role === "coverer"
             ? playerB
             : null;
+
       const carrier = isCarryingBall(a, state.ball)
         ? a
         : isCarryingBall(playerB, state.ball)
           ? playerB
           : null;
 
-      // Initiate blocking
+      // ==========================================
+      // NEW: RUN DEFENSE BLOCK-SHEDDING ENGINE
+      // ==========================================
+      if (blocker && defender && state.currentPlay.offense === "run") {
+        // Initialize persistent properties safely if they aren't typed in fillOutPlayer
+        if ((defender as any).shedImmunityFrames === undefined)
+          (defender as any).shedImmunityFrames = 0;
+        if ((defender as any).shedCooldown === undefined)
+          (defender as any).shedCooldown = 0;
+
+        // If the defender is currently in a successful shed burst, bypass block penalties entirely
+        if ((defender as any).shedImmunityFrames > 0) {
+          (defender as any).shedImmunityFrames--;
+          return; // Skip standard collision/damping so they can run free
+        }
+
+        if ((defender as any).shedCooldown > 0) {
+          (defender as any).shedCooldown--;
+        }
+
+        // Only roll for a shed if they are actively colliding and not on cooldown
+        if ((defender as any).shedCooldown === 0) {
+          // Fetch raw ratings from 0.0 to 1.0
+          // const shedderRating = defender.ratings?.blockShedding ?? 0.5;
+          // const blockerRating = blocker.ratings?.RUNBLOCK ?? 0.5;
+          const shedderRating = getConstants(
+            "BLOCKSHEDDING",
+            defender,
+          ).blockShed;
+          const blockerRating = getConstants("RUNBLOCK", blocker).antiBlockShed;
+
+          // Per-frame base probability (~2% chance per frame baseline at 60 FPS)
+          const BASE_SHED_CHANCE = 0.006;
+          // Scale chance: high block-shedding vs low run-blocking increases the odds drastically
+          const shedChance =
+            BASE_SHED_CHANCE * (shedderRating / Math.max(0.1, blockerRating));
+
+          if (Math.random() < shedChance) {
+            // SUCCESSFUL SHED!
+            (defender as any).shedImmunityFrames = 10; // 20 frames (~0.33s) of block immunity
+            (defender as any).shedCooldown = 90; // Cooldown before getting locked in another block
+
+            // PHYSICAL BYPASS NUDGE: Teleport the defender slightly past the blocker toward the ball
+            const toBall = diff(state.ball.loc, defender.loc);
+            const ballDist = length(toBall);
+            if (ballDist > 0) {
+              // Nudge them 25 pixels toward the ball to clear the blocker's bounding circle immediately
+              defender.loc.x += (toBall.x / ballDist) * 25;
+              defender.loc.y += (toBall.y / ballDist) * 25;
+            }
+            return; // Exit early to avoid damping this frame
+          }
+        }
+      }
+
+      // Initiate blocking (Standard fallback if block isn't shed)
       if (blocker && defender) {
+        // Track engagement flag safely since contactedThisFrame is cleared prematurely
+        (defender as any).isPhysicallyEngaged = true;
+
         const { rusherDampingFactor } = getConstants("passBlock", blocker);
         const {
           runBlockDampingFactor,
           covererDampingFactor,
           runBlockPushStrength,
         } = getConstants("RUNBLOCK", blocker);
-        const { randomJitter } = getConstants("blockShedding", defender);
+        const { randomJitter } = getConstants("BLOCKSHEDDING", defender);
 
         const isRunBlock = state.currentPlay.offense === "run";
         const damping =
@@ -402,10 +462,8 @@ function resolveCollision(a: Player, b: Entity) {
 
         // On run plays, good blockers drive defenders forward
         if (isRunBlock && defender.role === "rusher") {
-          // Push strength is inverse of damping — elite blocker (low damping) pushes harder
           const pushStrength =
             (1 - runBlockDampingFactor) * runBlockPushStrength;
-          // Drive in the blocker's current direction of travel
           const blockerSpeed = length(blocker.vel);
           if (blockerSpeed > 0.1) {
             defender.vel.x += (blocker.vel.x / blockerSpeed) * pushStrength;

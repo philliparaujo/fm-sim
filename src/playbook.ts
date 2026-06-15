@@ -17,7 +17,7 @@ const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
 const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 0.5, // Offensive playcall
+  passPercent: 0, // Offensive playcall
   manPercent: 0.5, // Defensive underneath coverage
   blitzPercent: 0.5, // Cover 1 blitz or cover 2 shell
 };
