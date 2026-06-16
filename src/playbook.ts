@@ -330,6 +330,8 @@ function fillOutPlayer(partial: PartialPlayer): Player {
     path: [],
     breakFrame: null,
     coverage: partial.coverage,
+    playRushSeed: undefined,
+    rushSpeedVariance: undefined,
 
     // Specific properties determined later
     assignedTarget: null,

@@ -385,7 +385,7 @@ function resolveCollision(a: Player, b: Entity) {
       // ==========================================
       // NEW: RUN DEFENSE BLOCK-SHEDDING ENGINE
       // ==========================================
-      if (blocker && defender && state.currentPlay.offense === "run") {
+      if (blocker && defender) {
         // Initialize persistent properties safely if they aren't typed in fillOutPlayer
         if ((defender as any).shedImmunityFrames === undefined)
           (defender as any).shedImmunityFrames = 0;
@@ -411,7 +411,10 @@ function resolveCollision(a: Player, b: Entity) {
             "BLOCKSHEDDING",
             defender,
           ).blockShed;
-          const blockerRating = getConstants("RUNBLOCK", blocker).antiBlockShed;
+          const blockerRating =
+            state.currentPlay.offense === "pass"
+              ? getConstants("PASSBLOCK", blocker).antiBlockShed
+              : getConstants("RUNBLOCK", blocker).antiBlockShed;
 
           // Per-frame base probability (~2% chance per frame baseline at 60 FPS)
           const BASE_SHED_CHANCE = 0.006;
@@ -442,7 +445,7 @@ function resolveCollision(a: Player, b: Entity) {
         // Track engagement flag safely since contactedThisFrame is cleared prematurely
         (defender as any).isPhysicallyEngaged = true;
 
-        const { rusherDampingFactor } = getConstants("passBlock", blocker);
+        const { rusherDampingFactor } = getConstants("PASSBLOCK", blocker);
         const {
           runBlockDampingFactor,
           covererDampingFactor,
@@ -718,6 +721,9 @@ function resetSimulation(reason: PlayEndReason) {
   );
   const nextLOS = isTouchdown || isSafety ? START_DRIVE : endBallX;
 
+  if (reason === "sack") {
+    state.playAdvanced.sackFrame = state.steps;
+  }
   const updatedStats = updateStatsAfterPlay(
     prevStats,
     currentPlay,

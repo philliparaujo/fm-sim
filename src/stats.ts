@@ -95,6 +95,7 @@ function emptyAdvancedStats(): AdvancedStats {
     rushYardsBeforeContact: 0,
     sackRate: 0,
     timeToThrow: 0,
+    timeToSack: 0,
   };
 }
 
@@ -326,13 +327,17 @@ export function updateStatsAfterPlay(
     const completionCount = next.qb.completions;
     const passCount = next.qb.attempts;
     const dropbackCount = next.qb.attempts + next.qb.sacks; // total dropbacks so far
+    const sackCount = next.qb.sacks;
 
     // Time to Throw (seconds): only on pass attempts, not sacks
     if (isPassAttempt && playAdvanced.throwFrame !== undefined) {
       const ttt = playAdvanced.throwFrame / 60;
-      adv.timeToThrow = round2(
-        (adv.timeToThrow * (dropbackCount - 1) + ttt) / dropbackCount,
-      );
+      adv.timeToThrow =
+        (adv.timeToThrow * (dropbackCount - 1) + ttt) / dropbackCount;
+    }
+    if (isSack && playAdvanced.sackFrame !== undefined) {
+      const ttt = playAdvanced.sackFrame / 60;
+      adv.timeToSack = (adv.timeToSack * (sackCount - 1) + ttt) / sackCount;
     }
 
     // Air Yards: average over pass attempts only

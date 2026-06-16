@@ -95,8 +95,9 @@ export const ATTRIBUTE_CONFIG = {
   }),
 
   /* Blockers */
-  passBlock: (r: number) => ({
-    rusherDampingFactor: lerp(r, 1.2, 0.7),
+  PASSBLOCK: (r: number) => ({
+    rusherDampingFactor: lerp(r, 0.99, 0.89),
+    antiBlockShed: lerp(r, 2.2, 2.6),
   }),
   RUNBLOCK: (r: number) => ({
     runBlockDampingFactor: lerp(r, 0.8, 0.4),
@@ -110,8 +111,8 @@ export const ATTRIBUTE_CONFIG = {
     blockShed: lerp(r, 0, 2),
     randomJitter: lerp(r, -0.5, 0.6),
   }),
-  bend: (r: number) => ({
-    lateralStrength: lerp(r, 0.5, 1.5),
+  BEND: (r: number) => ({
+    lateralStrength: lerp(r, 0.2, 1.4),
     lateralFreq: lerp(r, 0.01, 0.05),
   }),
 
@@ -151,15 +152,15 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   decisionMaking: 0.5,
   shortAccuracy: 0.5,
   deepAccuracy: 0.5,
-  VISION: 0,
-  POWER: 0.5,
+  VISION: 0.2,
+  POWER: 0.1,
   routeRunning: 0.5,
   catchAcceleration: 0.5,
   catchRadius: 0.5,
-  passBlock: 0.5,
+  PASSBLOCK: 0.25,
   RUNBLOCK: 0.25,
-  BLOCKSHEDDING: 0.5,
-  bend: 0.5,
+  BLOCKSHEDDING: 0.3,
+  BEND: 0.3,
   manCoverage: 0.5,
   zoneCoverage: 0.5,
   PURSUIT: 0.3,
@@ -173,26 +174,46 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   QB: createBaseRatings({ SPEED: 0.75, SIZE: 0.3 }),
 
   // Runners/Catchers
-  RB: createBaseRatings({ SPEED: 0.81, SIZE: 0.23, VISION: 0.6 }),
+  RB: createBaseRatings({ SPEED: 0.81, SIZE: 0.23, VISION: 0.6, POWER: 0.5 }),
   XR: createBaseRatings({ SPEED: 0.91, SIZE: 0.13 }),
   ZR: createBaseRatings({ SPEED: 0.89, SIZE: 0.1 }),
   TE: createBaseRatings({ SPEED: 0.7, SIZE: 0.47 }),
 
   // Blockers
-  LT: createBaseRatings({ SPEED: 0.45, SIZE: 0.93, RUNBLOCK: 0.45 }),
-  C: createBaseRatings({ SPEED: 0.43, SIZE: 0.87, RUNBLOCK: 0.45 }),
-  RT: createBaseRatings({ SPEED: 0.45, SIZE: 0.96, RUNBLOCK: 0.45 }),
+  LT: createBaseRatings({
+    SPEED: 0.45,
+    SIZE: 0.93,
+    RUNBLOCK: 0.45,
+    PASSBLOCK: 0.5,
+  }),
+  C: createBaseRatings({
+    SPEED: 0.43,
+    SIZE: 0.87,
+    RUNBLOCK: 0.55,
+    PASSBLOCK: 0.4,
+  }),
+  RT: createBaseRatings({
+    SPEED: 0.45,
+    SIZE: 0.96,
+    RUNBLOCK: 0.5,
+    PASSBLOCK: 0.45,
+  }),
 
   // Rushers
-  LE: createBaseRatings({ SPEED: 0.56, SIZE: 0.6 }),
-  DT: createBaseRatings({ SPEED: 0.43, SIZE: 0.83 }),
-  RE: createBaseRatings({ SPEED: 0.56, SIZE: 0.57 }),
+  LE: createBaseRatings({ SPEED: 0.56, SIZE: 0.6, BEND: 0.55 }),
+  DT: createBaseRatings({ SPEED: 0.43, SIZE: 0.83, BLOCKSHEDDING: 0.55 }),
+  RE: createBaseRatings({ SPEED: 0.56, SIZE: 0.57, BEND: 0.55 }),
 
   // Coverers/Defenders
   CB: createBaseRatings({ SPEED: 0.9, SIZE: 0.08, TACKLING: 0.3 }),
   NB: createBaseRatings({ SPEED: 0.87, SIZE: 0.07, TACKLING: 0.35 }),
   LB: createBaseRatings({ SPEED: 0.7, SIZE: 0.4, TACKLING: 0.7 }),
-  SS: createBaseRatings({ SPEED: 0.77, SIZE: 0.2, PURSUIT: 0.7 }),
+  SS: createBaseRatings({
+    SPEED: 0.77,
+    SIZE: 0.2,
+    PURSUIT: 0.7,
+    BLOCKSHEDDING: 0.4,
+  }),
   FS: createBaseRatings({ SPEED: 0.83, SIZE: 0.1, PURSUIT: 0.6 }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {

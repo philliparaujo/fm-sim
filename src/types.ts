@@ -44,6 +44,10 @@ interface Player extends PartialPlayer {
   path: Vector[];
   breakFrame: number | null;
 
+  // For rushers
+  playRushSeed?: number;
+  rushSpeedVariance?: number;
+
   // Coverer state
   assignedTarget: Player | null;
   perceivedLoc: Vector | null;
@@ -126,6 +130,7 @@ type RBStats = {
 
 type PlayAdvancedData = {
   throwFrame?: number; // state.steps when throw occurred
+  sackFrame?: number; // state.steps when sack occurred
   airYards?: number; // pixels from LOS to catcher at throw time
   wasOffTarget?: boolean; // throw was uncatchable
   wasUnderPressure: boolean; // at least one frame under pressure this play
@@ -139,6 +144,7 @@ type AdvancedStats = {
   intendedAirYards: number;
   completedAirYards: number;
   timeToThrow: number;
+  timeToSack: number;
   offTargetThrowRate: number;
   pressureRate: number;
   rushYardsBeforeContact: number;

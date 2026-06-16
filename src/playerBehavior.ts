@@ -84,7 +84,7 @@ function stepAsPlayer(player: Player, state: State) {
     case "passer": {
       if (!state.ballGiven) {
         navigatePocket(player);
-        throwingDecision(player);
+        // throwingDecision(player);
       } else {
         avoidBallCarrier(player); // After handing off to a runner
       }
@@ -98,76 +98,143 @@ function stepAsPlayer(player: Player, state: State) {
 
   /* Specific actions a player can perform */
   function blockNearestDefender(player: Player) {
+    const { maxSpeed } = getConstants("SPEED", player);
+    const isPassPlay = state.currentPlay.offense === "pass";
+
+    // 1. Identify valid targets based on dynamic engine assignments
     const assignedDefender = state.blockingAssignments.get(player);
+
+    // Pass-blocking runners look exclusively at rushers threatening the pocket.
+    // Downfield block-shifters or linemen evaluate rushers and coverers.
     const defenders = assignedDefender
       ? [assignedDefender]
-      : state.players.filter(
-          (p) => p.role === "rusher" || p.role === "coverer",
-        );
+      : state.players.filter((p) => {
+          if (player.role === "runner" && isPassPlay) {
+            return p.role === "rusher";
+          }
+          return p.role === "rusher" || p.role === "coverer";
+        });
 
-    // 1. Identify the target defender
-    let targetDefender: Player | null = assignedDefender || null;
-    if (!targetDefender) {
-      // If no hard assignment, find the absolute closest threat to the player
-      let minD = Infinity;
-      defenders.forEach((d) => {
-        const distance = dist(player.loc, d.loc);
-        if (distance < minD) {
-          minD = distance;
-          targetDefender = d;
-        }
-      });
-    }
+    let targetLoc: Vector | null = null;
 
-    if (targetDefender) {
-      let targetLoc = { x: 0, y: 0 };
-      const distanceToDefender = dist(player.loc, targetDefender.loc);
+    // 2. PATH A: Passer Protection Constraints (Runners on Pass Plays)
+    if (player.role === "runner" && isPassPlay) {
+      const passer = state.players.find((p) => p.role === "passer");
+      const anchorLoc = passer ? passer.loc : state.ball.loc;
 
-      // 2. THE FIX: If the player is a catcher or runner and hasn't engaged yet,
-      // run directly AT the defender to establish contact/leverage, completely ignoring the ball position.
-      if (
-        (player.role === "catcher" || player.role === "runner") &&
-        distanceToDefender > 30
-      ) {
-        // Dynamic Inside Leverage Logic:
-        // Identify the horizontal centerline of the field
-        const fieldCenterY = H / 2;
+      // Checks if an immediate thread has breached the pocket edge
+      const activeThreat =
+        assignedDefender || defenders.find((d) => dist(d.loc, anchorLoc) < 180);
 
-        // If defender is above the centerline, inside leverage means shading DOWN (+Y).
-        // If defender is below the centerline, inside leverage means shading UP (-Y).
-        const insideShadeDirection =
-          targetDefender.loc.y < fieldCenterY ? 1 : -1;
-
-        // LEVERAGE TUNING CONSTANTS
-        const UPFIELD_SEAL_X = 15; // How many pixels ahead of the defender they aim (X-axis)
-        const INSIDE_SEAL_Y = 50; // How wide of an inside wall they establish (Y-axis)
-
-        targetLoc = {
-          x: targetDefender.loc.x + UPFIELD_SEAL_X,
-          y: targetDefender.loc.y + insideShadeDirection * INSIDE_SEAL_Y,
-        };
-      } else {
-        // Traditional line-blocking/downfield-intercept behavior once close or for interior blockers
+      if (activeThreat) {
+        // Intercept path to protect the pocket anchor
         let interceptPoint = closestPointOnSegment(
           player.loc,
-          targetDefender.loc,
+          activeThreat.loc,
+          anchorLoc,
+        );
+
+        // Enforce pocket boundary buffer
+        if (dist(interceptPoint, anchorLoc) < MIN_BLOCK_DISTANCE) {
+          const toDefender = diff(activeThreat.loc, anchorLoc);
+          const d = length(toDefender) || 1;
+          interceptPoint = {
+            x: anchorLoc.x + (toDefender.x / d) * MIN_BLOCK_DISTANCE,
+            y: anchorLoc.y + (toDefender.y / d) * MIN_BLOCK_DISTANCE,
+          };
+        }
+        targetLoc = interceptPoint;
+      } else {
+        // POCKET SCAN POSITION: Stationed 35 pixels upfield (East) of the passer to wait for blitzers
+        targetLoc = {
+          x: anchorLoc.x + 35,
+          y: anchorLoc.y,
+        };
+      }
+
+      // 3. PATH B: Downfield Sealing & Inside Leverage Logic (Catchers or Running Backs on Run Plays)
+    } else if (
+      (player.role === "catcher" || player.role === "runner") &&
+      !isPassPlay
+    ) {
+      // Locate the primary target to seal
+      let targetDefender: Player | null = assignedDefender || null;
+      if (!targetDefender) {
+        let minD = Infinity;
+        defenders.forEach((d) => {
+          const distance = dist(player.loc, d.loc);
+          if (distance < minD) {
+            minD = distance;
+            targetDefender = d;
+          }
+        });
+      }
+
+      if (targetDefender) {
+        const distanceToDefender = dist(player.loc, targetDefender.loc);
+
+        // If they haven't engaged yet, shade dynamically to seal inside paths
+        if (distanceToDefender > 30) {
+          const fieldCenterY = H / 2;
+
+          // Above centerline: shade DOWN (+Y). Below centerline: shade UP (-Y)
+          const insideShadeDirection =
+            targetDefender.loc.y < fieldCenterY ? 1 : -1;
+
+          const UPFIELD_SEAL_X = 15; // Positioning allowance downfield (Ahead of defender)
+          const INSIDE_SEAL_Y = 50; // Lateral buffer size to establish an inside wall
+
+          targetLoc = {
+            x: targetDefender.loc.x + UPFIELD_SEAL_X,
+            y: targetDefender.loc.y + insideShadeDirection * INSIDE_SEAL_Y,
+          };
+        } else {
+          // Close quarters: snap directly to tracking them to maintain contact engagement
+          targetLoc = closestPointOnSegment(
+            player.loc,
+            targetDefender.loc,
+            state.ball.loc,
+          );
+        }
+      }
+
+      // 4. PATH C: Traditional Interior/Line-Blocking (Standard Linemen/Interior Blockers)
+    } else {
+      const potentialBlocks = defenders.map((defender) => {
+        let interceptPoint = closestPointOnSegment(
+          player.loc,
+          defender.loc,
           state.ball.loc,
         );
 
         if (dist(interceptPoint, state.ball.loc) < MIN_BLOCK_DISTANCE) {
-          const toDefender = diff(targetDefender.loc, state.ball.loc);
-          const d = length(toDefender);
+          const toDefender = diff(defender.loc, state.ball.loc);
+          const d = length(toDefender) || 1;
           interceptPoint = {
             x: state.ball.loc.x + (toDefender.x / d) * MIN_BLOCK_DISTANCE,
             y: state.ball.loc.y + (toDefender.y / d) * MIN_BLOCK_DISTANCE,
           };
         }
-        targetLoc = interceptPoint;
-      }
 
-      // 3. Apply velocities toward the corrected target location
+        const distToIntercept = dist(player.loc, interceptPoint);
+        const threatIndex =
+          dist(defender.loc, state.ball.loc) * 0.2 + distToIntercept;
+
+        return { interceptPoint, threatIndex };
+      });
+
+      if (potentialBlocks.length > 0) {
+        potentialBlocks.sort((a, b) => a.threatIndex - b.threatIndex);
+        targetLoc = potentialBlocks[0].interceptPoint;
+      }
+    }
+
+    // 5. Apply velocities toward the targeted tracking coordinate
+    if (targetLoc) {
       const distToTarget = dist(player.loc, targetLoc);
-      if (distToTarget < 2) {
+
+      if (distToTarget < 3) {
+        // Dead zone threshold prevents micro-jittering oscillations when set
         player.vel.x = 0;
         player.vel.y = 0;
       } else {
@@ -310,8 +377,8 @@ function stepAsPlayer(player: Player, state: State) {
         player.route.stopAfterBreak &&
         state.steps > routeBreakThreshold + stopAfterBreakThreshold
       ) {
-        player.vel.x *= 0.9;
-        player.vel.y *= 0.9;
+        player.vel.x *= 0.3;
+        player.vel.y *= 0.3;
       }
     }
   }
@@ -564,37 +631,47 @@ function stepAsPlayer(player: Player, state: State) {
   }
 
   function rushTowardsBall(player: Player) {
-    const { lateralStrength, lateralFreq } = getConstants("bend", player);
+    const { lateralStrength, lateralFreq } = getConstants("BEND", player);
     const { maxSpeed } = getConstants("SPEED", player);
 
     const isRunPlay = state.currentPlay.offense === "run";
     let targetLoc = { ...state.ball.loc };
 
-    // 1. GAP CONTAINMENT: If it's a run play and the ball hasn't crossed the line of scrimmage,
-    // hold down containment vectors rather than diving backwards into a mosh pit.
+    // GAP CONTAINMENT
     if (isRunPlay && state.ball.loc.x < state.scoreboard.LOS) {
-      // Edge rushers (outermost indices) should guard their horizontal lanes
       const playerIndex = state.players.indexOf(player);
-      const isOuterRusher = playerIndex === 0 || playerIndex === 2; // Adjust based on your lineup indices
+      const isOuterRusher = playerIndex === 0 || playerIndex === 2;
 
       if (isOuterRusher) {
-        // Force them to anchor near the Line of Scrimmage horizontally, protecting the outside edge
         targetLoc.x = state.scoreboard.LOS + 10;
       }
     }
 
-    const toTarget = diff(targetLoc, player.loc);
-    const d = length(toTarget);
+    // Initialize random play seeds with proper type safety
+    if (player.playRushSeed === undefined || player.playRushSeed === null) {
+      player.playRushSeed = (Math.random() - 0.5) * 10.0;
+      player.rushSpeedVariance = 0.93 + Math.random() * 0.14;
+    }
 
+    const playSeed = player.playRushSeed;
+    const uniqueSpeed = maxSpeed * (player.rushSpeedVariance ?? 1.0);
+
+    let toTarget = diff(targetLoc, player.loc);
+
+    if (!isRunPlay) {
+      toTarget.x += Math.sin(state.steps * 0.05 + playSeed) * 8;
+      toTarget.y += Math.cos(state.steps * 0.05 + playSeed) * 8;
+    }
+
+    const d = length(toTarget);
     if (d === 0) return;
 
     const dirX = toTarget.x / d;
     const dirY = toTarget.y / d;
 
-    // 2. BEND CONTEXT: Only apply the swaying 'bend' math on pass plays (pass rushing)
     let lateral = 0;
     if (!isRunPlay) {
-      const phaseOffset = state.players.indexOf(player) * 2.1;
+      const phaseOffset = state.players.indexOf(player) * 2.1 + playSeed;
       lateral =
         Math.sin(state.steps * 0.166 * lateralFreq + phaseOffset) *
         lateralStrength;
@@ -603,12 +680,10 @@ function stepAsPlayer(player: Player, state: State) {
     const perpX = -dirY;
     const perpY = dirX;
 
-    // 3. BLOCK DECAY OVERRIDE: Check if the player was blocked/contacted this frame.
-    // If they are engaged in a block, scale down their maximum tracking velocity.
     const speedModifier = player.contactedThisFrame ? 0.25 : 1.0;
 
-    const targetVelX = (dirX + perpX * lateral) * maxSpeed * speedModifier;
-    const targetVelY = (dirY + perpY * lateral) * maxSpeed * speedModifier;
+    const targetVelX = (dirX + perpX * lateral) * uniqueSpeed * speedModifier;
+    const targetVelY = (dirY + perpY * lateral) * uniqueSpeed * speedModifier;
 
     player.vel.x += (targetVelX - player.vel.x) * RUSHER_STEER_FACTOR;
     player.vel.y += (targetVelY - player.vel.y) * RUSHER_STEER_FACTOR;
