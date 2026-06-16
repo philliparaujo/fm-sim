@@ -64,7 +64,7 @@ function stepAsPlayer(player: Player, state: State) {
       break;
     }
     case "catcher": {
-      if (isBlocking || state.currentPlay.offense === "pass") {
+      if (isBlocking || state.currentPlay.offense === "run") {
         blockNearestDefender(player);
       } else if (!isCarryingBall(player, state.ball)) {
         runRoute(player);
@@ -257,7 +257,6 @@ function stepAsPlayer(player: Player, state: State) {
       reaccelerationDuration,
     } = getConstants("routeRunning", player);
 
-    // Ensure the player has a route, and save its path for rendering
     if (!player.route) return;
     if (!state.ballGiven) {
       player.path.push({ x: player.loc.x, y: player.loc.y });
@@ -269,47 +268,44 @@ function stepAsPlayer(player: Player, state: State) {
     );
 
     if (state.steps < routeBreakThreshold) {
-      // 1) Route stem
+      // 1) Route stem (running straight downfield)
       player.vel.x = maxSpeed;
       player.vel.y = stemDrift;
     } else {
       // 2) Route break
-      // Apply new direction, speed penalty from break
-      if (state.steps === Math.max(1, routeBreakThreshold)) {
-        const newAngleRad =
-          (player.route.breakAngle + angleOffset) *
-          (player.loc.y < H / 2 ? 1 : -1) *
-          (Math.PI / 180);
-        const newSpeed =
-          maxSpeed *
-          (isNoBreakRoute(player.route) ? 1.0 : routeCutSpeedRetained);
-        player.vel.x = Math.cos(newAngleRad) * newSpeed;
-        player.vel.y = Math.sin(newAngleRad) * newSpeed;
 
+      // FIX: Track the initial break frame AND their starting side of the field
+      if (player.breakFrame === undefined || player.breakFrame === null) {
         player.breakFrame = state.steps;
+
+        // Determine if they started in the top half (1) or bottom half (-1)
+        // Attach this temporary side property to the player object
+        (player as any).routeSideMultiplier = player.loc.y < H / 2 ? 1 : -1;
       }
 
-      // Accelerate following speed penalty
-      if (player.breakFrame !== undefined) {
-        const framesSinceBreak = player.breakFrame
-          ? state.steps - player.breakFrame
-          : 0;
-        if (
-          framesSinceBreak > 0 &&
-          framesSinceBreak <= reaccelerationDuration
-        ) {
-          const progress = framesSinceBreak / reaccelerationDuration;
-          const d = length(player.vel);
-          if (d > 0) {
-            const scale =
-              (maxSpeed * lerp(progress, routeCutSpeedRetained, 1)) / d;
-            player.vel.x *= scale;
-            player.vel.y *= scale;
-          }
-        }
+      // Fallback to 1 if for some reason it wasn't set
+      const sideMultiplier = (player as any).routeSideMultiplier ?? 1;
+
+      // Use the locked side multiplier instead of checking player.loc.y every single frame
+      const newAngleRad =
+        (player.route.breakAngle + angleOffset) *
+        sideMultiplier *
+        (Math.PI / 180);
+
+      // Determine current speed based on whether they are still inside the cut slowdown window
+      const framesSinceBreak = state.steps - player.breakFrame;
+      let currentSpeed = maxSpeed;
+
+      if (framesSinceBreak <= reaccelerationDuration) {
+        const progress = framesSinceBreak / reaccelerationDuration;
+        currentSpeed = maxSpeed * lerp(progress, routeCutSpeedRetained, 1.0);
       }
 
-      // Decelerates player if their route requires them to after the break
+      // Persistently apply the velocity components every frame of the break
+      player.vel.x = Math.cos(newAngleRad) * currentSpeed;
+      player.vel.y = Math.sin(newAngleRad) * currentSpeed;
+
+      // Decelerates player if their route requires them to stop (like a Curl route)
       if (
         player.route.stopAfterBreak &&
         state.steps > routeBreakThreshold + stopAfterBreakThreshold
