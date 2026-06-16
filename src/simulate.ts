@@ -326,7 +326,7 @@ export const PIXELS_PER_STEP = 45;
 export const ROUTE_BREAK_ANGLE_JITTER = 3;
 
 /* Coverer constants */
-export const LEAD_FRAMES = 28;
+export const LEAD_FRAMES = 35;
 export const ARRIVAL_RADIUS = 45;
 
 /* Pursuer constants */

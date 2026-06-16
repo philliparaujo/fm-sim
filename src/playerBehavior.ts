@@ -1,5 +1,5 @@
 import { getConstants } from "./ratings";
-import { H } from "./render";
+import { H, W } from "./render";
 import {
   ANGLE_ENDZONE_INTENT,
   ARRIVAL_RADIUS,
@@ -775,51 +775,108 @@ function stepAsPlayer(player: Player, state: State) {
     const startDelay =
       player.coverage === "man" ? manStartDelay : zoneStartDelay;
 
-    // Update perceived catcher details after any start/reaction delays
     player.reactionTimer++;
-    const targetCatcher = getCovererTargetCatcher(player, state.players);
-    if (player.perceivedLoc === null) {
-      if (player.reactionTimer < startDelay) {
-        return;
+
+    // 1. Get default engine target catcher
+    let targetCatcher = getCovererTargetCatcher(player, state.players, state);
+
+    const DEEP_ZONE_THRESHOLD = (W * 30) / 100; // 30 yards
+    const isDeepSafety =
+      player.zone!.x > state.scoreboard.LOS + DEEP_ZONE_THRESHOLD;
+
+    // FIX: Track if the deep safety has actively identified an overriding deep route
+    let hasDeepThreat = false;
+
+    // 2. LEAK-PROOF DEEP SAFETY OVERRIDE
+    if (player.coverage !== "man") {
+      if (isDeepSafety) {
+        const isCentered = Math.abs(player.zone!.y - H / 2) < 50;
+        const catchers = state.players.filter(
+          (p) => p.role === "catcher" && p.route,
+        );
+
+        // Find the absolute deepest route belonging to their side of assignment
+        const deepOverrideTarget = catchers.reduce(
+          (deepest, current) => {
+            if (!isCentered) {
+              const safetyIsTop = player.zone!.y < H / 2;
+              const catcherStartedTop = current.loc.y < H / 2;
+
+              // If the catcher didn't start on this safety's half of the formation, ignore them
+              if (safetyIsTop !== catcherStartedTop) {
+                return deepest;
+              }
+            }
+            return current.loc.x > (deepest?.loc.x ?? -1) ? current : deepest;
+          },
+          null as Player | null,
+        );
+
+        // Force target lock if the threat has crossed the line of scrimmage area
+        if (
+          deepOverrideTarget &&
+          deepOverrideTarget.loc.x > state.scoreboard.LOS
+        ) {
+          targetCatcher = deepOverrideTarget;
+          hasDeepThreat = true; // FIX: Lock tracking parameter changes down
+        }
       }
-      updateCovererPerception(player, targetCatcher);
-      player.reactionTimer = 0;
-    } else if (player.reactionTimer >= reactionDelay) {
-      player.reactionTimer = 0;
-      updateCovererPerception(player, targetCatcher);
     }
 
-    // Estimate where the catcher is going
+    // 3. Process Perception Delays on the CORRECT targeted player
+    if (player.perceivedLoc === null || player.reactionTimer >= reactionDelay) {
+      if (player.reactionTimer < startDelay && player.perceivedLoc === null)
+        return;
+
+      updateCovererPerception(player, targetCatcher);
+      player.reactionTimer = 0;
+    }
+
+    // 4. Dead-reckoning smooth extrapolation
+    const baseLoc = player.perceivedLoc ?? targetCatcher?.loc ?? player.loc;
+    const baseVel = player.perceivedVel ?? targetCatcher?.vel ?? { x: 0, y: 0 };
+
+    const framesSinceUpdate = player.reactionTimer;
+    const extrapolatedLoc = {
+      x: baseLoc.x + baseVel.x * framesSinceUpdate,
+      y: baseLoc.y + baseVel.y * framesSinceUpdate,
+    };
+
     let targetPoint: Vector;
+
     if (targetCatcher) {
       if (player.coverage === "man") {
-        const perceived = player.perceivedLoc ?? targetCatcher.loc;
-
-        const toBallX = state.ball.loc.x - perceived.x;
-        const toBallY = state.ball.loc.y - perceived.y;
+        const toBallX = state.ball.loc.x - extrapolatedLoc.x;
+        const toBallY = state.ball.loc.y - extrapolatedLoc.y;
         const toBallDist =
           Math.sqrt(toBallX * toBallX + toBallY * toBallY) || 1;
 
         targetPoint = {
-          x: perceived.x + (toBallX / toBallDist) * manCushion,
-          y: perceived.y + (toBallY / toBallDist) * manCushion,
+          x: extrapolatedLoc.x + (toBallX / toBallDist) * manCushion,
+          y: extrapolatedLoc.y + (toBallY / toBallDist) * manCushion,
         };
       } else {
+        // FIX: Use 1.0 ONLY if this is a deep safety facing an active deep vertical route threat.
+        // If no deep threat is active, use the standard baseline zonePull to hold depth.
+        const operationalPull = isDeepSafety && hasDeepThreat ? 1.0 : zonePull;
+
         targetPoint = {
-          x: player.zone!.x + (targetCatcher.loc.x - player.zone!.x) * zonePull,
-          y: player.zone!.y + (targetCatcher.loc.y - player.zone!.y) * zonePull,
+          x:
+            player.zone!.x +
+            (extrapolatedLoc.x - player.zone!.x) * operationalPull,
+          y:
+            player.zone!.y +
+            (extrapolatedLoc.y - player.zone!.y) * operationalPull,
         };
       }
 
-      targetPoint = {
-        x: targetPoint.x + (player.perceivedVel?.x ?? 0) * LEAD_FRAMES,
-        y: targetPoint.y + (player.perceivedVel?.y ?? 0) * LEAD_FRAMES,
-      };
+      targetPoint.x += baseVel.x * LEAD_FRAMES;
+      targetPoint.y += baseVel.y * LEAD_FRAMES;
     } else {
       targetPoint = player.zone ?? { ...player.loc };
     }
 
-    // Move towards the targetPoint unless sufficiently close
+    // 5. Apply smooth steering forces toward targetPoint
     const d = dist(player.loc, targetPoint);
     if (d < 0.5) {
       player.vel.x = 0;
@@ -958,26 +1015,45 @@ function attemptTackle(defender: Player, carrier: Player) {
 }
 
 function getCovererTargetCatcher(
-  player: Player,
+  coverer: Player,
   players: Player[],
+  state: State,
 ): Player | null {
-  if (player.coverage === "man") {
-    return player.assignedTarget || null;
+  if (coverer.coverage === "man") {
+    return coverer.assignedTarget || null;
   }
-
-  if (player.coverage === "zone") {
-    if (!player.zone) {
+  if (coverer.coverage === "zone") {
+    if (!coverer.zone) {
       console.warn("Zone defender has no zone?");
       return null;
     }
     const catchers = players.filter((p) => p.role === "catcher");
     if (catchers.length === 0) return null;
+
+    const DEEP_ZONE_THRESHOLD = (W * 30) / 100;
+    const isDeepSafety =
+      coverer.zone.x > state.scoreboard.LOS + DEEP_ZONE_THRESHOLD;
+
+    if (isDeepSafety) {
+      const isCentered = Math.abs(coverer.zone.y - H / 2) < 50;
+      const relevantCatchers = isCentered
+        ? catchers
+        : catchers.filter((c) =>
+            coverer.zone!.y < H / 2 ? c.loc.y < H / 2 : c.loc.y >= H / 2,
+          );
+      const candidates =
+        relevantCatchers.length > 0 ? relevantCatchers : catchers;
+
+      // Deepest route takes priority, regardless of distance to zone center
+      candidates.sort((a, b) => b.loc.x - a.loc.x);
+      return candidates[0];
+    }
+
     catchers.sort(
-      (a, b) => dist(player.zone!, a.loc) - dist(player.zone!, b.loc),
+      (a, b) => dist(coverer.zone!, a.loc) - dist(coverer.zone!, b.loc),
     );
     return catchers[0];
   }
-
   return null;
 }
 
