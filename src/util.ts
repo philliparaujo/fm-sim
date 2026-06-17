@@ -1,4 +1,4 @@
-import { ENDZONE_W, H, W } from "./constants";
+import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
 import {
   Ball,
   cornerRoute,
@@ -76,12 +76,12 @@ export function randomRoute(): Route {
     streakRoute,
     postRoute,
     cornerRoute,
-    inRoute,
-    outRoute,
-    curlRoute,
-    slantRoute,
-    dragRoute,
-    flatRoute,
+    // inRoute,
+    // outRoute,
+    // curlRoute,
+    // slantRoute,
+    // dragRoute,
+    // flatRoute,
   ];
   return routes[Math.floor(Math.random() * routes.length)];
 }
@@ -232,4 +232,20 @@ export function projectDefenderPosition(
     x: defender.loc.x + defender.vel.x * frames,
     y: defender.loc.y + defender.vel.y * frames,
   };
+}
+
+export function hitSideline(loc: Vector): boolean {
+  const BOUNDARY_MARGIN = W / 100;
+
+  const MIN_PLAYABLE_X = BOUNDARY_MARGIN;
+  const MAX_PLAYABLE_X = TOTAL_W - BOUNDARY_MARGIN;
+  const MIN_PLAYABLE_Y = BOUNDARY_MARGIN;
+  const MAX_PLAYABLE_Y = TOTAL_H - BOUNDARY_MARGIN;
+
+  return (
+    loc.x <= MIN_PLAYABLE_X ||
+    loc.x >= MAX_PLAYABLE_X ||
+    loc.y <= MIN_PLAYABLE_Y ||
+    loc.y >= MAX_PLAYABLE_Y
+  );
 }

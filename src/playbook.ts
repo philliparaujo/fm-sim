@@ -17,9 +17,9 @@ const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
 const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 0.5, // Offensive playcall
+  passPercent: 1, // Offensive playcall
   manPercent: 0.5, // Defensive underneath coverage
-  blitzPercent: 0.5, // Cover 1 blitz or cover 2 shell
+  blitzPercent: 0, // Cover 1 blitz or cover 2 shell
 };
 
 function generateBall(LOS: number): Ball {
@@ -330,6 +330,7 @@ function fillOutPlayer(partial: PartialPlayer): Player {
     path: [],
     breakFrame: null,
     routeSideMultiplier: null,
+    improvAngleRad: null,
     coverage: partial.coverage,
     playRushSeed: undefined,
     rushSpeedVariance: undefined,

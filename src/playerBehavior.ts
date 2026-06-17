@@ -1,9 +1,7 @@
 import {
   ARRIVAL_RADIUS,
-  BALL_GIVEN_STEPS,
   BROKEN_TACKLE_BURST_DURATION,
   BROKEN_TACKLE_SPEED_BURST,
-  ENDZONE_W,
   H,
   LEAD_FRAMES,
   MIN_BLOCK_DISTANCE,
@@ -12,7 +10,6 @@ import {
   PURSUER_STEER_FACTOR,
   ROUTE_BREAK_ANGLE_JITTER,
   RUSHER_STEER_FACTOR,
-  SHORT_THROW_THRESHOLD_PX,
   TACKLE_PRESSURE_PER_FRAME,
   TOTAL_H,
   TOTAL_W,
@@ -26,6 +23,7 @@ import {
   diff,
   dist,
   getPocket,
+  hitSideline,
   isCarryingBall,
   length,
   lerp,
@@ -94,8 +92,7 @@ function stepAsPlayer(player: Player, state: State) {
     case "passer": {
       if (!state.ballGiven) {
         navigatePocket(player);
-        // throwingDecision(player);
-        throwingDecision2(player);
+        throwingDecision(player);
       } else {
         avoidBallCarrier(player); // After handing off to a runner
       }
@@ -329,69 +326,32 @@ function stepAsPlayer(player: Player, state: State) {
   }
 
   function runRoute(player: Player) {
-    const {
-      stopAfterBreakThreshold,
-      routeCutSpeedRetained,
-      reaccelerationDuration,
-    } = getConstants("routeRunning", player);
-
     if (!player.route) return;
     if (!state.ballGiven) {
       player.path.push({ x: player.loc.x, y: player.loc.y });
     }
 
-    const { angleOffset, stemDrift } = getCatcherRouteVariance(player);
-    const routeBreakThreshold = Math.floor(
-      (player.route.steps * PIXELS_PER_STEP) / maxSpeed,
-    );
+    // Fetch the shared velocity physics
+    const res = getReceiverVelocityAtFrame(player, {
+      absoluteFrame: state.steps,
+      currentLocX: player.loc.x,
+      currentLocY: player.loc.y,
+      routeSideMultiplier: player.routeSideMultiplier,
+      breakFrame: player.breakFrame,
+      improvAngleRad: player.improvAngleRad,
+    });
 
-    if (state.steps < routeBreakThreshold) {
-      // 1) Route stem (running straight downfield)
-      player.vel.x = maxSpeed;
-      player.vel.y = stemDrift;
-    } else {
-      // 2) Route break
-
-      // FIX: Track the initial break frame AND their starting side of the field
-      if (player.breakFrame === undefined || player.breakFrame === null) {
-        player.breakFrame = state.steps;
-
-        // Determine if they started in the top half (1) or bottom half (-1)
-        // Attach this temporary side property to the player object
-        player.routeSideMultiplier = player.loc.y < H / 2 ? 1 : -1;
-      }
-
-      // Fallback to 1 if for some reason it wasn't set
-      const sideMultiplier = player.routeSideMultiplier ?? 1;
-
-      // Use the locked side multiplier instead of checking player.loc.y every single frame
-      const newAngleRad =
-        (player.route.breakAngle + angleOffset) *
-        sideMultiplier *
-        (Math.PI / 180);
-
-      // Determine current speed based on whether they are still inside the cut slowdown window
-      const framesSinceBreak = state.steps - player.breakFrame;
-      let currentSpeed = maxSpeed;
-
-      if (framesSinceBreak <= reaccelerationDuration) {
-        const progress = framesSinceBreak / reaccelerationDuration;
-        currentSpeed = maxSpeed * lerp(progress, routeCutSpeedRetained, 1.0);
-      }
-
-      // Persistently apply the velocity components every frame of the break
-      player.vel.x = Math.cos(newAngleRad) * currentSpeed;
-      player.vel.y = Math.sin(newAngleRad) * currentSpeed;
-
-      // Decelerates player if their route requires them to stop (like a Curl route)
-      if (
-        player.route.stopAfterBreak &&
-        state.steps > routeBreakThreshold + stopAfterBreakThreshold
-      ) {
-        player.vel.x *= 0.3;
-        player.vel.y *= 0.3;
-      }
+    // Persist properties exactly when entering the break state
+    if (
+      res.isBreaking &&
+      (player.breakFrame === undefined || player.breakFrame === null)
+    ) {
+      player.breakFrame = state.steps;
+      player.routeSideMultiplier = res.sideMultiplier;
     }
+
+    player.vel.x = res.velX;
+    player.vel.y = res.velY;
   }
 
   function navigatePocket(player: Player) {
@@ -457,7 +417,7 @@ function stepAsPlayer(player: Player, state: State) {
     }
   }
 
-  function throwingDecision2(player: Player) {
+  function throwingDecision(player: Player) {
     const coverers = state.players.filter((p) => p.role === "coverer");
     const rushers = state.players.filter((p) => p.role === "rusher");
     const catchers = state.players.filter((p) => p.role === "catcher");
@@ -513,11 +473,18 @@ function stepAsPlayer(player: Player, state: State) {
 
     // Evaluate all catchers by how open they will be
     const evaluatedOptions = catchers.map((catcher) => {
-      const { target, framesUntil, defenderDistAtArrival } =
+      const { target, projected, framesUntil, defenderDistAtArrival } =
         evaluateThrowWindow(player, catcher, state);
       const projectedOpenness = defenderDistAtArrival;
       const throwDist = dist(player.loc, target);
-      return { catcher, target, framesUntil, projectedOpenness, throwDist };
+      return {
+        catcher,
+        target,
+        projected,
+        framesUntil,
+        projectedOpenness,
+        throwDist,
+      };
     });
 
     const bestOption = evaluatedOptions.sort(
@@ -530,6 +497,8 @@ function stepAsPlayer(player: Player, state: State) {
       state.steps > minThrowStep &&
       state.ballFlight === null
     ) {
+      console.log(bestOption);
+
       state.ballFlight = {
         startLoc: { ...state.ball.loc },
         endLoc: { ...bestOption.target },
@@ -1116,21 +1085,14 @@ function calculatePerfectThrowTarget(
   passer: Player,
   receiver: Player,
   state: State,
-): { framesUntil: number; target: Vector } {
+): { framesUntil: number; target: Vector; projected: Vector } {
   const PIXELS_PER_YARD = W / 100;
   const YARDS_PER_METER = 1.09361;
   const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
 
   const { ballMetersPerSecond } = getConstants("throwPower", passer);
-  const { maxSpeed: runningMetersPerSecond } = getConstants("SPEED", receiver);
-
-  const ballPixelsPerFrame = (ballMetersPerSecond * PIXELS_PER_METER) / 60;
-  const runningPixelsPerFrame =
-    (runningMetersPerSecond * PIXELS_PER_METER) / 60;
-
-  const routeBreakThreshold = Math.floor(
-    (receiver.route!.steps * PIXELS_PER_STEP) / runningPixelsPerFrame,
-  );
+  const updatedBMPS = ballMetersPerSecond + 6;
+  const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
 
   // 1. GENERATE THE RECEIVER'S FUTURE PATH TIMELINE
   const MAX_PREDICTION_FRAMES = 180;
@@ -1149,7 +1111,6 @@ function calculatePerfectThrowTarget(
     const projectedSpot = receiverTimeline[frame - 1]; // Array is 0-indexed
     if (!projectedSpot) break;
 
-    // Check if this specific point along the receiver's path has drifted out of bounds
     const isOutOfBounds =
       projectedSpot.x < MIN_PLAYABLE_X ||
       projectedSpot.x > MAX_PLAYABLE_X ||
@@ -1167,7 +1128,11 @@ function calculatePerfectThrowTarget(
 
     // A mathematically valid interception point
     if (ballTravelFrames <= frame) {
-      return { framesUntil: frame, target: clampedSpot };
+      return {
+        framesUntil: frame,
+        target: clampedSpot,
+        projected: projectedSpot,
+      };
     }
   }
 
@@ -1182,6 +1147,177 @@ function calculatePerfectThrowTarget(
   return {
     framesUntil: receiverTimeline.length,
     target: clampedFallback,
+    projected: rawFallback,
+  };
+}
+
+interface RouteVelocityContext {
+  absoluteFrame: number;
+  currentLocX: number; // Added to trace X-axis position safely
+  currentLocY: number;
+  routeSideMultiplier: 1 | -1 | null;
+  breakFrame: number | null;
+  improvAngleRad: number | null; // Added tracking field
+}
+
+function getReceiverVelocityAtFrame(
+  receiver: Player,
+  ctx: RouteVelocityContext,
+): {
+  velX: number;
+  velY: number;
+  sideMultiplier: 1 | -1 | null;
+  isBreaking: boolean;
+  improvAngleRad: number | null;
+} {
+  const { maxSpeed } = getConstants("SPEED", receiver);
+
+  if (!receiver.route) {
+    return {
+      velX: 0,
+      velY: 0,
+      sideMultiplier: 1,
+      isBreaking: false,
+      improvAngleRad: null,
+    };
+  }
+
+  // Ensure we compute currentLoc accurately for both phases
+  const currentLoc = { x: ctx.currentLocX, y: ctx.currentLocY };
+
+  const routeBreakThreshold = Math.floor(
+    (receiver.route.steps * PIXELS_PER_STEP) / maxSpeed,
+  );
+
+  // 1) STEM PHASE
+  if (ctx.absoluteFrame < routeBreakThreshold) {
+    return {
+      velX: maxSpeed,
+      velY: getCatcherRouteVariance(receiver).stemDrift,
+      sideMultiplier:
+        ctx.routeSideMultiplier ?? (ctx.currentLocY < H / 2 ? 1 : -1),
+      isBreaking: false,
+      improvAngleRad: null,
+    };
+  }
+
+  const sideMultiplier =
+    ctx.routeSideMultiplier ?? (ctx.currentLocY < H / 2 ? 1 : -1);
+
+  // --- FIX: Pass the moving currentLoc here instead of the live receiver object ---
+  const isTriggeredByTime = state.steps > 300;
+  const isTriggeredByWall =
+    receiver.improvAngleRad ||
+    ctx.improvAngleRad !== null ||
+    hitSideline(currentLoc);
+
+  if (isTriggeredByTime || isTriggeredByWall) {
+    const baseVelX = receiver.vel.x || maxSpeed;
+    const baseVelY = receiver.vel.y || 0;
+
+    const improv = getImprovisedVelocity(
+      receiver,
+      currentLoc,
+      state.scoreboard.LOS,
+      baseVelX,
+      baseVelY,
+      maxSpeed,
+    );
+
+    return {
+      velX: improv.velX,
+      velY: improv.velY,
+      sideMultiplier: sideMultiplier,
+      isBreaking: false,
+      improvAngleRad: ctx.improvAngleRad ?? improv.angleRad,
+    };
+  }
+
+  // 2) BREAK PHASE
+  const { angleOffset } = getCatcherRouteVariance(receiver);
+  const finalBreakAngleRad =
+    (receiver.route.breakAngle + angleOffset) *
+    sideMultiplier *
+    (Math.PI / 180);
+
+  const activeBreakFrame = ctx.breakFrame ?? routeBreakThreshold;
+  const framesSinceBreak = ctx.absoluteFrame - activeBreakFrame;
+  let currentSpeed = maxSpeed;
+
+  const {
+    stopAfterBreakThreshold,
+    routeCutSpeedRetained,
+    reaccelerationDuration,
+  } = getConstants("routeRunning", receiver);
+
+  if (framesSinceBreak <= reaccelerationDuration) {
+    const progress = framesSinceBreak / reaccelerationDuration;
+    currentSpeed = maxSpeed * lerp(progress, routeCutSpeedRetained, 1.0);
+  }
+
+  let velX = Math.cos(finalBreakAngleRad) * currentSpeed;
+  let velY = Math.sin(finalBreakAngleRad) * currentSpeed;
+
+  if (
+    receiver.route.stopAfterBreak &&
+    ctx.absoluteFrame > routeBreakThreshold + stopAfterBreakThreshold
+  ) {
+    velX *= 0.3;
+    velY *= 0.3;
+  }
+
+  return { velX, velY, sideMultiplier, isBreaking: true, improvAngleRad: null };
+}
+
+function getImprovisedVelocity(
+  receiver: Player,
+  currentLoc: Vector,
+  LOS: number,
+  incomingVelX: number,
+  incomingVelY: number,
+  currentSpeed: number,
+): { velX: number; velY: number; angleRad: number } {
+  const BOUNDARY_MARGIN = W / 100;
+  const hitTop = currentLoc.y <= BOUNDARY_MARGIN;
+  const hitBottom = currentLoc.y >= TOTAL_H - BOUNDARY_MARGIN;
+  const hitLeft = currentLoc.x <= LOS;
+  const hitRight = currentLoc.x >= TOTAL_W - BOUNDARY_MARGIN;
+
+  let angleRad =
+    receiver.improvAngleRad ?? Math.atan2(incomingVelY, incomingVelX);
+
+  const SPREAD = 35 * (Math.PI / 180); // Slightly narrowed to prevent spinning back into the same wall
+  const randomJitter = (Math.random() * 2 - 1) * SPREAD;
+
+  // 1. CORNER DETECTIONS (Highest Priority Overrides)
+  if (hitRight && hitTop) {
+    // Back-Right Corner -> Escape diagonally down and left (135 degrees)
+    angleRad = (135 * Math.PI) / 180 + randomJitter * 0.5;
+  } else if (hitRight && hitBottom) {
+    // Front-Right Corner -> Escape diagonally up and left (-135 degrees)
+    angleRad = (-135 * Math.PI) / 180 + randomJitter * 0.5;
+  } else if (hitLeft && hitTop) {
+    // Back-Left Corner -> Escape diagonally down and right (45 degrees)
+    angleRad = (45 * Math.PI) / 180 + randomJitter * 0.5;
+  } else if (hitLeft && hitBottom) {
+    // Front-Left Corner -> Escape diagonally up and right (-45 degrees)
+    angleRad = (-45 * Math.PI) / 180 + randomJitter * 0.5;
+  }
+  // 2. STANDARD WALL DETECTIONS
+  else if (hitRight) {
+    angleRad = Math.PI + randomJitter; // back toward left
+  } else if (hitLeft) {
+    angleRad = 0 + randomJitter; // back toward right
+  } else if (hitBottom) {
+    angleRad = -Math.PI / 2 + randomJitter; // back toward top
+  } else if (hitTop) {
+    angleRad = Math.PI / 2 + randomJitter; // back toward bottom
+  }
+
+  return {
+    velX: Math.cos(angleRad) * currentSpeed,
+    velY: Math.sin(angleRad) * currentSpeed,
+    angleRad,
   };
 }
 
@@ -1192,80 +1328,40 @@ function predictReceiverRoute(
 ): Vector[] {
   if (!receiver.route) return [];
 
-  // Match live engine constants exactly
-  const { maxSpeed } = getConstants("SPEED", receiver);
-  const {
-    stopAfterBreakThreshold,
-    routeCutSpeedRetained,
-    reaccelerationDuration,
-  } = getConstants("routeRunning", receiver);
-
-  // Compute break threshold EXACTLY as runRoute does — in frames, using the true maxSpeed
-  const routeBreakThreshold = Math.floor(
-    (receiver.route.steps * PIXELS_PER_STEP) / maxSpeed,
-  );
-
-  // Grab matching play variance adjustments
-  const { angleOffset, stemDrift } = getCatcherRouteVariance(receiver);
-  const sideMultiplier =
-    receiver.routeSideMultiplier ?? (receiver.loc.y < H / 2 ? 1 : -1);
-
-  const finalBreakAngleRad =
-    (receiver.route.breakAngle + angleOffset) *
-    sideMultiplier *
-    (Math.PI / 180);
-
-  const MAX_PREDICTION_FRAMES = 500;
+  const MAX_PREDICTION_FRAMES = 300;
   const receiverTimeline: Vector[] = [];
   let currentSimulatedLoc = { ...receiver.loc };
 
-  // Track if the player has broken or was already post-break when we started predicting
-  let liveBreakFrame = receiver.breakFrame;
+  let simulatedBreakFrame = receiver.breakFrame;
+  let simulatedSideMultiplier = receiver.routeSideMultiplier;
+  let simulatedImprovAngle = receiver.improvAngleRad; // Track the heading look-ahead
 
   for (let frame = 1; frame <= MAX_PREDICTION_FRAMES; frame++) {
     const absoluteFrame = state.steps + frame;
-    let simulatedVelX = 0;
-    let simulatedVelY = 0;
 
-    if (absoluteFrame < routeBreakThreshold) {
-      // 1) STEM PHASE
-      simulatedVelX = maxSpeed;
-      simulatedVelY = stemDrift;
-    } else {
-      // 2) BREAK PHASE
+    const res = getReceiverVelocityAtFrame(receiver, {
+      absoluteFrame,
+      currentLocX: currentSimulatedLoc.x,
+      currentLocY: currentSimulatedLoc.y,
+      routeSideMultiplier: simulatedSideMultiplier,
+      breakFrame: simulatedBreakFrame,
+      improvAngleRad: simulatedImprovAngle, // Persist across timeline iterations
+    });
 
-      // If we crossed into the break during this simulation loop, log the frame index
-      let simulatedBreakFrame = liveBreakFrame;
-      if (simulatedBreakFrame === undefined || simulatedBreakFrame === null) {
-        simulatedBreakFrame = routeBreakThreshold;
-      }
-
-      const framesSinceBreak = absoluteFrame - simulatedBreakFrame;
-      let currentSpeed = maxSpeed;
-
-      // Apply matching reacceleration curve
-      if (framesSinceBreak <= reaccelerationDuration) {
-        const progress = framesSinceBreak / reaccelerationDuration;
-        currentSpeed = maxSpeed * lerp(progress, routeCutSpeedRetained, 1.0);
-      }
-
-      simulatedVelX = Math.cos(finalBreakAngleRad) * currentSpeed;
-      simulatedVelY = Math.sin(finalBreakAngleRad) * currentSpeed;
-
-      // Apply matching Curl/Stop deceleration physics
-      if (
-        receiver.route.stopAfterBreak &&
-        absoluteFrame > routeBreakThreshold + stopAfterBreakThreshold
-      ) {
-        simulatedVelX *= 0.3;
-        simulatedVelY *= 0.3;
-      }
+    if (res.improvAngleRad !== null && simulatedImprovAngle === null) {
+      simulatedImprovAngle = res.improvAngleRad; // Lock simulation angle
     }
 
-    // Step positions forward identically to live engine ticks
-    currentSimulatedLoc.x += simulatedVelX;
-    currentSimulatedLoc.y += simulatedVelY;
+    if (
+      res.isBreaking &&
+      (simulatedBreakFrame === undefined || simulatedBreakFrame === null)
+    ) {
+      simulatedBreakFrame = absoluteFrame;
+      simulatedSideMultiplier = res.sideMultiplier;
+    }
 
+    currentSimulatedLoc.x += res.velX;
+    currentSimulatedLoc.y += res.velY;
     receiverTimeline.push({ ...currentSimulatedLoc });
   }
 
@@ -1276,26 +1372,33 @@ function evaluateThrowWindow(
   passer: Player,
   catcher: Player,
   state: State,
-): { target: Vector; framesUntil: number; defenderDistAtArrival: number } {
-  const { framesUntil, target } = calculatePerfectThrowTarget(
+): {
+  target: Vector;
+  projected: Vector;
+  framesUntil: number;
+  defenderDistAtArrival: number;
+} {
+  const { framesUntil, target, projected } = calculatePerfectThrowTarget(
     passer,
     catcher,
     state,
   );
 
   // Project every relevant defender forward by flightFrames using simple linear extrapolation
-  const coverers = state.players.filter((p) => p.role === "coverer");
+  const defenders = state.players.filter(
+    (p) => p.role === "coverer" || p.role === "rusher",
+  );
   const defenderDistAtArrival =
-    coverers.length > 0
+    defenders.length > 0
       ? Math.min(
-          ...coverers.map((cov) => {
+          ...defenders.map((cov) => {
             const projected = projectDefenderPosition(cov, framesUntil);
             return dist(projected, target);
           }),
         )
       : Infinity;
 
-  return { target, framesUntil, defenderDistAtArrival };
+  return { target, projected, framesUntil, defenderDistAtArrival };
 }
 
 export {

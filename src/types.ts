@@ -44,6 +44,7 @@ interface Player extends PartialPlayer {
   path: Vector[];
   breakFrame: number | null;
   routeSideMultiplier: 1 | -1 | null;
+  improvAngleRad: number | null;
 
   // For rushers
   playRushSeed?: number;
