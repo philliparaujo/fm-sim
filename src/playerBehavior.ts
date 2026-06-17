@@ -3,6 +3,7 @@ import {
   BALL_GIVEN_STEPS,
   BROKEN_TACKLE_BURST_DURATION,
   BROKEN_TACKLE_SPEED_BURST,
+  ENDZONE_W,
   H,
   LEAD_FRAMES,
   MIN_BLOCK_DISTANCE,
@@ -13,10 +14,12 @@ import {
   RUSHER_STEER_FACTOR,
   SHORT_THROW_THRESHOLD_PX,
   TACKLE_PRESSURE_PER_FRAME,
+  TOTAL_H,
+  TOTAL_W,
   W,
 } from "./constants";
 import { getConstants } from "./ratings";
-import { resetSimulation, resolveCollision } from "./simulate";
+import { resetSimulation, resolveCollision, state } from "./simulate";
 import { Player, State, Vector } from "./types";
 import {
   closestPointOnSegment,
@@ -26,11 +29,15 @@ import {
   isCarryingBall,
   length,
   lerp,
+  projectDefenderPosition,
 } from "./util";
 
 function stepAsPlayer(player: Player, state: State) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
   const isPassPlay = state.currentPlay.offense === "pass";
+  const ballInAir = state.ballFlight && state.ballFlight.isInFlight;
+  const ballIntendedForMe =
+    state.ballFlight && state.ballFlight.receiver === player;
   const { maxSpeed } = getConstants("SPEED", player);
   const { avoidStrength, steerAvoidStrength, steerDuration } = getConstants(
     "VISION",
@@ -53,7 +60,7 @@ function stepAsPlayer(player: Player, state: State) {
       if (isBlocking || isPassPlay) {
         blockNearestDefender(player);
       } else if (!isCarryingBall(player, state.ball)) {
-        runTowardsBall(player);
+        runTowardsBall(player, state.ball.loc);
       } else if (isEarlyInRun) {
         runTowardsEndzone(player, steerAvoidStrength, player.runAngle);
       } else {
@@ -62,17 +69,22 @@ function stepAsPlayer(player: Player, state: State) {
       break;
     }
     case "catcher": {
-      if (isBlocking || state.currentPlay.offense === "run") {
-        blockNearestDefender(player);
-      } else if (!isCarryingBall(player, state.ball)) {
-        runRoute(player);
-      } else {
+      if (isCarryingBall(player, state.ball)) {
         runTowardsEndzone(player, avoidStrength);
+      } else if (isBlocking || state.currentPlay.offense === "run") {
+        blockNearestDefender(player);
+      } else if (ballInAir && ballIntendedForMe) {
+        runTowardsBall(player, state.ballFlight!.endLoc);
+      } else {
+        runRoute(player);
       }
+
       break;
     }
     case "coverer": {
-      if (!state.ballGiven) {
+      if (ballInAir && state.ballFlight!.framesElapsed > 20) {
+        runTowardsBall(player, state.ballFlight!.endLoc);
+      } else if (!state.ballGiven && !ballInAir) {
         cover(player);
       } else {
         pursueBallCarrier(player);
@@ -247,8 +259,8 @@ function stepAsPlayer(player: Player, state: State) {
     }
   }
 
-  function runTowardsBall(player: Player) {
-    const toBall = diff(state.ball.loc, player.loc);
+  function runTowardsBall(player: Player, ball: Vector) {
+    const toBall = diff(ball, player.loc);
     const d = length(toBall);
     player.vel.x = (toBall.x / d) * maxSpeed;
     player.vel.y = (toBall.y / d) * maxSpeed;
@@ -445,173 +457,91 @@ function stepAsPlayer(player: Player, state: State) {
     }
   }
 
-  function throwingDecision(player: Player) {
-    const { minThrowStep, earlyThrowSeparation, earlyThrowChance } =
-      getConstants("decisionMaking", player);
-    const { panicRusherDist, panicThrowChance, qbAccuracyPanicChange } =
-      getConstants("pressureFeel", player);
-    const { shortAccuracy } = getConstants("shortAccuracy", player);
-    const { deepAccuracy } = getConstants("deepAccuracy", player);
-
-    if (state.ballGiven || state.steps < minThrowStep) return;
-
+  function throwingDecision2(player: Player) {
     const coverers = state.players.filter((p) => p.role === "coverer");
     const rushers = state.players.filter((p) => p.role === "rusher");
-    const eligibleCatchers = state.players.filter(
-      (p) => p.role === "catcher" && p.route,
-    );
-    if (eligibleCatchers.length === 0) return;
+    const catchers = state.players.filter((p) => p.role === "catcher");
 
+    const { minThrowStep } = getConstants("decisionMaking", player);
+    const MIN_OPENNESS_NEEDED = 250;
+    const INTERCEPTION_RADIUS = 18;
+
+    const { panicRusherDist } = getConstants("pressureFeel", player);
     const nearestRusherDist =
       rushers.length > 0
         ? Math.min(...rushers.map((r) => dist(player.loc, r.loc)))
         : Infinity;
     const underPressure = nearestRusherDist < panicRusherDist;
 
-    // --- STEP 1: Score receivers with depth normalization ---
-    const evaluatedOptions = eligibleCatchers.map((catcher) => {
-      const { completionRadius } = getConstants("catchRadius", catcher);
-      const throwDist = dist(player.loc, catcher.loc);
+    // Handle ball in air
+    if (state.ballFlight && state.ballFlight.isInFlight) {
+      state.ballFlight.framesElapsed++;
 
-      const nearestDefDist =
-        coverers.length > 0
-          ? Math.min(...coverers.map((cov) => dist(catcher.loc, cov.loc)))
-          : Infinity;
+      // Handle ball done being in air
+      if (state.ballFlight.framesElapsed == state.ballFlight.totalFrames) {
+        // Check for interception
+        for (const c of coverers) {
+          if (dist(c.loc, state.ballFlight.endLoc) < INTERCEPTION_RADIUS) {
+            resetSimulation("interception");
+            return;
+          }
+        }
 
-      const defenderClosingSpeed =
-        coverers.length > 0
-          ? Math.max(
-              ...coverers.map((cov) => {
-                const toCatcher = diff(catcher.loc, cov.loc);
-                const d = length(toCatcher);
-                if (d === 0) return 0;
-                return (cov.vel.x * toCatcher.x + cov.vel.y * toCatcher.y) / d;
-              }),
-            )
-          : 0;
+        // Check for completion
+        const { completionRadius } = getConstants(
+          "catchRadius",
+          state.ballFlight.receiver,
+        );
+        if (
+          dist(state.ballFlight.receiver.loc, state.ballFlight.endLoc) <
+          completionRadius
+        ) {
+          state.ballFlight.isInFlight = false;
+          state.ball.loc = { ...state.ballFlight.endLoc };
+          state.ballGiven = true;
+          state.ballGivenAtStep = state.steps;
+          state.playAdvanced.catchX = state.ball.loc.x;
+          state.playAdvanced.separationAtCatch = 0; // TODO
+          return;
+        }
 
-      // FIX: Normalize openness relative to target depth.
-      // This allows short/flat routes to score high even with tight coverage.
-      const baseOpenness =
-        nearestDefDist - completionRadius - defenderClosingSpeed * 6;
-      const depthScalar = throwDist < SHORT_THROW_THRESHOLD_PX ? 1.8 : 1.0;
-      const normalizedOpenness = baseOpenness * depthScalar;
+        // Otherwise, incompletion
+        resetSimulation("incomplete");
+        return;
+      }
+    }
 
-      return { catcher, normalizedOpenness, throwDist, nearestDefDist };
+    // Evaluate all catchers by how open they will be
+    const evaluatedOptions = catchers.map((catcher) => {
+      const { target, framesUntil, defenderDistAtArrival } =
+        evaluateThrowWindow(player, catcher, state);
+      const projectedOpenness = defenderDistAtArrival;
+      const throwDist = dist(player.loc, target);
+      return { catcher, target, framesUntil, projectedOpenness, throwDist };
     });
 
-    // --- STEP 2: Smart Target Progression Selection ---
-    let bestOption = evaluatedOptions[0];
+    const bestOption = evaluatedOptions.sort(
+      (a, b) => b.projectedOpenness - a.projectedOpenness,
+    )[0];
 
-    if (underPressure) {
-      // Checkdown Priority: Filter for open, short targets first to dump the ball off safely
-      const shortOutlets = evaluatedOptions
-        .filter(
-          (o) =>
-            o.throwDist < SHORT_THROW_THRESHOLD_PX &&
-            o.normalizedOpenness > earlyThrowSeparation * 0.7,
-        )
-        .sort((a, b) => b.normalizedOpenness - a.normalizedOpenness);
-
-      if (shortOutlets.length > 0) {
-        bestOption = shortOutlets[0];
-      } else {
-        // Panic situation: take the option with the highest absolute separation downfield
-        evaluatedOptions.sort(
-          (a, b) => b.normalizedOpenness - a.normalizedOpenness,
-        );
-        bestOption = evaluatedOptions[0];
-      }
-    } else {
-      // Clean Pocket: Standard quarterback progression tree (highest open score)
-      evaluatedOptions.sort(
-        (a, b) => b.normalizedOpenness - a.normalizedOpenness,
-      );
-      bestOption = evaluatedOptions[0];
+    // If passer ready and catcher open enough, make the throw
+    if (
+      bestOption.projectedOpenness > MIN_OPENNESS_NEEDED &&
+      state.steps > minThrowStep &&
+      state.ballFlight === null
+    ) {
+      state.ballFlight = {
+        startLoc: { ...state.ball.loc },
+        endLoc: { ...bestOption.target },
+        isInFlight: true,
+        framesElapsed: 0,
+        totalFrames: bestOption.framesUntil,
+        receiver: bestOption.catcher,
+      };
+      state.playAdvanced.throwFrame = state.steps;
+      state.playAdvanced.airYards = bestOption.target.x - state.scoreboard.LOS;
+      state.playAdvanced.wasUnderPressure = underPressure;
     }
-
-    // --- STEP 3: Stateful Decision Processing (Eliminate Sack RNG Trap) ---
-    let shouldThrow = false;
-
-    // Initialize a stateful decision ticker on the player if it doesn't exist
-    if (state.steps >= BALL_GIVEN_STEPS) {
-      shouldThrow = true; // Clock ran out — must throw
-    } else if (underPressure) {
-      player.decisionTicks += panicThrowChance;
-      if (player.decisionTicks >= 2.0 || Math.random() < 0.15) {
-        shouldThrow = true;
-      }
-    } else if (bestOption.normalizedOpenness > earlyThrowSeparation) {
-      // Accumulate ticks frame-over-frame based on their core rating
-      player.decisionTicks += earlyThrowChance;
-      if (player.decisionTicks >= 3.5) {
-        shouldThrow = true;
-      }
-    } else {
-      // If no one is open and there is no pressure, slowly decay the ticker
-      player.decisionTicks = Math.max(0, player.decisionTicks - 0.05);
-    }
-
-    if (!shouldThrow) return;
-    player.decisionTicks = 0; // Reset ticker once a choice is made
-
-    // --- STEP 4: Accuracy & Misdirection Vector Engine ---
-    const isShortThrow = bestOption.throwDist < SHORT_THROW_THRESHOLD_PX;
-    const baseAccuracy = isShortThrow ? shortAccuracy : deepAccuracy;
-    const panicPenalty = underPressure ? qbAccuracyPanicChange : 0;
-    const effectiveAccuracy = Math.max(0, baseAccuracy + panicPenalty);
-
-    const maxMissDistance = isShortThrow
-      ? lerp(effectiveAccuracy, 100, 0)
-      : lerp(effectiveAccuracy, 260, 0);
-
-    const missDistance = Math.random() * maxMissDistance;
-    const missAngle = Math.random() * Math.PI * 2;
-    const throwTarget = {
-      x: bestOption.catcher.loc.x + Math.cos(missAngle) * missDistance,
-      y: bestOption.catcher.loc.y + Math.sin(missAngle) * missDistance,
-    };
-
-    // --- STEP 5: Catch Verification ---
-    const catchableRadius = getConstants(
-      "catchRadius",
-      bestOption.catcher,
-    ).completionRadius;
-    const distToTarget = dist(throwTarget, bestOption.catcher.loc);
-    const isCatchable = distToTarget < catchableRadius;
-
-    const intercepted = coverers.some(
-      (cov) => dist(throwTarget, cov.loc) < catchableRadius * 0.7,
-    );
-
-    state.playAdvanced.throwFrame = state.steps;
-    state.playAdvanced.airYards =
-      bestOption.catcher.loc.x - state.scoreboard.LOS;
-    // state.playAdvanced.wasOffTarget = !isCatchable;
-    state.playAdvanced.wasUnderPressure = underPressure;
-
-    if (intercepted) {
-      // resetSimulation("turnover");
-    } else if (!isCatchable) {
-      state.ball.loc.x = state.scoreboard.LOS;
-      // state.ball.loc.y = throwTarget.y;
-      resetSimulation("incomplete");
-    } else {
-      state.ball.loc.x = bestOption.catcher.loc.x;
-      state.ball.loc.y = bestOption.catcher.loc.y;
-      state.ballGiven = true;
-      state.playAdvanced.catchX = bestOption.catcher.loc.x;
-      state.ballGivenAtStep = state.steps;
-
-      if (isFinite(bestOption.nearestDefDist)) {
-        state.playAdvanced.separationAtCatch = bestOption.nearestDefDist;
-      }
-    }
-  }
-
-  function throwingDecision2(player: Player) {
-    // 1) If minimum throw time not yet met, do nothing
-    // 2)
   }
 
   function avoidBallCarrier(player: Player) {
@@ -929,8 +859,10 @@ function attemptTackle(defender: Player, carrier: Player) {
     defender,
   );
 
-  if (carrier.role === "passer") {
+  if (carrier.role === "passer" && !state.ballFlight?.isInFlight) {
     resetSimulation("sack");
+    return;
+  } else if (carrier.role === "passer") {
     return;
   }
 
@@ -1184,7 +1116,7 @@ function calculatePerfectThrowTarget(
   passer: Player,
   receiver: Player,
   state: State,
-): Vector {
+): { framesUntil: number; target: Vector } {
   const PIXELS_PER_YARD = W / 100;
   const YARDS_PER_METER = 1.09361;
   const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
@@ -1201,38 +1133,56 @@ function calculatePerfectThrowTarget(
   );
 
   // 1. GENERATE THE RECEIVER'S FUTURE PATH TIMELINE
-  // We bake their footprint array independent of the ball flight.
   const MAX_PREDICTION_FRAMES = 180;
+  // TODO: Fix corner route from being underthrown
   const receiverTimeline = predictReceiverRoute(passer, receiver, state);
 
-  // 2. SCAN THE TIMELINE TO FIND THE ANTICIPATED INTERCEPTION SPOT
-  const framesUntilReceiverBreaks = routeBreakThreshold - state.steps;
+  // 2. DEFINE BOUNDARY LIMITS (With a ~1-yard safety margin away from lines)
+  const BOUNDARY_MARGIN = PIXELS_PER_YARD;
+  const MIN_PLAYABLE_X = BOUNDARY_MARGIN;
+  const MAX_PLAYABLE_X = TOTAL_W - BOUNDARY_MARGIN;
+  const MIN_PLAYABLE_Y = BOUNDARY_MARGIN;
+  const MAX_PLAYABLE_Y = TOTAL_H - BOUNDARY_MARGIN;
 
+  // 3. SCAN THE TIMELINE TO FIND THE ANTICIPATED INTERCEPTION SPOT
   for (let frame = 1; frame <= MAX_PREDICTION_FRAMES; frame++) {
     const projectedSpot = receiverTimeline[frame - 1]; // Array is 0-indexed
+    if (!projectedSpot) break;
 
-    const travelDistance = dist(passer.loc, projectedSpot);
+    // Check if this specific point along the receiver's path has drifted out of bounds
+    const isOutOfBounds =
+      projectedSpot.x < MIN_PLAYABLE_X ||
+      projectedSpot.x > MAX_PLAYABLE_X ||
+      projectedSpot.y < MIN_PLAYABLE_Y ||
+      projectedSpot.y > MAX_PLAYABLE_Y;
+
+    // If the path drifted out of bounds, clip this individual frame position to the bounds
+    const clampedSpot: Vector = {
+      x: Math.max(MIN_PLAYABLE_X, Math.min(MAX_PLAYABLE_X, projectedSpot.x)),
+      y: Math.max(MIN_PLAYABLE_Y, Math.min(MAX_PLAYABLE_Y, projectedSpot.y)),
+    };
+
+    const travelDistance = dist(passer.loc, clampedSpot);
     const ballTravelFrames = travelDistance / ballPixelsPerFrame;
 
     // A mathematically valid interception point
     if (ballTravelFrames <= frame) {
-      // ANTICIPATION OVERRIDE:
-      // If the receiver is running vertically right now, but the ball flight takes
-      // long enough that it will arrive AFTER the receiver breaks, force the QB
-      // to anticipate and target the spot on the horizontal line.
-      if (
-        framesUntilReceiverBreaks > 0 &&
-        ballTravelFrames > framesUntilReceiverBreaks
-      ) {
-        return projectedSpot;
-      }
-
-      return projectedSpot;
+      return { framesUntil: frame, target: clampedSpot };
     }
   }
 
-  // Fallback to the furthest predicted spot if no interception is matched
-  return receiverTimeline[receiverTimeline.length - 1] ?? receiver.loc;
+  // Fallback to the furthest predicted spot clamped cleanly inside bounds
+  const rawFallback =
+    receiverTimeline[receiverTimeline.length - 1] ?? receiver.loc;
+  const clampedFallback: Vector = {
+    x: Math.max(MIN_PLAYABLE_X, Math.min(MAX_PLAYABLE_X, rawFallback.x)),
+    y: Math.max(MIN_PLAYABLE_Y, Math.min(MAX_PLAYABLE_Y, rawFallback.y)),
+  };
+
+  return {
+    framesUntil: receiverTimeline.length,
+    target: clampedFallback,
+  };
 }
 
 function predictReceiverRoute(
@@ -1320,6 +1270,32 @@ function predictReceiverRoute(
   }
 
   return receiverTimeline;
+}
+
+function evaluateThrowWindow(
+  passer: Player,
+  catcher: Player,
+  state: State,
+): { target: Vector; framesUntil: number; defenderDistAtArrival: number } {
+  const { framesUntil, target } = calculatePerfectThrowTarget(
+    passer,
+    catcher,
+    state,
+  );
+
+  // Project every relevant defender forward by flightFrames using simple linear extrapolation
+  const coverers = state.players.filter((p) => p.role === "coverer");
+  const defenderDistAtArrival =
+    coverers.length > 0
+      ? Math.min(
+          ...coverers.map((cov) => {
+            const projected = projectDefenderPosition(cov, framesUntil);
+            return dist(projected, target);
+          }),
+        )
+      : Infinity;
+
+  return { target, framesUntil, defenderDistAtArrival };
 }
 
 export {

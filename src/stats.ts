@@ -75,6 +75,7 @@ function emptyQBStats(): QBStats {
     ypa: 0,
     cmp: 0,
     tds: 0,
+    ints: 0,
     sacks: 0,
   };
 }
@@ -196,22 +197,20 @@ export function updateStatsAfterPlay(
   const completion = isPassCompletion(reason, ballGiven, ballCarrierRole);
   const isRush = ballGiven && ballCarrierRole === "runner";
   const isSack = reason === "sack";
+  const isInterception = reason === "interception";
 
-  // Realized pass play vs QB scramble check
   const isPassAttempt =
     play.offense === "pass" &&
     !isSack &&
-    (reason === "incomplete" || reason === "turnover" || completion);
+    (reason === "incomplete" || isInterception || completion);
   const isScramble =
     play.offense === "pass" &&
     !isSack &&
     !isPassAttempt &&
     (reason === "tackle" || reason === "touchdown");
 
-  // Determine actual net yards gained by the offense on this play
   let netYardsGained = yards;
   if (play.offense === "pass" && !completion && !isSack && !isScramble) {
-    // Incomplete passes or interceptions result in 0 yards gained for the team passing totals
     netYardsGained = 0;
   }
 
@@ -247,6 +246,8 @@ export function updateStatsAfterPlay(
       s.completions++;
       s.yards += yards;
       if (isTouchdown) s.tds++;
+    } else if (isInterception) {
+      s.ints++;
     }
     s.cmp = s.attempts > 0 ? round2(s.completions / s.attempts) : 0;
     s.ypa = s.attempts > 0 ? round2(s.yards / s.attempts) : 0;
@@ -270,6 +271,8 @@ export function updateStatsAfterPlay(
       next.qb.completions++;
       next.qb.yards += yards;
       if (isTouchdown) next.qb.tds++;
+    } else if (isInterception) {
+      next.qb.ints++;
     }
     next.qb.ypa =
       next.qb.attempts > 0 ? round2(next.qb.yards / next.qb.attempts) : 0;
@@ -287,7 +290,6 @@ export function updateStatsAfterPlay(
           next.routes[key].yards += yards;
         }
       }
-      // Recalculate averages for updated routes
       for (const route of play.routes) {
         const key = routeKey(route);
         if (next.routes[key]) {
@@ -308,7 +310,6 @@ export function updateStatsAfterPlay(
         next.rb.rushes > 0 ? round2(next.rb.yards / next.rb.rushes) : 0;
     }
 
-    // Only track run angles if a valid rush attempt actually took place
     if (play.runAngle && isRush) {
       const key = runAngleKey(play.runAngle);
       if (!next.runAngles[key])
@@ -324,68 +325,79 @@ export function updateStatsAfterPlay(
   // --- Advanced stats ---
   if (playAdvanced) {
     const adv = next.advanced;
-    const completionCount = next.qb.completions;
     const passCount = next.qb.attempts;
-    const dropbackCount = next.qb.attempts + next.qb.sacks; // total dropbacks so far
+    const completionCount = next.qb.completions;
     const sackCount = next.qb.sacks;
+    const dropbackCount = passCount + sackCount;
 
-    // Time to Throw (seconds): only on pass attempts, not sacks
-    if (isPassAttempt && playAdvanced.throwFrame !== undefined) {
+    // FIX 1: Weight Time to Throw against Pass Attempts only, NOT global dropbacks
+    if (
+      isPassAttempt &&
+      playAdvanced.throwFrame !== undefined &&
+      passCount > 0
+    ) {
       const ttt = playAdvanced.throwFrame / 60;
-      adv.timeToThrow =
-        (adv.timeToThrow * (dropbackCount - 1) + ttt) / dropbackCount;
+      adv.timeToThrow = (adv.timeToThrow * (passCount - 1) + ttt) / passCount;
     }
-    if (isSack && playAdvanced.sackFrame !== undefined) {
+
+    // FIX 2: Weight Time to Sack against Sack Count only
+    if (isSack && playAdvanced.sackFrame !== undefined && sackCount > 0) {
       const ttt = playAdvanced.sackFrame / 60;
       adv.timeToSack = (adv.timeToSack * (sackCount - 1) + ttt) / sackCount;
     }
 
-    // Air Yards: average over pass attempts only
-    if (isPassAttempt && playAdvanced.airYards !== undefined) {
+    // Air Yards
+    if (isPassAttempt && playAdvanced.airYards !== undefined && passCount > 0) {
       const airYardsYds = yardsFromPixels(Math.max(0, playAdvanced.airYards));
       adv.intendedAirYards = round2(
         (adv.intendedAirYards * (passCount - 1) + airYardsYds) / passCount,
       );
-      if (completion) {
+
+      // FIX 3: Weight Completed Air Yards against completionCount, NOT passCount
+      if (completion && completionCount > 0) {
         adv.completedAirYards = round2(
-          (adv.completedAirYards * (passCount - 1) + airYardsYds) /
+          (adv.completedAirYards * (completionCount - 1) + airYardsYds) /
             completionCount,
         );
       }
     }
 
     // Off-target throw %
-    if (isPassAttempt && playAdvanced.wasOffTarget !== undefined) {
+    if (
+      isPassAttempt &&
+      playAdvanced.wasOffTarget !== undefined &&
+      passCount > 0
+    ) {
       const badCount =
-        adv.offTargetThrowRate * (dropbackCount - 1) +
+        adv.offTargetThrowRate * (passCount - 1) +
         (playAdvanced.wasOffTarget ? 1 : 0);
-      adv.offTargetThrowRate = round2(badCount / dropbackCount);
+      adv.offTargetThrowRate = round2(badCount / passCount);
     }
 
-    // Pressure rate: pressured plays / total dropbacks
-    if (play.offense === "pass") {
-      const totalDropbacks = dropbackCount;
-      const prevPressured = adv.pressureRate * (totalDropbacks - 1);
+    // Pressure rate
+    if (play.offense === "pass" && dropbackCount > 0) {
+      const prevPressured = adv.pressureRate * (dropbackCount - 1);
       adv.pressureRate = round2(
         (prevPressured + (playAdvanced.wasUnderPressure ? 1 : 0)) /
-          totalDropbacks,
+          dropbackCount,
       );
     }
 
-    // Separation at catch: average over completions only
+    // Separation at catch
     if (
       completion &&
       playAdvanced.separationAtCatch !== undefined &&
-      isFinite(playAdvanced.separationAtCatch)
+      isFinite(playAdvanced.separationAtCatch) &&
+      completionCount > 0
     ) {
       const sepYds = yardsFromPixels(playAdvanced.separationAtCatch);
-      const cmpCount = next.qb.completions;
       adv.receiverSeparation = round2(
-        (adv.receiverSeparation * (cmpCount - 1) + sepYds) / cmpCount,
+        (adv.receiverSeparation * (completionCount - 1) + sepYds) /
+          completionCount,
       );
     }
 
-    // YBC / YAC: split from firstContactX and catchX
+    // YBC / YAC
     if (isRush && los) {
       let ybc;
       if (playAdvanced.firstContactX === undefined) {
@@ -395,24 +407,31 @@ export function updateStatsAfterPlay(
       }
       const yac = yards - ybc;
       const n = next.rb.rushes;
-      adv.rushYardsBeforeContact =
-        (adv.rushYardsBeforeContact * (n - 1) + ybc) / n;
-      adv.rushYardsAfterContact =
-        (adv.rushYardsAfterContact * (n - 1) + yac) / n;
+      if (n > 0) {
+        adv.rushYardsBeforeContact =
+          (adv.rushYardsBeforeContact * (n - 1) + ybc) / n;
+        adv.rushYardsAfterContact =
+          (adv.rushYardsAfterContact * (n - 1) + yac) / n;
+      }
     }
 
-    // Receiver YAC: yards from catchX to tackle
-    if (completion && finalBallX && playAdvanced.catchX !== undefined) {
+    // Receiver YAC
+    if (
+      completion &&
+      finalBallX &&
+      playAdvanced.catchX !== undefined &&
+      completionCount > 0
+    ) {
       const endX = isTouchdown ? W + ENDZONE_W : finalBallX;
       const yac = Math.max(0, yardsFromPixels(endX - playAdvanced.catchX));
-      const cmpCount = next.qb.completions;
       adv.receiverYardsAfterCatch = round2(
-        (adv.receiverYardsAfterCatch * (cmpCount - 1) + Math.max(0, yac)) /
-          cmpCount,
+        (adv.receiverYardsAfterCatch * (completionCount - 1) + yac) /
+          completionCount,
       );
     }
 
-    adv.sackRate = round2(next.qb.sacks / next.playcalls.pass.count);
+    const totalPassPlays = next.playcalls.pass.count;
+    adv.sackRate = totalPassPlays > 0 ? round2(sackCount / totalPassPlays) : 0;
   }
 
   return next;

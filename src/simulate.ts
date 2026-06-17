@@ -507,7 +507,9 @@ function ballCollideBehavior(player: Player) {
     }
     case "rusher": {
       // If rusher collides with ball, simulation ends
-      resetSimulation("sack");
+      if (!state.ballFlight?.isInFlight) {
+        resetSimulation("sack");
+      }
       break;
     }
     case "runner": {
@@ -690,10 +692,14 @@ function resetSimulation(reason: PlayEndReason) {
   const endBallX = state.ball.loc.x;
   const isTouchdown = endBallX >= W + ENDZONE_W;
   const isSafety = endBallX <= ENDZONE_W;
+  const isInterception = reason === "interception";
   const yards = yardsFromPixels(
     (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
   );
-  const nextLOS = isTouchdown || isSafety ? START_DRIVE : endBallX;
+  const nextLOS =
+    isTouchdown || isSafety || isInterception ? START_DRIVE : endBallX;
+
+  console.log("RESETTING FOR", reason);
 
   if (reason === "sack") {
     state.playAdvanced.sackFrame = state.steps;
@@ -717,7 +723,7 @@ function resetSimulation(reason: PlayEndReason) {
     console.log(numPlays(updatedStats), updatedStats);
 
   let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
-  if (isTouchdown) {
+  if (isTouchdown || isInterception || isSafety) {
     const distance = distanceAfterFirstDown(nextLOS);
     downDistance = {
       down: "1st",
@@ -741,7 +747,7 @@ function resetSimulation(reason: PlayEndReason) {
   }
 
   // Reset state
-  state = createInitialState(nextLOS);
+  Object.assign(state, createInitialState(nextLOS));
   state.stats = updatedStats;
   state.scoreboard = {
     ...prevScoreboard,

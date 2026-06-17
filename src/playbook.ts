@@ -14,10 +14,10 @@ const CATCHERS_INCLUDED = true;
 const RUNNER_INCLUDED = true;
 const RUSHERS_INCLUDED = BLOCKERS_INCLUDED && true;
 const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
-const SAFETIES_INCLUDED = false;
+const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 1, // Offensive playcall
+  passPercent: 0.5, // Offensive playcall
   manPercent: 0.5, // Defensive underneath coverage
   blitzPercent: 0.5, // Cover 1 blitz or cover 2 shell
 };

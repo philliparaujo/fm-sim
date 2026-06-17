@@ -26,6 +26,8 @@ const PASSER_POCKET_ON = false;
 const RUNNER_LOOK_AHEAD_ON = false;
 const PREDICTED_ROUTE_ON = true;
 const PREDICTED_TARGET_ON = true;
+const ALL_PREDICTED_ROUTE_ON = PREDICTED_ROUTE_ON && true;
+const ALL_PREDICTED_TARGET_ON = PREDICTED_TARGET_ON && true;
 
 const ONLY_SIMULATE = false;
 
@@ -415,19 +417,29 @@ function render(state: State) {
     }
   }
 
-  // Draw predicted throw targets for all catchers
+  // Draw predicted throw routes/targets for all catchers
   const passer = state.players.find((p) => p.role === "passer");
   const catchers = state.players.filter((p) => p.role === "catcher" && p.route);
 
-  // Make sure a passer exists before executing calculations
   if (passer && state.currentPlay.offense === "pass") {
     for (const catcher of catchers) {
-      if (PREDICTED_ROUTE_ON) {
+      if (ALL_PREDICTED_ROUTE_ON) {
         drawReceiverPredictedRoute(passer, catcher, state);
       }
-      if (PREDICTED_TARGET_ON) {
-        drawThrowTarget(calculatePerfectThrowTarget(passer, catcher, state));
+      if (ALL_PREDICTED_TARGET_ON) {
+        const throwTarget = calculatePerfectThrowTarget(passer, catcher, state);
+        drawThrowTarget(throwTarget.target);
       }
+    }
+  }
+
+  // Draw predicted throw route/target for passer's choice when ball in air
+  if (state.ballFlight && state.ballFlight.isInFlight) {
+    if (PREDICTED_TARGET_ON) {
+      drawThrowTarget(state.ballFlight.endLoc);
+    }
+    if (PREDICTED_ROUTE_ON && passer) {
+      drawReceiverPredictedRoute(passer, state.ballFlight.receiver, state);
     }
   }
 
@@ -438,7 +450,10 @@ function render(state: State) {
       drawContextSteeringRays(player, ctx);
     }
   }
-  drawBall(state.ball);
+
+  if (!state.ballFlight || !state.ballFlight.isInFlight) {
+    drawBall(state.ball);
+  }
 }
 
 export { render };

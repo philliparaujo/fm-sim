@@ -78,7 +78,7 @@ type PlayEndReason =
   | "touchdown"
   | "sack"
   | "incomplete"
-  | "turnover";
+  | "interception";
 
 type CountYards = {
   count: number;
@@ -118,6 +118,7 @@ type QBStats = {
   ypa: number;
   cmp: number;
   tds: number;
+  ints: number;
   sacks: number;
 };
 
@@ -217,6 +218,7 @@ type BallFlightState = {
   isInFlight: boolean;
   startLoc: Vector;
   endLoc: Vector;
+  receiver: Player;
   totalFrames: number;
   framesElapsed: number;
 };

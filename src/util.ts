@@ -223,3 +223,13 @@ export function numPlays(stats: Stats) {
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+export function projectDefenderPosition(
+  defender: Player,
+  frames: number,
+): Vector {
+  return {
+    x: defender.loc.x + defender.vel.x * frames,
+    y: defender.loc.y + defender.vel.y * frames,
+  };
+}

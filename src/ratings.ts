@@ -67,6 +67,7 @@ export const ATTRIBUTE_CONFIG = {
   }),
   throwPower: (r: number) => ({
     ballMetersPerSecond: lerp(r, 18, 30),
+    // ballMetersPerSecond: lerp(r, 28, 40),
   }),
 
   /* Runners */
