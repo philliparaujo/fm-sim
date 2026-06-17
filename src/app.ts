@@ -1,10 +1,10 @@
+import { setSimSpeed } from "./constants";
 import { PLAYBOOK_CONFIG, saveRating } from "./playbook";
 import { Attribute } from "./ratings";
 import {
   getCompletedPlaysCount,
   onPlayReset,
   setReplayMode,
-  setSimSpeed,
   state,
   tick,
 } from "./simulate";
@@ -14,7 +14,8 @@ import { Player } from "./types";
 const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
   passer: [
     "SPEED",
-    "SIZE",
+    // "SIZE",
+    "throwPower",
     "pocketPresence",
     "pressureFeel",
     "decisionMaking",
@@ -50,6 +51,7 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   decisionMaking: "Decision Making",
   shortAccuracy: "Short Accuracy",
   deepAccuracy: "Deep Accuracy",
+  throwPower: "Throw Power",
   VISION: "Vision",
   POWER: "Power",
   routeRunning: "Route Running",

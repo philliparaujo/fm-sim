@@ -1,9 +1,12 @@
+import {
+  calculatePerfectThrowTarget,
+  predictReceiverRoute,
+} from "./playerBehavior";
 import { getConstants } from "./ratings";
-import { Ball, Player, Scoreboard, State } from "./types";
+import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
+import { Ball, Player, Scoreboard, State, Vector } from "./types";
 import { getPocket, isCarryingBall } from "./util";
 
-const W = 720 * 3;
-const H = 400 * 3;
 const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
 const FIELD_NUMBER_COLOR = "rgba(255, 255, 255, 0.3)";
@@ -19,18 +22,16 @@ const BALL_LACE_COLOR = "rgba(255,255,255,0.6)";
 const CATCHER_TRACE_ON = true;
 const COVERER_ZONE_ON = true;
 const RUNNER_PATH_ON = true;
-const PASSER_POCKET_ON = true;
+const PASSER_POCKET_ON = false;
 const RUNNER_LOOK_AHEAD_ON = false;
+const PREDICTED_ROUTE_ON = true;
+const PREDICTED_TARGET_ON = true;
 
 const ONLY_SIMULATE = false;
 
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 const scoreboard = document.getElementById("scoreboard") as HTMLDivElement;
-
-const ENDZONE_W = (W * 1) / 10;
-const TOTAL_W = W + 2 * ENDZONE_W;
-const TOTAL_H = H;
 
 canvas.width = TOTAL_W;
 canvas.height = TOTAL_H;
@@ -285,6 +286,89 @@ function drawContextSteeringRays(
   ctx.restore();
 }
 
+function drawThrowTarget(location: Vector) {
+  if (!location) return;
+
+  ctx.save();
+  ctx.translate(location.x, location.y);
+
+  // 1. Outer Red Ring
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(231, 76, 60, 0.25)"; // Soft red fill
+  ctx.fill();
+  ctx.strokeStyle = "#E74C3C"; // Solid red border
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 2. Middle White Ring
+  ctx.beginPath();
+  ctx.arc(0, 0, 10, 0, Math.PI * 2);
+  ctx.strokeStyle = "#FFFFFF"; // Solid white ring
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 3. Center Red Bullseye Dot
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fillStyle = "#E74C3C";
+  ctx.fill();
+
+  // 4. Tactical Crosshairs
+  ctx.strokeStyle = "#E74C3C";
+  ctx.lineWidth = 1.5;
+
+  // Horizontal line (with a small gap in the very center for clean looks)
+  ctx.beginPath();
+  ctx.moveTo(-22, 0);
+  ctx.lineTo(-6, 0);
+  ctx.moveTo(6, 0);
+  ctx.lineTo(22, 0);
+  ctx.stroke();
+
+  // Vertical line
+  ctx.beginPath();
+  ctx.moveTo(0, -22);
+  ctx.lineTo(0, -6);
+  ctx.moveTo(0, 6);
+  ctx.lineTo(0, 22);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawReceiverPredictedRoute(
+  passer: Player,
+  receiver: Player,
+  state: State,
+) {
+  const predictedRoute: Vector[] = predictReceiverRoute(
+    passer,
+    receiver,
+    state,
+  );
+
+  if (predictedRoute.length < 2) return;
+
+  ctx.save();
+  ctx.beginPath();
+
+  // Start the line structure at the receiver's actual current location
+  ctx.moveTo(receiver.loc.x, receiver.loc.y);
+
+  // Trace through all predicted coordinate steps
+  for (const point of predictedRoute) {
+    ctx.lineTo(point.x, point.y);
+  }
+
+  // Draw a clean, neon-translucent path representing the future footprint
+  ctx.strokeStyle = "rgba(255, 160, 0, 1)"; // Soft translucent field green
+  ctx.lineWidth = 3;
+  ctx.setLineDash([4, 8]); // Short dashes to represent a "ghost path" projection
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawPlayer(player: Player) {
   const { radius } = getConstants("SIZE", player);
 
@@ -331,6 +415,22 @@ function render(state: State) {
     }
   }
 
+  // Draw predicted throw targets for all catchers
+  const passer = state.players.find((p) => p.role === "passer");
+  const catchers = state.players.filter((p) => p.role === "catcher" && p.route);
+
+  // Make sure a passer exists before executing calculations
+  if (passer && state.currentPlay.offense === "pass") {
+    for (const catcher of catchers) {
+      if (PREDICTED_ROUTE_ON) {
+        drawReceiverPredictedRoute(passer, catcher, state);
+      }
+      if (PREDICTED_TARGET_ON) {
+        drawThrowTarget(calculatePerfectThrowTarget(passer, catcher, state));
+      }
+    }
+  }
+
   for (const player of state.players) {
     drawPlayer(player);
 
@@ -341,4 +441,4 @@ function render(state: State) {
   drawBall(state.ball);
 }
 
-export { ENDZONE_W, H, render, TOTAL_H, TOTAL_W, W };
+export { render };

@@ -1,4 +1,4 @@
-import { ENDZONE_W, H, W } from "./render";
+import { ENDZONE_W, H, W } from "./constants";
 import {
   Ball,
   cornerRoute,

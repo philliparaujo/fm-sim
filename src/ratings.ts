@@ -65,6 +65,9 @@ export const ATTRIBUTE_CONFIG = {
   deepAccuracy: (r: number) => ({
     deepAccuracy: lerp(r, 0.6, 1),
   }),
+  throwPower: (r: number) => ({
+    ballMetersPerSecond: lerp(r, 18, 30),
+  }),
 
   /* Runners */
   // Best = ~0.50
@@ -152,6 +155,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   decisionMaking: 0.5,
   shortAccuracy: 0.5,
   deepAccuracy: 0.5,
+  throwPower: 0.5,
   VISION: 0.2,
   POWER: 0.1,
   routeRunning: 0.5,

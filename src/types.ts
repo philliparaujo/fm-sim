@@ -43,6 +43,7 @@ interface Player extends PartialPlayer {
   // For receivers
   path: Vector[];
   breakFrame: number | null;
+  routeSideMultiplier: 1 | -1 | null;
 
   // For rushers
   playRushSeed?: number;
@@ -212,6 +213,14 @@ type ReplayFrame = {
   scoreboard: Scoreboard;
 };
 
+type BallFlightState = {
+  isInFlight: boolean;
+  startLoc: Vector;
+  endLoc: Vector;
+  totalFrames: number;
+  framesElapsed: number;
+};
+
 type State = {
   ball: Ball;
   players: Player[];
@@ -226,6 +235,7 @@ type State = {
   steps: number;
   ballGiven: boolean;
   ballGivenAtStep: number;
+  ballFlight: BallFlightState | null;
   blockingAssignments: Map<Player, Player>;
 };
 
@@ -243,6 +253,7 @@ export {
 export type {
   AdvancedStats,
   Ball,
+  BallFlightState,
   Coverage,
   CurrentPlay,
   DefensiveCoverageType,

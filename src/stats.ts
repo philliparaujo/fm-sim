@@ -1,4 +1,4 @@
-import { ENDZONE_W, W } from "./render";
+import { ENDZONE_W, W } from "./constants";
 import {
   AdvancedStats,
   cornerRoute,

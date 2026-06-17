@@ -1,4 +1,15 @@
 import {
+  ENDZONE_W,
+  INLINE_NUDGE,
+  LOGIC_TICK_MS,
+  PAUSE_MS_AFTER_PLAY,
+  simSpeed,
+  START_DRIVE,
+  TOTAL_H,
+  TOTAL_W,
+  W,
+} from "./constants";
+import {
   fillOutPlayer,
   fillOutPlayers,
   generateBall,
@@ -7,7 +18,7 @@ import {
 } from "./playbook";
 import { attemptTackle, stepAsPlayer } from "./playerBehavior";
 import { getConstants } from "./ratings";
-import { ENDZONE_W, render, TOTAL_H, TOTAL_W, W } from "./render";
+import { render } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
 import {
@@ -33,9 +44,6 @@ import {
   vectorToString,
   yardsFromPixels,
 } from "./util";
-
-const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
-const PAUSE_MS_AFTER_PLAY = 0;
 
 const createInitialState = (startingLOS?: number): State => {
   const LOS = startingLOS ?? START_DRIVE;
@@ -82,6 +90,7 @@ const createInitialState = (startingLOS?: number): State => {
       routes: offensePlay.routes,
     },
     ball: ball,
+    ballFlight: null,
     players: players,
   };
 };
@@ -306,41 +315,6 @@ function triggerMove(entity: Ball | Player) {
     entity.vel.y = 0;
   }
 }
-
-/* Simulation constants */
-export let simSpeed = 1;
-const LOGIC_TICK_MS = 1000 / 60;
-
-/* Blocker constants */
-export const MIN_BLOCK_DISTANCE = 120;
-
-/* Rusher constants */
-const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
-export const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
-
-/* Runner constants */
-export const ANGLE_ENDZONE_INTENT = 1;
-
-/* Receiver constants */
-export const PIXELS_PER_STEP = 45;
-export const ROUTE_BREAK_ANGLE_JITTER = 3;
-
-/* Coverer constants */
-export const LEAD_FRAMES = 35;
-export const ARRIVAL_RADIUS = 45;
-
-/* Pursuer constants */
-export const PURSUER_STEER_FACTOR = 0.5;
-
-/* Passer constants */
-export const BALL_GIVEN_STEPS = 400;
-export const PASSER_HANDOFF_SEPARATION = 80;
-export const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
-
-/* Tackle / Power constants */
-export const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
-export const BROKEN_TACKLE_SPEED_BURST = 0.7; // Speed multiplier when carrier breaks a tackle
-export const BROKEN_TACKLE_BURST_DURATION = 15;
 
 function resolveCollision(a: Player, b: Entity) {
   // 1. Calculate the distance between centers
@@ -788,10 +762,6 @@ function resetSimulation(reason: PlayEndReason) {
   onPlayResetCallback?.();
 }
 
-function setSimSpeed(value: number) {
-  simSpeed = value;
-}
-
 function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
 }
@@ -802,7 +772,6 @@ export {
   resetSimulation,
   resolveCollision,
   setReplayMode,
-  setSimSpeed,
   state,
   tick,
 };

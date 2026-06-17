@@ -4,7 +4,7 @@ import {
   getDefaultRatingForLabel,
   Ratings,
 } from "./ratings";
-import { H, W } from "./render";
+import { H, W } from "./constants";
 import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
 import { emptyVector, randomRoute, randomRunVector } from "./util";
 
@@ -14,7 +14,7 @@ const CATCHERS_INCLUDED = true;
 const RUNNER_INCLUDED = true;
 const RUSHERS_INCLUDED = BLOCKERS_INCLUDED && true;
 const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
-const SAFETIES_INCLUDED = true;
+const SAFETIES_INCLUDED = false;
 
 const PLAYBOOK_CONFIG = {
   passPercent: 1, // Offensive playcall
@@ -329,6 +329,7 @@ function fillOutPlayer(partial: PartialPlayer): Player {
     route: partial.route,
     path: [],
     breakFrame: null,
+    routeSideMultiplier: null,
     coverage: partial.coverage,
     playRushSeed: undefined,
     rushSpeedVariance: undefined,
