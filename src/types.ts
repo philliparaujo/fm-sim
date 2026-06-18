@@ -137,6 +137,7 @@ type PlayAdvancedData = {
   airYards?: number; // pixels from LOS to catcher at throw time
   wasOffTarget?: boolean; // throw was uncatchable
   wasUnderPressure: boolean; // at least one frame under pressure this play
+  wasThrowAway?: boolean;
   separationAtCatch?: number; // nearest defender dist in pixels at catch
   catchX?: number; // ball.loc.x when catcher caught the ball
   firstContactX?: number; // ball.loc.x on first tackle pressure frame
@@ -149,6 +150,7 @@ type AdvancedStats = {
   timeToThrow: number;
   timeToSack: number;
   offTargetThrowRate: number;
+  throwAwayRate: number;
   pressureRate: number;
   rushYardsBeforeContact: number;
   rushYardsAfterContact: number;
@@ -219,7 +221,7 @@ type BallFlightState = {
   isInFlight: boolean;
   startLoc: Vector;
   endLoc: Vector;
-  receiver: Player;
+  receiver: Player | null;
   totalFrames: number;
   framesElapsed: number;
 };

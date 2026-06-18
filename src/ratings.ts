@@ -51,7 +51,7 @@ export const ATTRIBUTE_CONFIG = {
   }),
   pressureFeel: (r: number) => ({
     panicRusherDist: lerp(r, 120, 60),
-    panicThrowChance: lerp(r, 0.7, 0.94),
+    panicThrowChance: lerp(r, 0.2, 0.6),
     qbAccuracyPanicChange: lerp(r, -0.2, 0),
   }),
   decisionMaking: (r: number) => ({
@@ -67,7 +67,6 @@ export const ATTRIBUTE_CONFIG = {
   }),
   throwPower: (r: number) => ({
     ballMetersPerSecond: lerp(r, 18, 30),
-    // ballMetersPerSecond: lerp(r, 28, 40),
   }),
 
   /* Runners */
@@ -123,11 +122,11 @@ export const ATTRIBUTE_CONFIG = {
   /* Coverers */
   manCoverage: (r: number) => ({
     manStartDelay: lerp(r, 20, 0),
-    reactionDelay: lerp(r, 60, 34),
+    reactionDelay: lerp(r, 40, 14),
     manCushion: lerp(r, 0, 0),
   }),
   zoneCoverage: (r: number) => ({
-    zonePull: lerp(r, 0.4, 1),
+    zonePull: lerp(r, 0.2, 0.7),
     zoneStartDelay: lerp(r, 30, 10),
   }),
   // Best = ~0.5
@@ -185,6 +184,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     VISION: 0.6,
     POWER: 0.5,
     catchRadius: 0.65,
+    PASSBLOCK: 0.2,
   }),
   XR: createBaseRatings({ SPEED: 0.91, SIZE: 0.13, catchRadius: 0.87 }),
   ZR: createBaseRatings({ SPEED: 0.89, SIZE: 0.1, catchRadius: 0.77 }),
@@ -221,18 +221,24 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     SIZE: 0.08,
     TACKLING: 0.3,
     catchRadius: 0.6,
+    manCoverage: 0.7,
+    zoneCoverage: 0.6,
   }),
   NB: createBaseRatings({
     SPEED: 0.87,
     SIZE: 0.07,
     TACKLING: 0.35,
     catchRadius: 0.6,
+    manCoverage: 0.65,
+    zoneCoverage: 0.6,
   }),
   LB: createBaseRatings({
     SPEED: 0.7,
     SIZE: 0.4,
     TACKLING: 0.7,
     catchRadius: 0.4,
+    manCoverage: 0.5,
+    zoneCoverage: 0.6,
   }),
   SS: createBaseRatings({
     SPEED: 0.77,
@@ -240,12 +246,16 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     PURSUIT: 0.7,
     BLOCKSHEDDING: 0.4,
     catchRadius: 0.65,
+    manCoverage: 0.5,
+    zoneCoverage: 0.5,
   }),
   FS: createBaseRatings({
     SPEED: 0.83,
     SIZE: 0.1,
     PURSUIT: 0.6,
     catchRadius: 0.7,
+    manCoverage: 0.6,
+    zoneCoverage: 0.75,
   }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {

@@ -29,7 +29,7 @@ const PREDICTED_TARGET_ON = true;
 const ALL_PREDICTED_ROUTE_ON = PREDICTED_ROUTE_ON && false;
 const ALL_PREDICTED_TARGET_ON = PREDICTED_TARGET_ON && false;
 
-const ONLY_SIMULATE = true;
+const ONLY_SIMULATE = false;
 
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
@@ -435,11 +435,12 @@ function render(state: State) {
 
   // Draw predicted throw route/target for passer's choice when ball in air
   if (state.ballFlight && state.ballFlight.isInFlight) {
+    const receiver = state.ballFlight.receiver;
     if (PREDICTED_TARGET_ON) {
       drawThrowTarget(state.ballFlight.endLoc);
     }
-    if (PREDICTED_ROUTE_ON && passer) {
-      drawReceiverPredictedRoute(passer, state.ballFlight.receiver, state);
+    if (PREDICTED_ROUTE_ON && passer && receiver) {
+      drawReceiverPredictedRoute(passer, receiver, state);
     }
   }
 

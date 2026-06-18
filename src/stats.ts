@@ -95,6 +95,7 @@ function emptyAdvancedStats(): AdvancedStats {
     rushYardsAfterContact: 0,
     rushYardsBeforeContact: 0,
     sackRate: 0,
+    throwAwayRate: 0,
     timeToThrow: 0,
     timeToSack: 0,
   };
@@ -369,16 +370,37 @@ export function updateStatsAfterPlay(
       const badCount =
         adv.offTargetThrowRate * (passCount - 1) +
         (playAdvanced.wasOffTarget ? 1 : 0);
-      adv.offTargetThrowRate = round2(badCount / passCount);
+      adv.offTargetThrowRate = badCount / passCount;
+    }
+
+    if (isPassAttempt && playAdvanced.wasThrowAway !== undefined) {
+      const incompletions = passCount - completionCount;
+
+      if (playAdvanced.wasThrowAway && passCount > 0) {
+        const prevThrowawayCount = adv.throwAwayRate * (passCount - 1);
+        const newThrowawayCount = prevThrowawayCount + 1;
+
+        adv.throwAwayRate = newThrowawayCount / passCount;
+      } else if (passCount > 0) {
+        const prevThrowawayCount = adv.throwAwayRate * (passCount - 1);
+        adv.throwAwayRate = prevThrowawayCount / passCount;
+      } else {
+        adv.throwAwayRate = 0;
+      }
+
+      // Safeguard: A throwaway rate can never mathematically exceed the total incompletion rate
+      const maxPossibleRate = passCount > 0 ? incompletions / passCount : 0;
+      if (adv.throwAwayRate > maxPossibleRate) {
+        adv.throwAwayRate = round2(maxPossibleRate);
+      }
     }
 
     // Pressure rate
     if (play.offense === "pass" && dropbackCount > 0) {
       const prevPressured = adv.pressureRate * (dropbackCount - 1);
-      adv.pressureRate = round2(
+      adv.pressureRate =
         (prevPressured + (playAdvanced.wasUnderPressure ? 1 : 0)) /
-          dropbackCount,
-      );
+        dropbackCount;
     }
 
     // Separation at catch
