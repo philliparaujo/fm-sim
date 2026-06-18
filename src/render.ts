@@ -27,9 +27,9 @@ const RUNNER_LOOK_AHEAD_ON = false;
 const PREDICTED_ROUTE_ON = true;
 const PREDICTED_TARGET_ON = true;
 const ALL_PREDICTED_ROUTE_ON = PREDICTED_ROUTE_ON && false;
-const ALL_PREDICTED_TARGET_ON = PREDICTED_TARGET_ON && true;
+const ALL_PREDICTED_TARGET_ON = PREDICTED_TARGET_ON && false;
 
-const ONLY_SIMULATE = false;
+const ONLY_SIMULATE = true;
 
 const canvas = document.getElementById("field") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;

@@ -349,16 +349,14 @@ export function updateStatsAfterPlay(
     // Air Yards
     if (isPassAttempt && playAdvanced.airYards !== undefined && passCount > 0) {
       const airYardsYds = yardsFromPixels(Math.max(0, playAdvanced.airYards));
-      adv.intendedAirYards = round2(
-        (adv.intendedAirYards * (passCount - 1) + airYardsYds) / passCount,
-      );
+      adv.intendedAirYards =
+        (adv.intendedAirYards * (passCount - 1) + airYardsYds) / passCount;
 
       // FIX 3: Weight Completed Air Yards against completionCount, NOT passCount
       if (completion && completionCount > 0) {
-        adv.completedAirYards = round2(
+        adv.completedAirYards =
           (adv.completedAirYards * (completionCount - 1) + airYardsYds) /
-            completionCount,
-        );
+          completionCount;
       }
     }
 
@@ -391,10 +389,9 @@ export function updateStatsAfterPlay(
       completionCount > 0
     ) {
       const sepYds = yardsFromPixels(playAdvanced.separationAtCatch);
-      adv.receiverSeparation = round2(
+      adv.receiverSeparation =
         (adv.receiverSeparation * (completionCount - 1) + sepYds) /
-          completionCount,
-      );
+        completionCount;
     }
 
     // YBC / YAC
@@ -424,10 +421,9 @@ export function updateStatsAfterPlay(
     ) {
       const endX = isTouchdown ? W + ENDZONE_W : finalBallX;
       const yac = Math.max(0, yardsFromPixels(endX - playAdvanced.catchX));
-      adv.receiverYardsAfterCatch = round2(
+      adv.receiverYardsAfterCatch =
         (adv.receiverYardsAfterCatch * (completionCount - 1) + yac) /
-          completionCount,
-      );
+        completionCount;
     }
 
     const totalPassPlays = next.playcalls.pass.count;

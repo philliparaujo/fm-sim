@@ -434,42 +434,7 @@ function stepAsPlayer(player: Player, state: State) {
     const underPressure = nearestRusherDist < panicRusherDist;
 
     // Handle ball in air
-    if (state.ballFlight && state.ballFlight.isInFlight) {
-      state.ballFlight.framesElapsed++;
-
-      // Handle ball done being in air
-      if (state.ballFlight.framesElapsed == state.ballFlight.totalFrames) {
-        // Check for interception
-        for (const c of coverers) {
-          if (dist(c.loc, state.ballFlight.endLoc) < INTERCEPTION_RADIUS) {
-            resetSimulation("interception");
-            return;
-          }
-        }
-
-        // Check for completion
-        const { completionRadius } = getConstants(
-          "catchRadius",
-          state.ballFlight.receiver,
-        );
-        if (
-          dist(state.ballFlight.receiver.loc, state.ballFlight.endLoc) <
-          completionRadius
-        ) {
-          state.ballFlight.isInFlight = false;
-          state.ball.loc = { ...state.ballFlight.endLoc };
-          state.ballGiven = true;
-          state.ballGivenAtStep = state.steps;
-          state.playAdvanced.catchX = state.ball.loc.x;
-          state.playAdvanced.separationAtCatch = 0; // TODO
-          return;
-        }
-
-        // Otherwise, incompletion
-        resetSimulation("incomplete");
-        return;
-      }
-    }
+    resolveBallInAir(state);
 
     // Evaluate all catchers by how open they will be
     const evaluatedOptions = catchers.map((catcher) => {
@@ -497,8 +462,6 @@ function stepAsPlayer(player: Player, state: State) {
       state.steps > minThrowStep &&
       state.ballFlight === null
     ) {
-      console.log(bestOption);
-
       state.ballFlight = {
         startLoc: { ...state.ball.loc },
         endLoc: { ...bestOption.target },
@@ -1205,13 +1168,13 @@ function getReceiverVelocityAtFrame(
     ctx.routeSideMultiplier ?? (ctx.currentLocY < H / 2 ? 1 : -1);
 
   // --- FIX: Pass the moving currentLoc here instead of the live receiver object ---
-  const isTriggeredByTime = state.steps > 300;
-  const isTriggeredByWall =
-    receiver.improvAngleRad ||
-    ctx.improvAngleRad !== null ||
-    hitSideline(currentLoc);
+  const isTriggeredByTime = state.steps > 200;
+  // const isTriggeredByWall =
+  //   receiver.improvAngleRad ||
+  //   ctx.improvAngleRad !== null ||
+  //   hitSideline(currentLoc);
 
-  if (isTriggeredByTime || isTriggeredByWall) {
+  if (isTriggeredByTime) {
     const baseVelX = receiver.vel.x || maxSpeed;
     const baseVelY = receiver.vel.y || 0;
 
@@ -1399,6 +1362,101 @@ function evaluateThrowWindow(
       : Infinity;
 
   return { target, projected, framesUntil, defenderDistAtArrival };
+}
+
+function resolveBallInAir(state: State) {
+  const { ballFlight } = state;
+  if (!ballFlight || !ballFlight.isInFlight) return;
+
+  ballFlight.framesElapsed++;
+
+  if (ballFlight.framesElapsed >= ballFlight.totalFrames) {
+    const { receiver, endLoc } = ballFlight;
+    const coverers = state.players.filter((p) => p.role === "coverer");
+
+    const { completionRadius: receiverRadius } = getConstants(
+      "catchRadius",
+      receiver,
+    );
+    const receiverDist = dist(receiver.loc, endLoc);
+
+    let closestDefender: Player | null = null;
+    let minDefenderDist = Infinity;
+    let defenderRadius = 0;
+
+    coverers.forEach((c) => {
+      const d = dist(c.loc, endLoc);
+      if (d < minDefenderDist) {
+        minDefenderDist = d;
+        closestDefender = c;
+        defenderRadius = getConstants("catchRadius", c).completionRadius;
+      }
+    });
+
+    // --- REFINED CONTEST LOGIC ---
+
+    // 1. Uncontested Catch
+    if (!closestDefender || minDefenderDist > receiverRadius) {
+      if (receiverDist < receiverRadius) {
+        completePass(state, receiver, endLoc);
+      } else {
+        resetSimulation("incomplete");
+      }
+      return;
+    }
+
+    // 2. Contested Catch Resolution
+    // Apply a penalty to receiver's radius when contested
+    const CONTEST_PENALTY = 0.65;
+    const effectiveReceiverRadius = receiverRadius * CONTEST_PENALTY;
+
+    // Receiver strength: How well are they positioned vs their penalized radius
+    const receiverStrength = effectiveReceiverRadius - receiverDist;
+
+    // Defender strength: Their catch radius boosted by being the "disruptor"
+    const DEFENSIVE_BOOST = 1.25;
+    const defenderStrength =
+      (defenderRadius - minDefenderDist) * DEFENSIVE_BOOST;
+
+    if (receiverDist > effectiveReceiverRadius) {
+      // Receiver didn't get close enough to secure it through the coverage
+      resetSimulation("incomplete");
+    } else if (receiverStrength > defenderStrength) {
+      // Receiver wins the contest
+      completePass(state, receiver, endLoc);
+    } else {
+      // Defender wins contest: Check for Interception (requires closer proximity)
+      if (minDefenderDist < receiverDist * 0.7) {
+        resetSimulation("interception");
+      } else {
+        resetSimulation("incomplete");
+      }
+    }
+  }
+}
+
+// Helper to clean up state on a successful catch
+function completePass(state: State, receiver: Player, endLoc: Vector) {
+  state.ballFlight!.isInFlight = false;
+  state.ball.loc = { ...endLoc };
+  state.ballGiven = true;
+  state.ballGivenAtStep = state.steps;
+  state.playAdvanced.catchX = state.ball.loc.x;
+
+  // Find all active defenders on the field
+  const defenders = state.players.filter(
+    (p) => p.role === "rusher" || p.role === "coverer",
+  );
+
+  // Calculate the distance to the closest defender at the time of the catch
+  if (defenders.length > 0) {
+    const minSeparation = Math.min(
+      ...defenders.map((def) => dist(def.loc, receiver.loc)),
+    );
+    state.playAdvanced.separationAtCatch = minSeparation;
+  } else {
+    state.playAdvanced.separationAtCatch = Infinity; // No defenders present
+  }
 }
 
 export {

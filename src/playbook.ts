@@ -17,9 +17,9 @@ const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
 const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 1, // Offensive playcall
+  passPercent: 0.5, // Offensive playcall
   manPercent: 0.5, // Defensive underneath coverage
-  blitzPercent: 0, // Cover 1 blitz or cover 2 shell
+  blitzPercent: 0.5, // Cover 1 blitz or cover 2 shell
 };
 
 function generateBall(LOS: number): Ball {
@@ -242,13 +242,18 @@ function generateDefensivePlaycall(
     const availableSpace = H - zoneMargin * 2;
     const zoneStep =
       catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
+    const zoneYPos = [
+      zoneMargin,
+      zoneMargin + 2 * zoneStep,
+      zoneMargin + zoneStep,
+    ];
 
     catchers.forEach((catcher, index) => {
       const yPos =
         COVERER_COVERAGE === "man"
           ? catcher.loc.y
           : catchers.length > 1
-            ? zoneMargin + index * zoneStep
+            ? zoneYPos[index]
             : H / 2;
 
       players.push({

@@ -76,12 +76,12 @@ export function randomRoute(): Route {
     streakRoute,
     postRoute,
     cornerRoute,
-    // inRoute,
-    // outRoute,
-    // curlRoute,
-    // slantRoute,
-    // dragRoute,
-    // flatRoute,
+    inRoute,
+    outRoute,
+    curlRoute,
+    slantRoute,
+    dragRoute,
+    flatRoute,
   ];
   return routes[Math.floor(Math.random() * routes.length)];
 }

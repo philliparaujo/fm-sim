@@ -55,7 +55,7 @@ export const ATTRIBUTE_CONFIG = {
     qbAccuracyPanicChange: lerp(r, -0.2, 0),
   }),
   decisionMaking: (r: number) => ({
-    minThrowStep: lerp(r, 60, 20),
+    minThrowStep: lerp(r, 80, 40),
     earlyThrowChance: lerp(r, 0.6, 1),
     earlyThrowSeparation: lerp(r, 100, 50),
   }),
@@ -95,7 +95,7 @@ export const ATTRIBUTE_CONFIG = {
     minCatchSpeedMultiplier: lerp(r, 0.6, 1),
   }),
   catchRadius: (r: number) => ({
-    completionRadius: lerp(r, 162, 130),
+    completionRadius: lerp(r, 30, 80),
   }),
 
   /* Blockers */
@@ -161,7 +161,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   POWER: 0.1,
   routeRunning: 0.5,
   catchAcceleration: 0.5,
-  catchRadius: 0.5,
+  catchRadius: 0.4,
   PASSBLOCK: 0.25,
   RUNBLOCK: 0.25,
   BLOCKSHEDDING: 0.3,
@@ -179,10 +179,16 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   QB: createBaseRatings({ SPEED: 0.75, SIZE: 0.3 }),
 
   // Runners/Catchers
-  RB: createBaseRatings({ SPEED: 0.81, SIZE: 0.23, VISION: 0.6, POWER: 0.5 }),
-  XR: createBaseRatings({ SPEED: 0.91, SIZE: 0.13 }),
-  ZR: createBaseRatings({ SPEED: 0.89, SIZE: 0.1 }),
-  TE: createBaseRatings({ SPEED: 0.7, SIZE: 0.47 }),
+  RB: createBaseRatings({
+    SPEED: 0.81,
+    SIZE: 0.23,
+    VISION: 0.6,
+    POWER: 0.5,
+    catchRadius: 0.65,
+  }),
+  XR: createBaseRatings({ SPEED: 0.91, SIZE: 0.13, catchRadius: 0.87 }),
+  ZR: createBaseRatings({ SPEED: 0.89, SIZE: 0.1, catchRadius: 0.77 }),
+  TE: createBaseRatings({ SPEED: 0.7, SIZE: 0.47, catchRadius: 0.7 }),
 
   // Blockers
   LT: createBaseRatings({
@@ -210,16 +216,37 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   RE: createBaseRatings({ SPEED: 0.56, SIZE: 0.57, BEND: 0.55 }),
 
   // Coverers/Defenders
-  CB: createBaseRatings({ SPEED: 0.9, SIZE: 0.08, TACKLING: 0.3 }),
-  NB: createBaseRatings({ SPEED: 0.87, SIZE: 0.07, TACKLING: 0.35 }),
-  LB: createBaseRatings({ SPEED: 0.7, SIZE: 0.4, TACKLING: 0.7 }),
+  CB: createBaseRatings({
+    SPEED: 0.9,
+    SIZE: 0.08,
+    TACKLING: 0.3,
+    catchRadius: 0.6,
+  }),
+  NB: createBaseRatings({
+    SPEED: 0.87,
+    SIZE: 0.07,
+    TACKLING: 0.35,
+    catchRadius: 0.6,
+  }),
+  LB: createBaseRatings({
+    SPEED: 0.7,
+    SIZE: 0.4,
+    TACKLING: 0.7,
+    catchRadius: 0.4,
+  }),
   SS: createBaseRatings({
     SPEED: 0.77,
     SIZE: 0.2,
     PURSUIT: 0.7,
     BLOCKSHEDDING: 0.4,
+    catchRadius: 0.65,
   }),
-  FS: createBaseRatings({ SPEED: 0.83, SIZE: 0.1, PURSUIT: 0.6 }),
+  FS: createBaseRatings({
+    SPEED: 0.83,
+    SIZE: 0.1,
+    PURSUIT: 0.6,
+    catchRadius: 0.7,
+  }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {
   return DEFAULT_RATINGS_BY_LABEL[label] ?? createBaseRatings();

@@ -528,7 +528,7 @@ function ballCollideBehavior(player: Player) {
     }
     case "coverer": {
       // If coverer collides with ball, simulation ends (turnover)
-      // resetSimulation("turnover");
+      resetSimulation("interception");
       break;
     }
     case "passer": {
@@ -693,13 +693,18 @@ function resetSimulation(reason: PlayEndReason) {
   const isTouchdown = endBallX >= W + ENDZONE_W;
   const isSafety = endBallX <= ENDZONE_W;
   const isInterception = reason === "interception";
+  const isIncomplete = reason === "incomplete";
   const yards = yardsFromPixels(
     (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
   );
   const nextLOS =
-    isTouchdown || isSafety || isInterception ? START_DRIVE : endBallX;
+    isTouchdown || isSafety || isInterception
+      ? START_DRIVE
+      : isIncomplete
+        ? state.scoreboard.LOS
+        : endBallX;
 
-  console.log("RESETTING FOR", reason);
+  // console.log("RESETTING FOR", reason);
 
   if (reason === "sack") {
     state.playAdvanced.sackFrame = state.steps;
