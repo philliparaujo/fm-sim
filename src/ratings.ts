@@ -52,7 +52,7 @@ export const ATTRIBUTE_CONFIG = {
   pressureFeel: (r: number) => ({
     panicRusherDist: lerp(r, 120, 60),
     panicThrowChance: lerp(r, 0.2, 0.6),
-    qbAccuracyPanicChange: lerp(r, -0.2, 0),
+    pressureSensitivity: lerp(r, 1.4, 0.15),
   }),
   decisionMaking: (r: number) => ({
     minThrowStep: lerp(r, 80, 40),
@@ -60,10 +60,10 @@ export const ATTRIBUTE_CONFIG = {
     earlyThrowSeparation: lerp(r, 100, 50),
   }),
   shortAccuracy: (r: number) => ({
-    shortAccuracy: lerp(r, 0.8, 1),
+    shortError: lerp(r, 0.3, 0),
   }),
   deepAccuracy: (r: number) => ({
-    deepAccuracy: lerp(r, 0.6, 1),
+    deepError: lerp(r, 0.8, 0),
   }),
   throwPower: (r: number) => ({
     ballMetersPerSecond: lerp(r, 18, 30),
@@ -126,7 +126,7 @@ export const ATTRIBUTE_CONFIG = {
     manCushion: lerp(r, 0, 0),
   }),
   zoneCoverage: (r: number) => ({
-    zonePull: lerp(r, 0.2, 0.7),
+    zonePull: lerp(r, 0, 0.5),
     zoneStartDelay: lerp(r, 30, 10),
   }),
   // Best = ~0.5

@@ -520,17 +520,57 @@ function stepAsPlayer(player: Player, state: State) {
 
     if (!shouldThrow) return;
 
+    // --- SELF-CONTAINED SUBTLE INACCURACY SYSTEM ---
+
+    // A. Fetch Passer Accuracy and Composure Attributes
+    const { shortError } = getConstants("shortAccuracy", player);
+    const { deepError } = getConstants("deepAccuracy", player);
+    const { pressureSensitivity } = getConstants("pressureFeel", player);
+
+    // B. Continuous Pressure Evaluation (Ramps up when closest rusher breaks within threshold)
+    const rawPressure = underPressure
+      ? 1 - nearestRusherDist / panicRusherDist
+      : 0;
+    const pressureFactor = rawPressure * pressureSensitivity;
+
+    // C. Distance Blend (Interpolate error potential based on target field depth)
+    const maxDistanceScale = 400; // ~40 yards out max
+    const distanceWeight = Math.min(1, bestOption.throwDist / maxDistanceScale);
+    const baseErrorRate = lerp(distanceWeight, shortError, deepError);
+
+    // D. Construct Total Error Vector Max Magnitude
+    const totalErrorMagnitude =
+      bestOption.throwDist * baseErrorRate * (1 + pressureFactor);
+
+    // E. Derive a stable, clean angle for ball drift using random variance
+    const throwDriftAngle = Math.random() * Math.PI * 2;
+
+    // F. Apply final displacement exclusively to the physical ball destination
+    const physicalBallDestination = {
+      x:
+        bestOption.target.x +
+        Math.cos(throwDriftAngle) * totalErrorMagnitude * 0.2,
+      y:
+        bestOption.target.y +
+        Math.sin(throwDriftAngle) * totalErrorMagnitude * 0.2,
+    };
+
+    // --- QUANTIFY AND TRACK OFF-TARGET PASSES ---
+    // Define a threshold where the error takes the ball out of an acceptable catch circle
+    // 4 Yards is standard for overthrew/underthrew/sailing metrics
     state.ballFlight = {
       startLoc: { ...state.ball.loc },
-      endLoc: { ...bestOption.target },
+      endLoc: physicalBallDestination,
       isInFlight: true,
       framesElapsed: 0,
       totalFrames: bestOption.framesUntil,
       receiver: bestOption.catcher,
     };
 
+    // Save the state context flags
     state.playAdvanced.throwFrame = state.steps;
-    state.playAdvanced.airYards = bestOption.target.x - state.scoreboard.LOS;
+    state.playAdvanced.airYards =
+      physicalBallDestination.x - state.scoreboard.LOS;
     state.playAdvanced.wasUnderPressure = underPressure;
   }
 
@@ -757,6 +797,7 @@ function stepAsPlayer(player: Player, state: State) {
 
     if (targetCatcher) {
       if (player.coverage === "man") {
+        // Left exactly the same as requested
         const toBallX = state.ball.loc.x - extrapolatedLoc.x;
         const toBallY = state.ball.loc.y - extrapolatedLoc.y;
         const toBallDist =
@@ -771,28 +812,44 @@ function stepAsPlayer(player: Player, state: State) {
             (toBallY / toBallDist) * manCushion +
             baseVel.y * LEAD_FRAMES,
         };
-      } else if (isDeepOverrideActive) {
-        // EXTRA CONSERVATIVE DEEP MODE:
-        // Instead of pulling toward the receiver's exact location, force the target point
-        // to stay downfield/in front of the receiver by a protective cushion (e.g., 7 yards).
-        const CONSERVATIVE_CUSHION = (W * 7) / 100;
-
-        targetPoint = {
-          x: extrapolatedLoc.x + CONSERVATIVE_CUSHION + baseVel.x * LEAD_FRAMES,
-          y: extrapolatedLoc.y + baseVel.y * LEAD_FRAMES, // Mirror their horizontal tracks to stay over the top
-        };
       } else {
-        // Standard pull interpolation for intermediate/underneath zones
-        targetPoint = {
-          x:
-            player.zone!.x +
-            (extrapolatedLoc.x - player.zone!.x) * zonePull +
-            baseVel.x * LEAD_FRAMES,
-          y:
-            player.zone!.y +
-            (extrapolatedLoc.y - player.zone!.y) * zonePull +
-            baseVel.y * LEAD_FRAMES,
-        };
+        // ZONE COVERAGE ENHANCEMENT:
+        // If the targeted catcher has a predicted throw location, blend their
+        // extrapolated position with the throw target so the defender undercuts or fields the ball path.
+        let coverageFocusX = extrapolatedLoc.x;
+        let coverageFocusY = extrapolatedLoc.y;
+
+        if (targetCatcher.predictedTarget) {
+          // Shift focus halfway towards the anticipated throw spot to cheat toward the target
+          coverageFocusX =
+            (coverageFocusX + targetCatcher.predictedTarget.x) / 2;
+          coverageFocusY =
+            (coverageFocusY + targetCatcher.predictedTarget.y) / 2;
+        }
+
+        if (isDeepOverrideActive) {
+          // EXTRA CONSERVATIVE DEEP ZONE MODE:
+          // Position downfield/in front of the anticipated pass focus zone by a protective cushion
+          const CONSERVATIVE_CUSHION = (W * 7) / 100;
+
+          targetPoint = {
+            x: coverageFocusX + CONSERVATIVE_CUSHION + baseVel.x * LEAD_FRAMES,
+            y: coverageFocusY + baseVel.y * LEAD_FRAMES,
+          };
+        } else {
+          // STANDARD UNDERNEATH/INTERMEDIATE ZONE MODE:
+          // Pull towards the enhanced coverage tracking position relative to their zone marker
+          targetPoint = {
+            x:
+              player.zone!.x +
+              (coverageFocusX - player.zone!.x) * zonePull +
+              baseVel.x * LEAD_FRAMES,
+            y:
+              player.zone!.y +
+              (coverageFocusY - player.zone!.y) * zonePull +
+              baseVel.y * LEAD_FRAMES,
+          };
+        }
       }
     }
 
@@ -1191,6 +1248,8 @@ function calculatePerfectThrowTarget(
     y: Math.max(MIN_PLAYABLE_Y, Math.min(MAX_PLAYABLE_Y, rawFallback.y)),
   };
 
+  receiver.predictedTarget = clampedFallback;
+
   return {
     framesUntil: receiverTimeline.length,
     target: clampedFallback,
@@ -1458,6 +1517,11 @@ function resolveBallInAir(state: State) {
     const { receiver, endLoc } = ballFlight;
     const coverers = state.players.filter((p) => p.role === "coverer");
 
+    // Track state outcomes explicitly
+    let isComplete = false;
+    let isInterception = false;
+    let isIncomplete = false;
+
     // For throw aways
     if (!receiver) {
       resetSimulation("incomplete");
@@ -1483,44 +1547,51 @@ function resolveBallInAir(state: State) {
       }
     });
 
-    // --- REFINED CONTEST LOGIC ---
-
-    // 1. Uncontested Catch
+    // 1. Uncontested Catch Check
     if (!closestDefender || minDefenderDist > receiverRadius) {
       if (receiverDist < receiverRadius) {
-        completePass(state, receiver, endLoc);
+        isComplete = true;
       } else {
-        resetSimulation("incomplete");
+        isIncomplete = true;
       }
-      return;
+    } else {
+      // 2. Contested Catch Resolution
+      const CONTEST_PENALTY = 0.65;
+      const effectiveReceiverRadius = receiverRadius * CONTEST_PENALTY;
+
+      const receiverStrength = effectiveReceiverRadius - receiverDist;
+      const DEFENSIVE_BOOST = 1.25;
+      const defenderStrength =
+        (defenderRadius - minDefenderDist) * DEFENSIVE_BOOST;
+
+      if (receiverDist > effectiveReceiverRadius) {
+        isIncomplete = true;
+      } else if (receiverStrength > defenderStrength) {
+        isComplete = true;
+      } else {
+        if (minDefenderDist < receiverDist * 0.4) {
+          isInterception = true;
+        } else {
+          isIncomplete = true;
+        }
+      }
     }
 
-    // 2. Contested Catch Resolution
-    // Apply a penalty to receiver's radius when contested
-    const CONTEST_PENALTY = 0.65;
-    const effectiveReceiverRadius = receiverRadius * CONTEST_PENALTY;
-
-    // Receiver strength: How well are they positioned vs their penalized radius
-    const receiverStrength = effectiveReceiverRadius - receiverDist;
-
-    // Defender strength: Their catch radius boosted by being the "disruptor"
-    const DEFENSIVE_BOOST = 1.25;
-    const defenderStrength =
-      (defenderRadius - minDefenderDist) * DEFENSIVE_BOOST;
-
-    if (receiverDist > effectiveReceiverRadius) {
-      // Receiver didn't get close enough to secure it through the coverage
-      resetSimulation("incomplete");
-    } else if (receiverStrength > defenderStrength) {
-      // Receiver wins the contest
+    // --- FINAL EVALUATION & METRIC TRACKING ---
+    if (isComplete) {
       completePass(state, receiver, endLoc);
-    } else {
-      // Defender wins contest: Check for Interception (requires closer proximity)
-      if (minDefenderDist < receiverDist * 0.4) {
-        resetSimulation("interception");
-      } else {
-        resetSimulation("incomplete");
+    } else if (isInterception) {
+      if (receiverDist > receiverRadius) {
+        state.playAdvanced.wasOffTarget = true;
       }
+      resetSimulation("interception");
+    } else if (isIncomplete) {
+      // If the simulation is ending in an incompletion, check if the distance
+      // between the landing spot and the receiver was uncatchable.
+      if (receiverDist > receiverRadius) {
+        state.playAdvanced.wasOffTarget = true;
+      }
+      resetSimulation("incomplete");
     }
   }
 }
@@ -1528,7 +1599,7 @@ function resolveBallInAir(state: State) {
 // Helper to clean up state on a successful catch
 function completePass(state: State, receiver: Player, endLoc: Vector) {
   state.ballFlight!.isInFlight = false;
-  state.ball.loc = { ...endLoc };
+  state.ball.loc = { ...receiver.loc };
   state.ballGiven = true;
   state.ballGivenAtStep = state.steps;
   state.playAdvanced.catchX = state.ball.loc.x;

@@ -45,6 +45,7 @@ interface Player extends PartialPlayer {
   breakFrame: number | null;
   routeSideMultiplier: 1 | -1 | null;
   improvAngleRad: number | null;
+  predictedTarget: Vector | null;
 
   // For rushers
   playRushSeed?: number;
@@ -135,9 +136,9 @@ type PlayAdvancedData = {
   throwFrame?: number; // state.steps when throw occurred
   sackFrame?: number; // state.steps when sack occurred
   airYards?: number; // pixels from LOS to catcher at throw time
-  wasOffTarget?: boolean; // throw was uncatchable
+  wasOffTarget: boolean; // throw was uncatchable
   wasUnderPressure: boolean; // at least one frame under pressure this play
-  wasThrowAway?: boolean;
+  wasThrowAway: boolean;
   separationAtCatch?: number; // nearest defender dist in pixels at catch
   catchX?: number; // ball.loc.x when catcher caught the ball
   firstContactX?: number; // ball.loc.x on first tackle pressure frame

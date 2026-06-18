@@ -232,7 +232,7 @@ function generateDefensivePlaycall(
   const COVERER_COVERAGE =
     Math.random() < PLAYBOOK_CONFIG.manPercent ? "man" : "zone";
   if (COVERERS_INCLUDED) {
-    const COVERER_X = LOS + (1 / 10) * W;
+    const COVERER_X = LOS + (12 * W) / 100;
     const COVERER_SPEED = 4.8;
     const COVERER_RADIUS = DEFAULT_RADIUS;
 
@@ -272,33 +272,37 @@ function generateDefensivePlaycall(
   // Choose what to do with LB/S (Cover 2 or Cover 1 blitz)
   const isBlitz = Math.random() < PLAYBOOK_CONFIG.blitzPercent;
   if (SAFETIES_INCLUDED) {
-    const LB_ROLE = isBlitz ? "rusher" : "coverer";
-    const LB_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
-    const LB_Y = isBlitz ? (Math.random() < 0.5 ? H * 0.25 : H * 0.75) : H / 3;
-    const LB_SPEED = isBlitz ? 4.5 : 4.8;
-    const LB_RADIUS = DEFAULT_RADIUS;
+    const SS_ROLE = isBlitz ? "rusher" : "coverer";
+    const SS_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
+    const SS_Y = isBlitz
+      ? Math.random() < 0.5
+        ? H * 0.25
+        : H * 0.75
+      : (3 * H) / 10;
+    const SS_SPEED = isBlitz ? 4.5 : 4.8;
+    const SS_RADIUS = DEFAULT_RADIUS;
     players.push({
       type: "player",
       color: teamColor,
       label: nextDefenseLabel(),
       position: "defense",
-      role: LB_ROLE,
-      loc: { x: LB_X, y: LB_Y },
+      role: SS_ROLE,
+      loc: { x: SS_X, y: SS_Y },
       vel: emptyVector(),
       coverage: "zone",
     });
 
-    const S_X = LOS + (35 / 100) * W;
-    const S_Y = isBlitz ? H / 2 : (2 * H) / 3;
-    const S_SPEED = 4.8;
-    const S_RADIUS = DEFAULT_RADIUS;
+    const FS_X = LOS + (35 / 100) * W;
+    const FS_Y = isBlitz ? H / 2 : (7 * H) / 10;
+    const FS_SPEED = 4.8;
+    const FS_RADIUS = DEFAULT_RADIUS;
     players.push({
       type: "player",
       color: teamColor,
       label: nextDefenseLabel(),
       position: "defense",
       role: "coverer",
-      loc: { x: S_X, y: S_Y },
+      loc: { x: FS_X, y: FS_Y },
       vel: emptyVector(),
       coverage: "zone",
     });
@@ -336,6 +340,7 @@ function fillOutPlayer(partial: PartialPlayer): Player {
     breakFrame: null,
     routeSideMultiplier: null,
     improvAngleRad: null,
+    predictedTarget: null,
     coverage: partial.coverage,
     playRushSeed: undefined,
     rushSpeedVariance: undefined,
