@@ -51,19 +51,19 @@ export const ATTRIBUTE_CONFIG = {
   }),
   pressureFeel: (r: number) => ({
     panicRusherDist: lerp(r, 120, 60),
-    panicThrowChance: lerp(r, 0.2, 0.6),
-    pressureSensitivity: lerp(r, 1.4, 0.15),
+    panicThrowChance: lerp(r, 0.05, 0.45),
+    pressureSensitivity: lerp(r, 1.7, 0.4),
   }),
   decisionMaking: (r: number) => ({
-    minThrowStep: lerp(r, 80, 40),
+    minThrowStep: lerp(r, 70, 30),
     earlyThrowChance: lerp(r, 0.6, 1),
     earlyThrowSeparation: lerp(r, 100, 50),
   }),
   shortAccuracy: (r: number) => ({
-    shortError: lerp(r, 0.3, 0),
+    shortError: lerp(r, 0.6, 0.2),
   }),
   deepAccuracy: (r: number) => ({
-    deepError: lerp(r, 0.8, 0),
+    deepError: lerp(r, 0.85, 0.2),
   }),
   throwPower: (r: number) => ({
     ballMetersPerSecond: lerp(r, 18, 30),
@@ -103,10 +103,10 @@ export const ATTRIBUTE_CONFIG = {
     antiBlockShed: lerp(r, 2.2, 2.6),
   }),
   RUNBLOCK: (r: number) => ({
-    runBlockDampingFactor: lerp(r, 0.8, 0.4),
-    covererDampingFactor: lerp(r, 0.7, 0.3),
-    runBlockPushStrength: lerp(r, 0.6, 2.5),
-    antiBlockShed: lerp(r, 0.9, 1.7),
+    runBlockDampingFactor: lerp(r, 0.85, 0.45),
+    covererDampingFactor: lerp(r, 0.75, 0.35),
+    runBlockPushStrength: lerp(r, 0.5, 2.2),
+    antiBlockShed: lerp(r, 0.5, 1.7),
   }),
 
   /* Rushers */
@@ -122,12 +122,12 @@ export const ATTRIBUTE_CONFIG = {
   /* Coverers */
   manCoverage: (r: number) => ({
     manStartDelay: lerp(r, 20, 0),
-    reactionDelay: lerp(r, 40, 14),
+    reactionDelay: lerp(r, 49, 13),
     manCushion: lerp(r, 0, 0),
   }),
   zoneCoverage: (r: number) => ({
     zonePull: lerp(r, 0, 0.5),
-    zoneStartDelay: lerp(r, 30, 10),
+    zoneStartDelay: lerp(r, 35, 15),
   }),
   // Best = ~0.5
   PURSUIT: (r: number) => ({
@@ -184,7 +184,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     VISION: 0.6,
     POWER: 0.5,
     catchRadius: 0.65,
-    PASSBLOCK: 0.2,
+    PASSBLOCK: 0.1,
   }),
   XR: createBaseRatings({ SPEED: 0.91, SIZE: 0.13, catchRadius: 0.87 }),
   ZR: createBaseRatings({ SPEED: 0.89, SIZE: 0.1, catchRadius: 0.77 }),
@@ -194,19 +194,19 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   LT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.93,
-    RUNBLOCK: 0.45,
+    RUNBLOCK: 0.42,
     PASSBLOCK: 0.5,
   }),
   C: createBaseRatings({
     SPEED: 0.43,
     SIZE: 0.87,
-    RUNBLOCK: 0.55,
+    RUNBLOCK: 0.52,
     PASSBLOCK: 0.4,
   }),
   RT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.96,
-    RUNBLOCK: 0.5,
+    RUNBLOCK: 0.47,
     PASSBLOCK: 0.45,
   }),
 
@@ -244,7 +244,8 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     SPEED: 0.77,
     SIZE: 0.2,
     PURSUIT: 0.7,
-    BLOCKSHEDDING: 0.4,
+    BLOCKSHEDDING: 0.45,
+    BEND: 0.4,
     catchRadius: 0.65,
     manCoverage: 0.5,
     zoneCoverage: 0.5,

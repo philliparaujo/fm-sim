@@ -81,6 +81,8 @@ const createInitialState = (startingLOS?: number): State => {
     scoreboard: scoreboard,
     stats: createEmptyStats(),
     playAdvanced: {
+      wasOffTarget: false,
+      wasThrowAway: false,
       wasUnderPressure: false,
     },
     currentPlay: {

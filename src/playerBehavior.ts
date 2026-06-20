@@ -426,7 +426,7 @@ function stepAsPlayer(player: Player, state: State) {
       "pressureFeel",
       player,
     );
-    const MIN_OPENNESS_NEEDED = 250;
+    const MIN_OPENNESS_NEEDED = 200;
     const PANIC_OPENNESS_NEEDED = 80;
     const nearestRusherDist =
       rushers.length > 0
@@ -469,14 +469,28 @@ function stepAsPlayer(player: Player, state: State) {
       );
 
       const forceThrowChance = panicThrowChance * pressureIntensity * 0.3;
+
+      // How long the QB has been holding the ball this play, in frames since the snap
+      const holdingFrames = state.steps;
+      // Ramp 0→1 over a few seconds of holding under pressure — the longer he's
+      // been in the pocket with a rusher closing, the more desperate he gets
+      const HOLD_RAMP_FRAMES = 150; // ~1.5s at 60fps to reach max desperation
+      const holdFactor = Math.min(1, holdingFrames / HOLD_RAMP_FRAMES);
+
+      // Throw-away chance grows with both pressure intensity and how long he's held it
+      const throwAwayChance =
+        forceThrowChance * (0.4 + 0.6 * holdFactor) * pressureIntensity;
+
       if (Math.random() < forceThrowChance) {
-        // Panic roll triggered — throw to bestOption if they clear the lowered
-        // bar, otherwise nobody's open enough so just get rid of it
         if (bestOption.projectedOpenness > opennessThreshold) {
           shouldThrow = true;
         } else {
           throwAway = true;
         }
+      } else if (Math.random() < throwAwayChance) {
+        // Separate, growing-over-time roll — bail even without the main panic
+        // trigger firing, representing a QB who's simply held it too long
+        throwAway = true;
       }
     }
 
@@ -489,11 +503,10 @@ function stepAsPlayer(player: Player, state: State) {
     }
 
     if (throwAway) {
-      // Aim out of bounds near the passer's current depth — no receiver involved
       const throwAwaySide = player.loc.y < H / 2 ? -1 : 1;
       const throwAwayTarget = {
         x: player.loc.x + 60,
-        y: throwAwaySide < 0 ? -40 : TOTAL_H + 40, // past the sideline
+        y: throwAwaySide < 0 ? -40 : TOTAL_H + 40,
       };
       const { ballMetersPerSecond } = getConstants("throwPower", player);
       const PIXELS_PER_METER = (W / 100) * 1.09361;
@@ -518,34 +531,27 @@ function stepAsPlayer(player: Player, state: State) {
       return;
     }
 
+    state.playAdvanced.wasThrowAway = false;
     if (!shouldThrow) return;
 
-    // --- SELF-CONTAINED SUBTLE INACCURACY SYSTEM ---
-
-    // A. Fetch Passer Accuracy and Composure Attributes
     const { shortError } = getConstants("shortAccuracy", player);
     const { deepError } = getConstants("deepAccuracy", player);
     const { pressureSensitivity } = getConstants("pressureFeel", player);
 
-    // B. Continuous Pressure Evaluation (Ramps up when closest rusher breaks within threshold)
     const rawPressure = underPressure
       ? 1 - nearestRusherDist / panicRusherDist
       : 0;
     const pressureFactor = rawPressure * pressureSensitivity;
 
-    // C. Distance Blend (Interpolate error potential based on target field depth)
-    const maxDistanceScale = 400; // ~40 yards out max
+    const maxDistanceScale = 400;
     const distanceWeight = Math.min(1, bestOption.throwDist / maxDistanceScale);
     const baseErrorRate = lerp(distanceWeight, shortError, deepError);
 
-    // D. Construct Total Error Vector Max Magnitude
     const totalErrorMagnitude =
       bestOption.throwDist * baseErrorRate * (1 + pressureFactor);
 
-    // E. Derive a stable, clean angle for ball drift using random variance
     const throwDriftAngle = Math.random() * Math.PI * 2;
 
-    // F. Apply final displacement exclusively to the physical ball destination
     const physicalBallDestination = {
       x:
         bestOption.target.x +
@@ -555,9 +561,6 @@ function stepAsPlayer(player: Player, state: State) {
         Math.sin(throwDriftAngle) * totalErrorMagnitude * 0.2,
     };
 
-    // --- QUANTIFY AND TRACK OFF-TARGET PASSES ---
-    // Define a threshold where the error takes the ball out of an acceptable catch circle
-    // 4 Yards is standard for overthrew/underthrew/sailing metrics
     state.ballFlight = {
       startLoc: { ...state.ball.loc },
       endLoc: physicalBallDestination,
@@ -567,7 +570,6 @@ function stepAsPlayer(player: Player, state: State) {
       receiver: bestOption.catcher,
     };
 
-    // Save the state context flags
     state.playAdvanced.throwFrame = state.steps;
     state.playAdvanced.airYards =
       physicalBallDestination.x - state.scoreboard.LOS;
@@ -1195,7 +1197,7 @@ function calculatePerfectThrowTarget(
   const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
 
   const { ballMetersPerSecond } = getConstants("throwPower", passer);
-  const updatedBMPS = ballMetersPerSecond + 6;
+  const updatedBMPS = ballMetersPerSecond + 8;
   const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
 
   // 1. GENERATE THE RECEIVER'S FUTURE PATH TIMELINE
@@ -1578,6 +1580,7 @@ function resolveBallInAir(state: State) {
     }
 
     // --- FINAL EVALUATION & METRIC TRACKING ---
+    state.playAdvanced.wasOffTarget = false;
     if (isComplete) {
       completePass(state, receiver, endLoc);
     } else if (isInterception) {
@@ -1611,8 +1614,16 @@ function completePass(state: State, receiver: Player, endLoc: Vector) {
 
   // Calculate the distance to the closest defender at the time of the catch
   if (defenders.length > 0) {
+    const receiverRadius = getConstants("SIZE", receiver).radius;
     const minSeparation = Math.min(
-      ...defenders.map((def) => dist(def.loc, receiver.loc)),
+      ...defenders.map((def) => {
+        const centerDistance = dist(def.loc, receiver.loc);
+        const defenderRadius = getConstants("SIZE", def).radius;
+
+        // Subtract both radiuses to find the real space between their bodies.
+        // Math.max(0, ...) ensures it doesn't drop below 0 if they are colliding.
+        return Math.max(0, centerDistance - defenderRadius - receiverRadius);
+      }),
     );
     state.playAdvanced.separationAtCatch = minSeparation;
   } else {

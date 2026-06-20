@@ -17,8 +17,8 @@ const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
 const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 1, // Offensive playcall
-  manPercent: 0, // Defensive underneath coverage
+  passPercent: 0.6, // Offensive playcall
+  manPercent: 0.5, // Defensive underneath coverage
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
 
@@ -273,12 +273,12 @@ function generateDefensivePlaycall(
   const isBlitz = Math.random() < PLAYBOOK_CONFIG.blitzPercent;
   if (SAFETIES_INCLUDED) {
     const SS_ROLE = isBlitz ? "rusher" : "coverer";
-    const SS_X = isBlitz ? LOS + (7 / 100) * W : LOS + (35 / 100) * W;
+    const SS_X = isBlitz ? LOS + (6 / 100) * W : LOS + (35 / 100) * W;
     const SS_Y = isBlitz
       ? Math.random() < 0.5
         ? H * 0.25
         : H * 0.75
-      : (3 * H) / 10;
+      : (25 * H) / 100;
     const SS_SPEED = isBlitz ? 4.5 : 4.8;
     const SS_RADIUS = DEFAULT_RADIUS;
     players.push({
@@ -293,7 +293,7 @@ function generateDefensivePlaycall(
     });
 
     const FS_X = LOS + (35 / 100) * W;
-    const FS_Y = isBlitz ? H / 2 : (7 * H) / 10;
+    const FS_Y = isBlitz ? H / 2 : (75 * H) / 100;
     const FS_SPEED = 4.8;
     const FS_RADIUS = DEFAULT_RADIUS;
     players.push({
