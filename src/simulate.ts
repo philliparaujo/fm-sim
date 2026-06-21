@@ -771,6 +771,15 @@ function resetSimulation(reason: PlayEndReason) {
     ...downDistance,
   };
   state.currentPlay.special = generateSpecialPlaycall(state.scoreboard);
+
+  if (isTouchdown) {
+    state.scoreboard.teams[0].score += 7;
+  } else if (isFieldGoal) {
+    state.scoreboard.teams[0].score += 3;
+  } else if (isSafety) {
+    state.scoreboard.teams[1].score += 2;
+  }
+
   state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;
   state.blockingAssignments = new Map();
   assignCoverageTargets();

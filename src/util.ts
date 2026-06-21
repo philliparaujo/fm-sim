@@ -273,7 +273,7 @@ export function isPuntPlay(state: State): boolean {
 
 export function getLOSAfterPunt(prevLOS: number): number {
   // Convert yard scales cleanly to pixel measurements using field width
-  const AVERAGE_NET_PUNT = (40 / 100) * W;
+  const AVERAGE_NET_PUNT = (45 / 100) * W;
   const TOUCHBACK_POSITION = ENDZONE_W + (20 / 100) * W; // Left goal line + 20 yards
   const OPPONENT_GOAL_LINE = TOTAL_W - ENDZONE_W; // Right goal line
 
