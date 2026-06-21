@@ -1,11 +1,15 @@
 import {
-  calculatePerfectThrowTarget,
-  predictReceiverRoute,
-} from "./playerBehavior";
+  ENDZONE_W,
+  GOALPOST_CROSSBAR_WIDTH,
+  H,
+  TOTAL_H,
+  TOTAL_W,
+  W,
+} from "./constants";
+import { predictReceiverRoute } from "./playerBehavior";
 import { getConstants } from "./ratings";
-import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
 import { Ball, Player, Scoreboard, State, Vector } from "./types";
-import { getPocket, isCarryingBall } from "./util";
+import { getPocket, isCarryingBall, isPassPlay } from "./util";
 
 const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";
@@ -14,6 +18,9 @@ const ENDZONE_COLOR = "rgba(140, 0, 255, 0.5)";
 const LOS_COLOR = "rgba(0, 120, 255, 0.8)";
 const FIRST_DOWN_COLOR = "rgba(255, 255, 0, 0.8)";
 const FIRST_DOWN_4TH_COLOR = "rgba(255, 0, 0, 0.8)";
+const GOALPOST_COLOR = "#FFD400";
+
+const GOALPOST_LINE_WIDTH = 5;
 
 const BALL_COLOR = "#8B4513";
 const BALL_STROKE_COLOR = "#5a2d0c";
@@ -50,6 +57,42 @@ function drawVerticalLine(x: number, color: string) {
   ctx.stroke();
 }
 
+function drawFieldGoalPosts(x: number) {
+  const centerY = TOTAL_H / 2;
+  const halfCrossbar = GOALPOST_CROSSBAR_WIDTH / 2;
+  const POST_MARKER_RADIUS = 6;
+  const CENTER_TICK_LENGTH = 14;
+
+  ctx.save();
+  ctx.strokeStyle = GOALPOST_COLOR;
+  ctx.fillStyle = GOALPOST_COLOR;
+  ctx.lineWidth = GOALPOST_LINE_WIDTH;
+  ctx.lineCap = "round";
+
+  // Crossbar — the only structural piece visible from directly above
+  ctx.beginPath();
+  ctx.moveTo(x, centerY - halfCrossbar);
+  ctx.lineTo(x, centerY + halfCrossbar);
+  ctx.stroke();
+
+  // Upright posts — small dots marking where each post meets the ground
+  ctx.beginPath();
+  ctx.arc(x, centerY - halfCrossbar, POST_MARKER_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(x, centerY + halfCrossbar, POST_MARKER_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Center tick — small perpendicular mark at the midpoint for alignment reference
+  ctx.beginPath();
+  ctx.moveTo(x - CENTER_TICK_LENGTH / 2, centerY);
+  ctx.lineTo(x + CENTER_TICK_LENGTH / 2, centerY);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawField(
   scoreboard?: Pick<Scoreboard, "LOS" | "firstDownLine" | "down">,
 ) {
@@ -66,6 +109,13 @@ function drawField(
   ctx.strokeStyle = FIELD_HASH_COLOR;
   ctx.lineWidth = 6;
   ctx.strokeRect(5, 5, TOTAL_W - 10, TOTAL_H - 10);
+
+  // 2.5 Draw the field goal
+  ctx.strokeStyle = FIELD_HASH_COLOR;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(5, 5, TOTAL_W - 10, TOTAL_H - 10);
+  drawFieldGoalPosts(10);
+  drawFieldGoalPosts(TOTAL_W - 10);
 
   // 3. Draw Yard Lines
   // We'll draw a line every 40 pixels to represent 10 yards
@@ -421,7 +471,7 @@ function render(state: State) {
   const passer = state.players.find((p) => p.role === "passer");
   const catchers = state.players.filter((p) => p.role === "catcher" && p.route);
 
-  if (passer && state.currentPlay.offense === "pass") {
+  if (passer && isPassPlay(state)) {
     for (const catcher of catchers) {
       if (ALL_PREDICTED_ROUTE_ON) {
         drawReceiverPredictedRoute(passer, catcher, state);

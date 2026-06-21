@@ -75,12 +75,15 @@ type Coverage = "man" | "zone";
 
 type OffensivePlayType = "run" | "pass";
 type DefensiveCoverageType = "man" | "manBlitz" | "zone" | "zoneBlitz";
+type SpecialPlayType = "punt" | "fieldgoal" | null;
 type PlayEndReason =
   | "tackle"
   | "touchdown"
   | "sack"
   | "incomplete"
-  | "interception";
+  | "interception"
+  | "fieldgoal"
+  | "punt";
 
 type CountYards = {
   count: number;
@@ -175,6 +178,7 @@ type Stats = {
 type CurrentPlay = {
   offense: OffensivePlayType;
   defense: DefensiveCoverageType;
+  special: SpecialPlayType;
   runAngle?: Vector;
   routes: Route[];
 };
@@ -278,6 +282,7 @@ export type {
   Role,
   Route,
   Scoreboard,
+  SpecialPlayType,
   State,
   Stats,
   Vector,

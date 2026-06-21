@@ -15,6 +15,7 @@ import {
   generateBall,
   generateDefensivePlaycall,
   generateOffensePlaycall,
+  generateSpecialPlaycall,
 } from "./playbook";
 import { attemptTackle, stepAsPlayer } from "./playerBehavior";
 import { getConstants } from "./ratings";
@@ -37,7 +38,10 @@ import {
   diff,
   dist,
   distanceAfterFirstDown,
+  getLOSAfterPunt,
   isCarryingBall,
+  isPassPlay,
+  isRunPlay,
   length,
   numPlays,
   updateDownAndDistance,
@@ -72,6 +76,8 @@ const createInitialState = (startingLOS?: number): State => {
     time: 900,
   };
 
+  const specialPlay = generateSpecialPlaycall(scoreboard);
+
   return {
     steps: 0,
     pausedUntil: 0,
@@ -88,6 +94,7 @@ const createInitialState = (startingLOS?: number): State => {
     currentPlay: {
       offense: offensePlay.playType,
       defense: defensePlay.coverage,
+      special: specialPlay,
       runAngle: offensePlay.runAngle,
       routes: offensePlay.routes,
     },
@@ -184,8 +191,6 @@ function assignCoverageTargets() {
 }
 
 function assignBlockingTargets() {
-  const isRunPlay = state.currentPlay.offense === "run";
-
   // --- Step 1: Assign OL blockers to rushers (1-on-1, no double teams) ---
   const olBlockers = state.players.filter((p) => p.role === "blocker");
   const rushers = state.players.filter((p) => p.role === "rusher");
@@ -228,7 +233,7 @@ function assignBlockingTargets() {
       state.blockingAssignments.delete(runner);
     }
     if (!state.blockingAssignments.has(runner)) {
-      if (!isRunPlay) {
+      if (!isRunPlay(state)) {
         // First, check for any free rusher not already covered by OL
         const allAssignedRushers = new Set(state.blockingAssignments.values());
         const freeRusher = rushers
@@ -252,7 +257,7 @@ function assignBlockingTargets() {
   }
 
   // --- Step 3: On run plays, assign catchers to their man coverer ---
-  if (isRunPlay) {
+  if (isRunPlay(state)) {
     const catchers = state.players.filter(
       (p) => p.role === "catcher" && !isCarryingBall(p, state.ball),
     );
@@ -387,10 +392,9 @@ function resolveCollision(a: Player, b: Entity) {
             "BLOCKSHEDDING",
             defender,
           ).blockShed;
-          const blockerRating =
-            state.currentPlay.offense === "pass"
-              ? getConstants("PASSBLOCK", blocker).antiBlockShed
-              : getConstants("RUNBLOCK", blocker).antiBlockShed;
+          const blockerRating = isPassPlay(state)
+            ? getConstants("PASSBLOCK", blocker).antiBlockShed
+            : getConstants("RUNBLOCK", blocker).antiBlockShed;
 
           // Per-frame base probability (~2% chance per frame baseline at 60 FPS)
           const BASE_SHED_CHANCE = 0.006;
@@ -429,10 +433,9 @@ function resolveCollision(a: Player, b: Entity) {
         } = getConstants("RUNBLOCK", blocker);
         const { randomJitter } = getConstants("BLOCKSHEDDING", defender);
 
-        const isRunBlock = state.currentPlay.offense === "run";
         const damping =
           defender.role === "rusher"
-            ? isRunBlock
+            ? isRunPlay(state)
               ? runBlockDampingFactor
               : rusherDampingFactor
             : covererDampingFactor;
@@ -440,7 +443,7 @@ function resolveCollision(a: Player, b: Entity) {
         applyDamping(defender, damping, randomJitter);
 
         // On run plays, good blockers drive defenders forward
-        if (isRunBlock && defender.role === "rusher") {
+        if (isRunPlay(state) && defender.role === "rusher") {
           const pushStrength =
             (1 - runBlockDampingFactor) * runBlockPushStrength;
           const blockerSpeed = length(blocker.vel);
@@ -463,12 +466,7 @@ function resolveCollision(a: Player, b: Entity) {
       }
 
       // Initiate handoff
-      if (
-        passer &&
-        runner &&
-        state.currentPlay.offense === "run" &&
-        !state.ballGiven
-      ) {
+      if (passer && runner && isRunPlay(state) && !state.ballGiven) {
         state.ball.loc.x = runner.loc.x;
         state.ball.loc.y = runner.loc.y;
         state.ballGiven = true;
@@ -516,7 +514,7 @@ function ballCollideBehavior(player: Player) {
     }
     case "runner": {
       // If runner collides with ball on running play, runner carries ball
-      if (state.currentPlay.offense === "pass" && !state.ballGiven) return;
+      if (isPassPlay(state) && !state.ballGiven) return;
 
       state.ball.loc.x = player.loc.x;
       state.ball.loc.y = player.loc.y;
@@ -545,6 +543,13 @@ function ballCollideBehavior(player: Player) {
 }
 
 function stepSimulation() {
+  if (state.currentPlay.special === "fieldgoal") {
+    resetSimulation("fieldgoal");
+    return;
+  } else if (state.currentPlay.special === "punt") {
+    resetSimulation("punt");
+  }
+
   // Player behavior
   state.steps++;
   assignBlockingTargets();
@@ -631,9 +636,6 @@ async function tick(timestamp: number = performance.now()) {
       // (This updates player movements, pathing, checks collisions, fumbles, etc.)
       stepSimulation();
       timeAccumulator -= LOGIC_TICK_MS;
-      // Example/Typical implementation names:
-      // stepSimulation();
-      // or your inline loop: state.players.forEach(p => stepAsPlayer(p, state));
 
       // --- END OF YOUR EXISTING LIVE GAMESTEP LOGIC ---
 
@@ -696,17 +698,24 @@ function resetSimulation(reason: PlayEndReason) {
   const isSafety = endBallX <= ENDZONE_W;
   const isInterception = reason === "interception";
   const isIncomplete = reason === "incomplete";
+  const isFieldGoal = reason === "fieldgoal";
+  const isPunt = reason == "punt";
   const yards = yardsFromPixels(
     (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
   );
   const nextLOS =
-    isTouchdown || isSafety || isInterception
+    isTouchdown || isSafety || isInterception || isFieldGoal
       ? START_DRIVE
       : isIncomplete
         ? state.scoreboard.LOS
-        : endBallX;
+        : isPunt
+          ? getLOSAfterPunt(prevScoreboard.LOS)
+          : endBallX;
 
-  // console.log("RESETTING FOR", reason);
+  console.log("RESETTING FOR", reason);
+  if (reason === "punt" || reason === "fieldgoal") {
+    console.log(nextLOS, prevScoreboard.LOS);
+  }
 
   if (reason === "sack") {
     state.playAdvanced.sackFrame = state.steps;
@@ -730,7 +739,7 @@ function resetSimulation(reason: PlayEndReason) {
     console.log(numPlays(updatedStats), updatedStats);
 
   let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
-  if (isTouchdown || isInterception || isSafety) {
+  if (isTouchdown || isInterception || isSafety || isFieldGoal || isPunt) {
     const distance = distanceAfterFirstDown(nextLOS);
     downDistance = {
       down: "1st",
@@ -761,6 +770,7 @@ function resetSimulation(reason: PlayEndReason) {
     LOS: nextLOS,
     ...downDistance,
   };
+  state.currentPlay.special = generateSpecialPlaycall(state.scoreboard);
   state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;
   state.blockingAssignments = new Map();
   assignCoverageTargets();

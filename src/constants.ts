@@ -8,6 +8,9 @@ export const TOTAL_H = H;
 
 export const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
 
+/* Field goal constants */
+export const GOALPOST_CROSSBAR_WIDTH = 138; // distance between uprights
+
 /* Simulation constants */
 export let simSpeed = 1;
 export const LOGIC_TICK_MS = 1000 / 60;

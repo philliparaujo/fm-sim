@@ -13,6 +13,7 @@ import {
   Route,
   Scoreboard,
   slantRoute,
+  State,
   Stats,
   streakRoute,
   Vector,
@@ -122,7 +123,7 @@ export function computeFirstDownLine(
 const DOWNS = ["1st", "2nd", "3rd", "4th"] as const;
 
 export function yardsFromPixels(pixels: number): number {
-  return Math.round((pixels / W) * 100);
+  return (pixels / W) * 100;
 }
 
 export function yardsToGoal(LOS: number): number {
@@ -248,4 +249,46 @@ export function hitSideline(loc: Vector): boolean {
     loc.y <= MIN_PLAYABLE_Y ||
     loc.y >= MAX_PLAYABLE_Y
   );
+}
+
+export function isRunPlay(state: State): boolean {
+  return (
+    state.currentPlay.special === null && state.currentPlay.offense === "run"
+  );
+}
+
+export function isPassPlay(state: State): boolean {
+  return (
+    state.currentPlay.special === null && state.currentPlay.offense === "pass"
+  );
+}
+
+export function isFieldGoalPlay(state: State): boolean {
+  return state.currentPlay.special === "fieldgoal";
+}
+
+export function isPuntPlay(state: State): boolean {
+  return state.currentPlay.special === "punt";
+}
+
+export function getLOSAfterPunt(prevLOS: number): number {
+  // Convert yard scales cleanly to pixel measurements using field width
+  const AVERAGE_NET_PUNT = (40 / 100) * W;
+  const TOUCHBACK_POSITION = ENDZONE_W + (20 / 100) * W; // Left goal line + 20 yards
+  const OPPONENT_GOAL_LINE = TOTAL_W - ENDZONE_W; // Right goal line
+
+  // 1. Where does the ball physically land on the screen? (Moving right)
+  const landingSpotX = prevLOS + AVERAGE_NET_PUNT;
+
+  // 2. If it touches or crosses the opponent's goal line, it's a touchback.
+  // The new offense comes out to their own 20-yard line on the left.
+  if (landingSpotX >= OPPONENT_GOAL_LINE) {
+    return TOUCHBACK_POSITION;
+  }
+
+  // 3. Flip perspective: The distance remaining to the opponent's right goal line
+  // becomes the new team's starting distance from their own left goal line.
+  const distanceToOpponentGoal = OPPONENT_GOAL_LINE - landingSpotX;
+
+  return ENDZONE_W + distanceToOpponentGoal;
 }

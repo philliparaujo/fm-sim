@@ -23,8 +23,9 @@ import {
   diff,
   dist,
   getPocket,
-  hitSideline,
   isCarryingBall,
+  isPassPlay,
+  isRunPlay,
   length,
   lerp,
   projectDefenderPosition,
@@ -32,7 +33,6 @@ import {
 
 function stepAsPlayer(player: Player, state: State) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
-  const isPassPlay = state.currentPlay.offense === "pass";
   const ballInAir = state.ballFlight && state.ballFlight.isInFlight;
   const ballIntendedForMe =
     state.ballFlight && state.ballFlight.receiver === player;
@@ -55,7 +55,7 @@ function stepAsPlayer(player: Player, state: State) {
       const isEarlyInRun =
         state.steps - state.ballGivenAtStep < steerDuration && player.runAngle;
 
-      if (isBlocking || isPassPlay) {
+      if (isBlocking || isPassPlay(state)) {
         blockNearestDefender(player);
       } else if (!isCarryingBall(player, state.ball)) {
         runTowardsBall(player, state.ball.loc);
@@ -69,7 +69,7 @@ function stepAsPlayer(player: Player, state: State) {
     case "catcher": {
       if (isCarryingBall(player, state.ball)) {
         runTowardsEndzone(player, avoidStrength);
-      } else if (isBlocking || state.currentPlay.offense === "run") {
+      } else if (isBlocking || isRunPlay(state)) {
         blockNearestDefender(player);
       } else if (ballInAir && ballIntendedForMe) {
         runTowardsBall(player, state.ballFlight!.endLoc);
@@ -107,7 +107,6 @@ function stepAsPlayer(player: Player, state: State) {
   /* Specific actions a player can perform */
   function blockNearestDefender(player: Player) {
     const { maxSpeed } = getConstants("SPEED", player);
-    const isPassPlay = state.currentPlay.offense === "pass";
 
     // 1. Identify valid targets based on dynamic engine assignments
     const assignedDefender = state.blockingAssignments.get(player);
@@ -117,7 +116,7 @@ function stepAsPlayer(player: Player, state: State) {
     const defenders = assignedDefender
       ? [assignedDefender]
       : state.players.filter((p) => {
-          if (player.role === "runner" && isPassPlay) {
+          if (player.role === "runner" && isPassPlay(state)) {
             return p.role === "rusher";
           }
           return p.role === "rusher" || p.role === "coverer";
@@ -126,7 +125,7 @@ function stepAsPlayer(player: Player, state: State) {
     let targetLoc: Vector | null = null;
 
     // 2. PATH A: Passer Protection Constraints (Runners on Pass Plays)
-    if (player.role === "runner" && isPassPlay) {
+    if (player.role === "runner" && isPassPlay(state)) {
       const passer = state.players.find((p) => p.role === "passer");
       const anchorLoc = passer ? passer.loc : state.ball.loc;
 
@@ -600,11 +599,10 @@ function stepAsPlayer(player: Player, state: State) {
     const { lateralStrength, lateralFreq } = getConstants("BEND", player);
     const { maxSpeed } = getConstants("SPEED", player);
 
-    const isRunPlay = state.currentPlay.offense === "run";
     let targetLoc = { ...state.ball.loc };
 
     // GAP CONTAINMENT
-    if (isRunPlay && state.ball.loc.x < state.scoreboard.LOS) {
+    if (isRunPlay(state) && state.ball.loc.x < state.scoreboard.LOS) {
       const playerIndex = state.players.indexOf(player);
       const isOuterRusher = playerIndex === 0 || playerIndex === 2;
 

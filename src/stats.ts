@@ -193,6 +193,8 @@ export function updateStatsAfterPlay(
   los?: number,
   finalBallX?: number,
 ): Stats {
+  if (reason === "fieldgoal" || reason === "punt") return stats;
+
   const next: Stats = structuredClone(stats);
   const matchupKey = playcallCoverageKey(play.offense, play.defense);
   const completion = isPassCompletion(reason, ballGiven, ballCarrierRole);

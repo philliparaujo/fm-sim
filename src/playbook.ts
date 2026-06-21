@@ -1,12 +1,20 @@
+import { ENDZONE_W, H, W } from "./constants";
+import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
 import {
-  Attribute,
-  createBaseRatings,
-  getDefaultRatingForLabel,
-  Ratings,
-} from "./ratings";
-import { H, W } from "./constants";
-import { Ball, PartialPlayer, Player, Route, Vector } from "./types";
-import { emptyVector, randomRoute, randomRunVector } from "./util";
+  Ball,
+  PartialPlayer,
+  Player,
+  Route,
+  Scoreboard,
+  SpecialPlayType,
+  Vector,
+} from "./types";
+import {
+  emptyVector,
+  randomRoute,
+  randomRunVector,
+  yardsFromPixels,
+} from "./util";
 
 const BLOCKERS_INCLUDED = true;
 const PASSER_INCLUDED = true;
@@ -318,6 +326,29 @@ function generateDefensivePlaycall(
   return { players, coverage };
 }
 
+function generateSpecialPlaycall(scoreboard: Scoreboard): SpecialPlayType {
+  const GO_FOR_IT_DISTANCE = 2;
+  const MAX_FIELD_GOAL_KICK_DISTANCE = 55; // actual kick distance, not LOS distance
+
+  const FIELD_GOAL_SNAP_DEPTH = 7; // yards back from LOS for the kick spot
+  const HOLDER_TO_CROSSBAR_DEPTH = 10; // yards from goal line to back of endzone/crossbar
+
+  const yardsToOpponentEndzone = yardsFromPixels(
+    W + ENDZONE_W - scoreboard.LOS,
+  );
+  const fieldGoalKickDistance =
+    yardsToOpponentEndzone + FIELD_GOAL_SNAP_DEPTH + HOLDER_TO_CROSSBAR_DEPTH;
+
+  if (scoreboard.down !== "4th") return null;
+  if (
+    scoreboard.distance === "goal" &&
+    yardsToOpponentEndzone <= GO_FOR_IT_DISTANCE
+  )
+    return null;
+  if (fieldGoalKickDistance <= MAX_FIELD_GOAL_KICK_DISTANCE) return "fieldgoal";
+  return "punt";
+}
+
 function fillOutPlayer(partial: PartialPlayer): Player {
   return {
     // TEMP: Ratings
@@ -374,6 +405,7 @@ export {
   generateBall,
   generateDefensivePlaycall,
   generateOffensePlaycall,
+  generateSpecialPlaycall,
   PLAYBOOK_CONFIG,
   saveRating,
 };

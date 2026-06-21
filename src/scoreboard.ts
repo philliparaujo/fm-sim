@@ -15,7 +15,7 @@ function updateScoreboardUI(data: Scoreboard) {
   // 3. Update Down & Distance
   // Example: "1st & 10"
   document.getElementById("down-dist")!.textContent =
-    `${data.down} & ${data.distance}`;
+    `${data.down} & ${data.distance === "goal" ? "goal" : Math.round(data.distance)}`;
 
   // 4. Update Yard Line
   // Reuse your string conversion logic from earlier
