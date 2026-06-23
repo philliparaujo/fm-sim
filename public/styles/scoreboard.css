@@ -58,7 +58,18 @@
 }
 
 .possession-dot {
-  color: #00ff00;
+  color: #ffd700; /* Bright gold/yellow color */
+  font-size: 32px;
+  line-height: 0;
+  display: inline-block;
+  margin-right: 4px;
+  opacity: 0; /* Hidden by default */
+  transition: opacity 0.1s ease;
+}
+
+/* When the active class is added, reveal the dot */
+.possession-dot.active {
+  opacity: 1;
 }
 
 .scoreboard-value {

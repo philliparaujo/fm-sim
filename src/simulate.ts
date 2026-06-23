@@ -40,27 +40,29 @@ import {
   dist,
   distanceAfterFirstDown,
   getLOSAfterPunt,
+  getPossessingTeam,
   isCarryingBall,
   isPassPlay,
   isRunPlay,
   length,
   numPlays,
+  teamId,
   updateDownAndDistance,
   vectorToString,
   yardsFromPixels,
 } from "./util";
 
 const createInitialState = (
-  redTeam: Team,
-  blueTeam: Team,
+  offenseTeam: Team,
+  defenseTeam: Team,
   startingLOS?: number,
 ): State => {
   const LOS = startingLOS ?? START_DRIVE;
   const ball = generateBall(LOS);
-  const offensePlay = generateOffensePlaycall2(LOS, ball, redTeam);
+  const offensePlay = generateOffensePlaycall2(LOS, ball, offenseTeam);
   const defensePlay = generateDefensivePlaycall2(
     LOS,
-    blueTeam,
+    defenseTeam,
     offensePlay.players,
   );
 
@@ -70,7 +72,10 @@ const createInitialState = (
     LOS: LOS,
     firstDownLine: computeFirstDownLine(LOS, 10),
     quarter: "1st",
-    teams: [redTeam, blueTeam],
+    teams: [
+      { ...offenseTeam, possessing: true },
+      { ...defenseTeam, possessing: false },
+    ],
     time: 900,
   };
 
@@ -719,17 +724,36 @@ function resetSimulation(reason: PlayEndReason) {
   const isIncomplete = reason === "incomplete";
   const isFieldGoal = reason === "fieldgoal";
   const isPunt = reason == "punt";
+
+  // Determine where the ball naturally died before checking for a turnover
+  const finalLOSBeforeFlip = isIncomplete ? prevScoreboard.LOS : endBallX;
+
+  // Detect a Turnover on Downs (Failed to cross firstDownLine on 4th down)
+  const isTurnoverOnDowns =
+    prevScoreboard.down === "4th" &&
+    !isTouchdown &&
+    !isSafety &&
+    !isInterception &&
+    !isFieldGoal &&
+    !isPunt &&
+    finalLOSBeforeFlip < (prevScoreboard.firstDownLine ?? Infinity);
+
+  // Calculate the next Line of Scrimmage with a field-perspective flip if possession changes
+  let nextLOS = START_DRIVE;
+  if (isTouchdown || isSafety || isInterception || isFieldGoal) {
+    nextLOS = START_DRIVE;
+  } else if (isPunt) {
+    nextLOS = getLOSAfterPunt(prevScoreboard.LOS);
+  } else if (isTurnoverOnDowns) {
+    // Flip the ball position so the new offense drives left-to-right from that spot
+    nextLOS = TOTAL_W - finalLOSBeforeFlip;
+  } else {
+    nextLOS = finalLOSBeforeFlip;
+  }
+
   const yards = yardsFromPixels(
     (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
   );
-  const nextLOS =
-    isTouchdown || isSafety || isInterception || isFieldGoal
-      ? START_DRIVE
-      : isIncomplete
-        ? state.scoreboard.LOS
-        : isPunt
-          ? getLOSAfterPunt(prevScoreboard.LOS)
-          : endBallX;
 
   console.log("RESETTING FOR", reason);
   if (reason === "punt" || reason === "fieldgoal") {
@@ -739,6 +763,7 @@ function resetSimulation(reason: PlayEndReason) {
   if (reason === "sack") {
     state.playAdvanced.sackFrame = state.steps;
   }
+
   const updatedStats = updateStatsAfterPlay(
     prevStats,
     currentPlay,
@@ -753,12 +778,19 @@ function resetSimulation(reason: PlayEndReason) {
     endBallX,
   );
 
-  // Log simulation stats
   if (numPlays(updatedStats) % 100 == 0)
     console.log(numPlays(updatedStats), updatedStats);
 
+  // Set up down and distance metadata (Turnovers grant a fresh 1st down)
   let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
-  if (isTouchdown || isInterception || isSafety || isFieldGoal || isPunt) {
+  if (
+    isTouchdown ||
+    isInterception ||
+    isSafety ||
+    isFieldGoal ||
+    isPunt ||
+    isTurnoverOnDowns
+  ) {
     const distance = distanceAfterFirstDown(nextLOS);
     downDistance = {
       down: "1st",
@@ -776,28 +808,58 @@ function resetSimulation(reason: PlayEndReason) {
       completedPlays.pop();
     }
     currentPlayFrames = [];
-
-    // Dispatch a custom window event so app.ts knows to unlock history buttons
     window.dispatchEvent(new CustomEvent("playRecorded"));
   }
 
-  // Reset state
-  Object.assign(state, createInitialState(teams[0], teams[1], nextLOS));
+  // --- POSSESSION & SCORE MASTER UPDATE ---
+  // Find the exact active elements in the global teams array to keep data fresh
+  const activeOffenseTeam = getPossessingTeam(state);
+  const globalOffenseTeam = teams.find(
+    (t) => t.name === activeOffenseTeam.name,
+  )!;
+  const globalDefenseTeam =
+    teamId(teams[0]) === teamId(globalOffenseTeam) ? teams[1] : teams[0];
+
+  // Apply scoring directly to the master global objects
+  if (isTouchdown) {
+    globalOffenseTeam.score += 7;
+  } else if (isFieldGoal) {
+    globalOffenseTeam.score += 3;
+  } else if (isSafety) {
+    globalDefenseTeam.score += 2;
+  }
+
+  // Check all possible reasons possession shifts to the other team
+  const flipPossession =
+    isTouchdown ||
+    isFieldGoal ||
+    isSafety ||
+    isPunt ||
+    isInterception ||
+    isTurnoverOnDowns;
+
+  if (flipPossession) {
+    // Pass the fresh global master objects with updated scores to the new state
+    Object.assign(
+      state,
+      createInitialState(globalDefenseTeam, globalOffenseTeam, nextLOS),
+    );
+  } else {
+    Object.assign(
+      state,
+      createInitialState(globalOffenseTeam, globalDefenseTeam, nextLOS),
+    );
+  }
+
+  // Sync historical scoreboard structures with the fresh layout
   state.stats = updatedStats;
   state.scoreboard = {
-    ...prevScoreboard,
-    LOS: nextLOS,
+    ...state.scoreboard,
+    quarter: prevScoreboard.quarter,
+    time: prevScoreboard.time,
     ...downDistance,
   };
   state.currentPlay.special = generateSpecialPlaycall(state.scoreboard);
-
-  if (isTouchdown) {
-    state.scoreboard.teams[0].score += 7;
-  } else if (isFieldGoal) {
-    state.scoreboard.teams[0].score += 3;
-  } else if (isSafety) {
-    state.scoreboard.teams[1].score += 2;
-  }
 
   state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;
   state.blockingAssignments = new Map();
@@ -805,7 +867,7 @@ function resetSimulation(reason: PlayEndReason) {
 
   // Reset timing logic
   simStartTime = state.pausedUntil;
-  timeAccumulator = 0; // Reset the bucket to avoid logic jumps
+  timeAccumulator = 0;
   runCount++;
 
   // Draw scoreboard

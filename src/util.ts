@@ -22,6 +22,7 @@ import {
   State,
   Stats,
   streakRoute,
+  Team,
   Vector,
 } from "./types";
 
@@ -321,4 +322,18 @@ export function buildDefaultRoster(teamColor: string): Roster {
     label,
     ratings: getDefaultRatingForLabel(label),
   }));
+}
+
+export function getPossessingTeam(state: State): Team {
+  const teams = state.scoreboard.teams;
+  for (const team of teams) {
+    if (team.possessing) return team;
+  }
+
+  console.warn("No team found with possession??");
+  return teams[0];
+}
+
+export function teamId(team: Team): string {
+  return `${team.color}|${team.name}`;
 }
