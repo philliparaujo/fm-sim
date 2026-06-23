@@ -18,23 +18,44 @@ interface Ball extends Entity {
   radius: number;
 }
 
-type Position = "offense" | "defense";
+const PLAYER_LABELS = [
+  "LT",
+  "C",
+  "RT",
+  "QB",
+  "XR",
+  "ZR",
+  "TE",
+  "RB",
+  "LE",
+  "DT",
+  "RE",
+  "CB",
+  "NB",
+  "LB",
+  "FS",
+  "SS",
+] as const;
+type Label = (typeof PLAYER_LABELS)[number];
+
+type Side = "offense" | "defense";
 type Role = "blocker" | "runner" | "catcher" | "passer" | "rusher" | "coverer";
 
-interface PartialPlayer extends Entity {
-  type: "player";
+interface RosterPlayer {
   color: string;
-  label: string;
-  position: Position;
-  role: Role;
+  label: Label;
+  ratings: Ratings;
+}
+type Roster = RosterPlayer[];
 
+interface Player extends Entity, RosterPlayer {
+  type: "player";
+  role: Role;
+  side: Side;
   runAngle?: Vector; // For runners
   route?: Route; // For receivers
   coverage?: Coverage; // For coverers
-}
 
-interface Player extends PartialPlayer {
-  ratings: Ratings;
   prevVel: Vector;
 
   // For passers
@@ -197,12 +218,13 @@ const slantRoute: Route = { breakAngle: 65, steps: 3, stopAfterBreak: false };
 const dragRoute: Route = { breakAngle: 90, steps: 2, stopAfterBreak: false };
 const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
 
-type ScoreboardTeam = {
+type Team = {
   name: string;
   color: string;
   score: number;
   timeouts: 0 | 1 | 2 | 3;
   possessing: boolean;
+  roster: Roster;
 };
 
 type Scoreboard = {
@@ -212,13 +234,13 @@ type Scoreboard = {
   quarter: "1st" | "2nd" | "3rd" | "4th";
   down: "1st" | "2nd" | "3rd" | "4th";
   distance: "goal" | number;
-  teams: ScoreboardTeam[];
+  teams: Team[];
 };
 
 type ReplayFrame = {
   ballLoc: Vector;
   ballVel: Vector;
-  players: Array<PartialPlayer>;
+  players: Player[];
   scoreboard: Scoreboard;
 };
 
@@ -256,6 +278,7 @@ export {
   flatRoute,
   inRoute,
   outRoute,
+  PLAYER_LABELS,
   postRoute,
   slantRoute,
   streakRoute,
@@ -269,7 +292,7 @@ export type {
   DefensiveCoverageType,
   Entity,
   OffensivePlayType,
-  PartialPlayer,
+  Label,
   PlayAdvancedData,
   PlaycallCoverageKey,
   PlayCallCoverageStats,
@@ -280,10 +303,14 @@ export type {
   RBStats,
   ReplayFrame,
   Role,
+  Roster,
+  RosterPlayer,
   Route,
   Scoreboard,
+  Side,
   SpecialPlayType,
   State,
   Stats,
+  Team,
   Vector,
 };

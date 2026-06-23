@@ -1,4 +1,5 @@
 import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
+import { getDefaultRatingForLabel } from "./ratings";
 import {
   Ball,
   cornerRoute,
@@ -7,11 +8,16 @@ import {
   dragRoute,
   flatRoute,
   inRoute,
+  Label,
   outRoute,
   Player,
+  PLAYER_LABELS,
   postRoute,
+  Role,
+  Roster,
   Route,
   Scoreboard,
+  Side,
   slantRoute,
   State,
   Stats,
@@ -291,4 +297,28 @@ export function getLOSAfterPunt(prevLOS: number): number {
   const distanceToOpponentGoal = OPPONENT_GOAL_LINE - landingSpotX;
 
   return ENDZONE_W + distanceToOpponentGoal;
+}
+
+export function labelToSide(label: Label): Side {
+  if (["LT", "C", "RT", "QB", "XR", "ZR", "TE", "RB"].includes(label))
+    return "offense";
+  return "defense";
+}
+
+export function labelToRole(label: Label): Role {
+  if (["LT", "C", "RT"].includes(label)) return "blocker";
+  if (["QB"].includes(label)) return "passer";
+  if (["XR", "ZR", "TE"].includes(label)) return "catcher";
+  if (["RB"].includes(label)) return "runner";
+  if (["LE", "DT", "RE"].includes(label)) return "rusher";
+  return "coverer";
+}
+
+export function buildDefaultRoster(teamColor: string): Roster {
+  const labels: Label[] = [...PLAYER_LABELS];
+  return labels.map((label) => ({
+    color: teamColor,
+    label,
+    ratings: getDefaultRatingForLabel(label),
+  }));
 }

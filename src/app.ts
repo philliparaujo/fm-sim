@@ -78,12 +78,12 @@ function buildDashboard() {
   container.innerHTML = "";
 
   // Group players by team color then role
-  const offensePlayers = state.players.filter((p) => p.position === "offense");
-  const defensePlayers = state.players.filter((p) => p.position === "defense");
+  const offensePlayers = state.players.filter((p) => p.side === "offense");
+  const defensePlayers = state.players.filter((p) => p.side === "defense");
 
-  const groups: { label: string; players: Player[] }[] = [
-    { label: "Offense", players: offensePlayers },
-    { label: "Defense", players: defensePlayers },
+  const groups: { side: string; players: Player[] }[] = [
+    { side: "Offense", players: offensePlayers },
+    { side: "Defense", players: defensePlayers },
   ];
 
   for (const group of groups) {
@@ -92,7 +92,7 @@ function buildDashboard() {
 
     const groupHeader = document.createElement("div");
     groupHeader.className = "dash-group-header";
-    groupHeader.textContent = group.label;
+    groupHeader.textContent = group.side;
     groupEl.appendChild(groupHeader);
 
     const cardsRow = document.createElement("div");

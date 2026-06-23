@@ -10,11 +10,9 @@ import {
   W,
 } from "./constants";
 import {
-  fillOutPlayer,
-  fillOutPlayers,
   generateBall,
-  generateDefensivePlaycall,
-  generateOffensePlaycall,
+  generateDefensivePlaycall2,
+  generateOffensePlaycall2,
   generateSpecialPlaycall,
 } from "./playbook";
 import { attemptTackle, stepAsPlayer } from "./playerBehavior";
@@ -28,11 +26,14 @@ import {
   PlayEndReason,
   Player,
   ReplayFrame,
+  Roster,
   Scoreboard,
   State,
+  Team,
 } from "./types";
 import {
   applyDamping,
+  buildDefaultRoster,
   closestPointOnSegment,
   computeFirstDownLine,
   diff,
@@ -49,19 +50,19 @@ import {
   yardsFromPixels,
 } from "./util";
 
-const createInitialState = (startingLOS?: number): State => {
+const createInitialState = (
+  redTeam: Team,
+  blueTeam: Team,
+  startingLOS?: number,
+): State => {
   const LOS = startingLOS ?? START_DRIVE;
   const ball = generateBall(LOS);
-  const offensePlay = generateOffensePlaycall(LOS, ball, "red");
-  const defensePlay = generateDefensivePlaycall(
+  const offensePlay = generateOffensePlaycall2(LOS, ball, redTeam);
+  const defensePlay = generateDefensivePlaycall2(
     LOS,
-    "blue",
+    blueTeam,
     offensePlay.players,
   );
-  const players = fillOutPlayers([
-    ...offensePlay.players,
-    ...defensePlay.players,
-  ]);
 
   const scoreboard: Scoreboard = {
     distance: 10,
@@ -69,10 +70,7 @@ const createInitialState = (startingLOS?: number): State => {
     LOS: LOS,
     firstDownLine: computeFirstDownLine(LOS, 10),
     quarter: "1st",
-    teams: [
-      { color: "red", name: "RED", score: 0, timeouts: 3, possessing: true },
-      { color: "blue", name: "BLU", score: 0, timeouts: 3, possessing: false },
-    ],
+    teams: [redTeam, blueTeam],
     time: 900,
   };
 
@@ -100,11 +98,30 @@ const createInitialState = (startingLOS?: number): State => {
     },
     ball: ball,
     ballFlight: null,
-    players: players,
+    players: [...offensePlay.players, ...defensePlay.players],
   };
 };
 
-let state: State = createInitialState();
+const teams: Team[] = [
+  {
+    color: "red",
+    name: "RED",
+    score: 0,
+    timeouts: 3,
+    possessing: true,
+    roster: buildDefaultRoster("red"),
+  },
+  {
+    color: "blue",
+    name: "BLU",
+    score: 0,
+    timeouts: 3,
+    possessing: false,
+    roster: buildDefaultRoster("blue"),
+  },
+];
+
+let state: State = createInitialState(teams[0], teams[1]);
 assignCoverageTargets();
 let simStartTime = performance.now();
 let runCount = 1;
@@ -132,6 +149,8 @@ function captureReplayFrame() {
       ...p,
       loc: { x: p.loc.x, y: p.loc.y },
       vel: { x: p.vel.x, y: p.vel.y },
+      prevVel: { x: p.prevVel.x, y: p.prevVel.y },
+      assignedTarget: null,
     })),
     // Create a deep value copy of the scoreboard state
     scoreboard: JSON.parse(JSON.stringify(state.scoreboard)),
@@ -672,7 +691,7 @@ async function tick(timestamp: number = performance.now()) {
       const mockState: State = {
         ...state,
         ball: { ...state.ball, loc: frame.ballLoc, vel: frame.ballVel },
-        players: frame.players.map((fp) => fillOutPlayer(fp)),
+        players: frame.players,
         scoreboard: frame.scoreboard,
       };
 
@@ -763,7 +782,7 @@ function resetSimulation(reason: PlayEndReason) {
   }
 
   // Reset state
-  Object.assign(state, createInitialState(nextLOS));
+  Object.assign(state, createInitialState(teams[0], teams[1], nextLOS));
   state.stats = updatedStats;
   state.scoreboard = {
     ...prevScoreboard,
