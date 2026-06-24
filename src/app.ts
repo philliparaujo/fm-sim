@@ -1,6 +1,6 @@
 import { setSimSpeed } from "./constants";
 import { PLAYBOOK_CONFIG, saveRating } from "./playbook";
-import { Attribute } from "./ratings";
+import { Attribute, getLetterGrade } from "./ratings";
 import {
   getCompletedPlaysCount,
   onPlayReset,
@@ -9,6 +9,7 @@ import {
   tick,
 } from "./simulate";
 import { Player, Label, Role, PLAYER_LABELS } from "./types";
+import { labelToSide } from "./util";
 
 // Explicit lookup map to resolve a roster player's attributes via their label
 const LABEL_TO_ROLE: Record<Label, Role> = {
@@ -66,23 +67,23 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
 const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   SPEED: "Speed",
   SIZE: "Size",
-  pocketPresence: "Pocket Presence",
-  pressureFeel: "Pressure Feel",
-  decisionMaking: "Decision Making",
-  shortAccuracy: "Short Accuracy",
-  deepAccuracy: "Deep Accuracy",
+  pocketPresence: "Pocket Pres.",
+  pressureFeel: "Press. Feel",
+  decisionMaking: "Dec. Making",
+  shortAccuracy: "Short Acc.",
+  deepAccuracy: "Deep Acc.",
   throwPower: "Throw Power",
   VISION: "Vision",
   POWER: "Power",
   routeRunning: "Route Running",
-  catchAcceleration: "Catch Acceleration",
+  catchAcceleration: "Catch Accel.",
   catchRadius: "Catch Radius",
   PASSBLOCK: "Pass Block",
   RUNBLOCK: "Run Block",
-  BLOCKSHEDDING: "Block Shedding",
+  BLOCKSHEDDING: "Block Shed",
   BEND: "Bend",
-  manCoverage: "Man Coverage",
-  zoneCoverage: "Zone Coverage",
+  manCoverage: "Man Cov.",
+  zoneCoverage: "Zone Cov.",
   PURSUIT: "Pursuit",
   TACKLING: "Tackling",
 };
@@ -110,176 +111,196 @@ function buildDashboard() {
   const container = document.getElementById("player-dashboard")!;
   container.innerHTML = "";
 
-  // Guard clause if the scoreboard state hasn't initialized yet
-  if (!state.scoreboard || !state.scoreboard.teams) return;
+  if (!state.scoreboard?.teams) return;
 
-  // 1. Force sync the newly spawned live field players with our persistent attributes cache
+  // Sync live player ratings from cache
   if (state.players) {
     for (const p of state.players) {
-      const cachedPlayerRatings = PLAYER_RATINGS_CACHE[p.color]?.[p.label];
-      if (cachedPlayerRatings) {
-        for (const attr of Object.keys(cachedPlayerRatings)) {
-          p.ratings[attr as Attribute] = cachedPlayerRatings[attr as Attribute];
+      const cached = PLAYER_RATINGS_CACHE[p.color]?.[p.label];
+      if (cached) {
+        for (const attr of Object.keys(cached)) {
+          p.ratings[attr as Attribute] = cached[attr as Attribute];
         }
       }
     }
   }
 
-  // 2. Identify active units to sync and update playbook slider positions
   const offenseTeam = state.scoreboard.teams.find((t) => t.possessing);
   const defenseTeam = state.scoreboard.teams.find((t) => !t.possessing);
 
+  // Sync playbook sliders
   if (offenseTeam) {
     PLAYBOOK_CONFIG.passPercent = TEAM_PLAYBOOKS[offenseTeam.color].passPercent;
-    const passSlider = document.getElementById(
-      "pass-slider",
-    ) as HTMLInputElement;
-    const passLabel = document.getElementById("pass-label") as HTMLSpanElement;
-    if (passSlider && passLabel) {
-      passSlider.value = String(PLAYBOOK_CONFIG.passPercent);
-      passLabel.textContent = `${PLAYBOOK_CONFIG.passPercent * 100}%`;
+    const ps = document.getElementById("pass-slider") as HTMLInputElement;
+    const pl = document.getElementById("pass-label") as HTMLSpanElement;
+    if (ps && pl) {
+      ps.value = String(PLAYBOOK_CONFIG.passPercent);
+      pl.textContent = `${PLAYBOOK_CONFIG.passPercent * 100}%`;
     }
   }
   if (defenseTeam) {
     PLAYBOOK_CONFIG.manPercent = TEAM_PLAYBOOKS[defenseTeam.color].manPercent;
     PLAYBOOK_CONFIG.blitzPercent =
       TEAM_PLAYBOOKS[defenseTeam.color].blitzPercent;
-
-    const manSlider = document.getElementById("man-slider") as HTMLInputElement;
-    const manLabel = document.getElementById("man-label") as HTMLSpanElement;
-    if (manSlider && manLabel) {
-      manSlider.value = String(PLAYBOOK_CONFIG.manPercent);
-      manLabel.textContent = `${PLAYBOOK_CONFIG.manPercent * 100}%`;
+    const ms = document.getElementById("man-slider") as HTMLInputElement;
+    const ml = document.getElementById("man-label") as HTMLSpanElement;
+    if (ms && ml) {
+      ms.value = String(PLAYBOOK_CONFIG.manPercent);
+      ml.textContent = `${PLAYBOOK_CONFIG.manPercent * 100}%`;
     }
-
-    const blitzSlider = document.getElementById(
-      "blitz-slider",
-    ) as HTMLInputElement;
-    const blitzLabel = document.getElementById(
-      "blitz-label",
-    ) as HTMLSpanElement;
-    if (blitzSlider && blitzLabel) {
-      blitzSlider.value = String(PLAYBOOK_CONFIG.blitzPercent);
-      blitzLabel.textContent = `${PLAYBOOK_CONFIG.blitzPercent * 100}%`;
+    const bs = document.getElementById("blitz-slider") as HTMLInputElement;
+    const bl = document.getElementById("blitz-label") as HTMLSpanElement;
+    if (bs && bl) {
+      bs.value = String(PLAYBOOK_CONFIG.blitzPercent);
+      bl.textContent = `${PLAYBOOK_CONFIG.blitzPercent * 100}%`;
     }
   }
 
-  // SORT TEAMS BY NAME: This keeps the visual columns locked to the same teams
   const sortedTeams = [...state.scoreboard.teams].sort((a, b) =>
-    a.name.localeCompare(b.name),
+    b.name.localeCompare(a.name),
   );
 
   for (const team of sortedTeams) {
-    const groupEl = document.createElement("div");
-    groupEl.className = "dash-group";
+    const section = document.createElement("div");
+    section.className = "dash-team-section";
 
-    const groupHeader = document.createElement("div");
-    groupHeader.className = "dash-group-header";
-
-    groupHeader.textContent = team.possessing ? `${team.name} 🏈` : team.name;
-    groupEl.appendChild(groupHeader);
-
-    const cardsRow = document.createElement("div");
-    cardsRow.className = "dash-cards-row";
+    // Team header
+    const header = document.createElement("div");
+    header.className = "dash-team-header";
+    header.innerHTML = `<span class="dash-team-name" style="color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${team.name}</span>${team.possessing ? ' <span class="dash-possession-badge">🏈 Offense</span>' : ' <span class="dash-possession-badge">🛡 Defense</span>'}`;
+    section.appendChild(header);
 
     const sortedRoster = [...team.roster].sort(
       (a, b) => PLAYER_LABELS.indexOf(a.label) - PLAYER_LABELS.indexOf(b.label),
     );
 
-    for (const rosterPlayer of sortedRoster) {
-      const role = LABEL_TO_ROLE[rosterPlayer.label] ?? "blocker";
-      const attrs = ROLE_ATTRIBUTES[role] ?? ["SPEED"];
+    // Group by offense / defense
+    const offensePlayers = sortedRoster.filter(
+      (rp) => labelToSide(rp.label) === "offense",
+    );
+    const defensePlayers = sortedRoster.filter(
+      (rp) => labelToSide(rp.label) === "defense",
+    );
 
-      const card = document.createElement("div");
-      card.className = "dash-card";
+    for (const [groupLabel, group] of [
+      ["Offense", offensePlayers],
+      ["Defense", defensePlayers],
+    ] as [string, typeof sortedRoster][]) {
+      if (group.length === 0) continue;
 
-      const isOnField = state.players.some(
-        (p) => p.label === rosterPlayer.label && p.color === team.color,
-      );
+      // Collect all unique attrs for this group
+      const allAttrs = [
+        ...new Set(
+          group.flatMap((rp) => ROLE_ATTRIBUTES[LABEL_TO_ROLE[rp.label]] ?? []),
+        ),
+      ];
 
-      if (!isOnField) {
-        card.style.opacity = "0.5";
-        card.style.filter = "desaturate(40%)";
-      }
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "dash-table-wrap";
 
-      const roleLabel = document.createElement("div");
-      roleLabel.className = "dash-role";
-      roleLabel.textContent = isOnField
-        ? rosterPlayer.label
-        : `${rosterPlayer.label} (Bench)`;
-      roleLabel.style.borderColor = team.color;
-      card.appendChild(roleLabel);
+      const groupLabel2 = document.createElement("div");
+      groupLabel2.className = "dash-sub-header";
+      groupLabel2.textContent = groupLabel;
+      tableWrap.appendChild(groupLabel2);
 
-      for (const attr of attrs) {
-        // Initialize cache structures safely if they are blank
-        if (!PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label]) {
-          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label] = {};
-        }
+      const table = document.createElement("table");
+      table.className = "dash-table";
 
-        // Apply from persistent cache or fill cache from current instance properties
-        if (
-          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr] !==
-          undefined
-        ) {
-          rosterPlayer.ratings[attr] =
-            PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr];
-        } else {
-          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr] =
-            rosterPlayer.ratings[attr] ?? 0.5;
-        }
+      // Header row
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headerRow.innerHTML =
+        `<th class="dash-th dash-th-label">Player</th>` +
+        allAttrs
+          .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
+          .join("");
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
 
-        const currentRating = rosterPlayer.ratings[attr];
+      // Body rows
+      const tbody = document.createElement("tbody");
+      for (const rp of group) {
+        const role = LABEL_TO_ROLE[rp.label];
+        const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
+        const isOnField = state.players.some(
+          (p) => p.label === rp.label && p.color === team.color,
+        );
 
-        const row = document.createElement("div");
-        row.className = "dash-attr-row";
+        const row = document.createElement("tr");
+        row.className = "dash-row";
 
-        const labelEl = document.createElement("span");
-        labelEl.className = "dash-attr-label";
-        labelEl.textContent = ATTR_LABELS[attr] ?? attr;
+        // Label cell
+        const labelCell = document.createElement("td");
+        labelCell.className = "dash-td-label";
+        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${rp.label}</span>${!isOnField ? '<span class="dash-bench-tag">bench</span>' : ""}`;
+        row.appendChild(labelCell);
 
-        const valueEl = document.createElement("span");
-        valueEl.className = "dash-attr-value";
-        valueEl.textContent = ratingToPercent(currentRating);
+        // Attr cells
+        for (const attr of allAttrs) {
+          const td = document.createElement("td");
+          td.className = "dash-td";
 
-        const slider = document.createElement("input");
-        slider.type = "range";
-        slider.min = "0";
-        slider.max = "100";
-        slider.step = "1";
-        slider.value = ratingToPercent(currentRating);
-        slider.className = "dash-slider";
-
-        slider.addEventListener("input", () => {
-          const newRating = Number(slider.value) / 100;
-
-          // 1. Update the isolated persistent data structures
-          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr] =
-            newRating;
-          rosterPlayer.ratings[attr] = newRating;
-          saveRating(rosterPlayer.label, attr, newRating);
-
-          // 2. Synchronize directly into live play if they are on the field
-          const livePlayer = state.players.find(
-            (p) => p.label === rosterPlayer.label && p.color === team.color,
-          );
-          if (livePlayer) {
-            livePlayer.ratings[attr] = newRating;
+          if (!playerAttrs.includes(attr)) {
+            td.innerHTML = `<span class="dash-td-empty">—</span>`;
+            row.appendChild(td);
+            continue;
           }
 
-          valueEl.textContent = slider.value;
-        });
+          if (!PLAYER_RATINGS_CACHE[team.color][rp.label]) {
+            PLAYER_RATINGS_CACHE[team.color][rp.label] = {};
+          }
+          if (PLAYER_RATINGS_CACHE[team.color][rp.label][attr] !== undefined) {
+            rp.ratings[attr] = PLAYER_RATINGS_CACHE[team.color][rp.label][attr];
+          } else {
+            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] =
+              rp.ratings[attr] ?? 0.5;
+          }
 
-        row.appendChild(labelEl);
-        row.appendChild(slider);
-        row.appendChild(valueEl);
-        card.appendChild(row);
+          const ratingPct = Math.round((rp.ratings[attr] ?? 0.5) * 100);
+          const { grade, color } = getLetterGrade(attr, ratingPct);
+
+          const gradeEl = document.createElement("span");
+          gradeEl.className = "dash-grade-badge";
+          gradeEl.style.color = color;
+          gradeEl.textContent = grade;
+
+          const slider = document.createElement("input");
+          slider.type = "number";
+          slider.min = "0";
+          slider.max = "100";
+          slider.step = "1";
+          slider.value = String(ratingPct);
+          slider.className = "dash-inline-number";
+
+          slider.addEventListener("input", () => {
+            const newRating = Number(slider.value) / 100;
+            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] = newRating;
+            rp.ratings[attr] = newRating;
+            saveRating(rp.label, attr, newRating);
+            const livePlayer = state.players.find(
+              (p) => p.label === rp.label && p.color === team.color,
+            );
+            if (livePlayer) livePlayer.ratings[attr] = newRating;
+            const pct = Math.round(newRating * 100);
+            const { grade: g, color: c } = getLetterGrade(attr, pct);
+            gradeEl.textContent = g;
+            gradeEl.style.color = c;
+          });
+
+          td.appendChild(gradeEl);
+          td.appendChild(slider);
+          row.appendChild(td);
+        }
+
+        tbody.appendChild(row);
       }
 
-      cardsRow.appendChild(card);
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      section.appendChild(tableWrap);
     }
 
-    groupEl.appendChild(cardsRow);
-    container.appendChild(groupEl);
+    container.appendChild(section);
   }
 }
 

@@ -1,39 +1,84 @@
 import { Player } from "./types";
 import { lerp } from "./util";
 
-const gradesArray = [
-  "S",
-  "A+",
-  "A",
-  "A-",
-  "B+",
-  "B",
-  "B-",
-  "C+",
-  "C",
-  "C-",
-  "D+",
-  "D",
-  "D-",
-  "F",
-] as const;
-type Grades = (typeof gradesArray)[number];
-const GRADE_MAP: Record<Grades, number> = {
-  S: 1.0,
-  "A+": 0.95,
-  A: 0.9,
-  "A-": 0.85,
-  "B+": 0.8,
-  B: 0.75,
-  "B-": 0.7,
-  "C+": 0.65,
-  C: 0.6,
-  "C-": 0.55,
-  "D+": 0.5,
-  D: 0.45,
-  "D-": 0.4,
-  F: 0.3,
+type GradeThreshold = {
+  peak: number; // Optimal rating value
+  spread: number; // Rating points away from peak before reaching F
 };
+
+const ATTR_GRADE_THRESHOLDS: Record<Attribute, GradeThreshold> = {
+  // Linear: higher is always better
+  SPEED: { peak: 100, spread: 60 },
+  SIZE: { peak: 100, spread: 100 },
+  throwPower: { peak: 100, spread: 100 },
+  pocketPresence: { peak: 100, spread: 100 },
+  pressureFeel: { peak: 100, spread: 100 },
+  decisionMaking: { peak: 100, spread: 100 },
+  shortAccuracy: { peak: 100, spread: 100 },
+  deepAccuracy: { peak: 100, spread: 100 },
+  routeRunning: { peak: 100, spread: 100 },
+  catchAcceleration: { peak: 100, spread: 100 },
+  catchRadius: { peak: 100, spread: 100 },
+  PASSBLOCK: { peak: 100, spread: 100 },
+  RUNBLOCK: { peak: 100, spread: 100 },
+  BLOCKSHEDDING: { peak: 100, spread: 100 },
+  BEND: { peak: 100, spread: 100 },
+  manCoverage: { peak: 100, spread: 100 },
+  zoneCoverage: { peak: 100, spread: 100 },
+  TACKLING: { peak: 100, spread: 100 },
+  POWER: { peak: 100, spread: 100 },
+
+  // Bell-curve: sweet spot is NOT at 100
+  VISION: { peak: 60, spread: 60 },
+  PURSUIT: { peak: 60, spread: 60 },
+};
+
+const GRADE_BREAKPOINTS = [
+  { grade: "S", minProximity: 95 },
+  { grade: "A+", minProximity: 88 },
+  { grade: "A", minProximity: 80 },
+  { grade: "A-", minProximity: 73 },
+  { grade: "B+", minProximity: 65 },
+  { grade: "B", minProximity: 55 },
+  { grade: "B-", minProximity: 45 },
+  { grade: "C+", minProximity: 35 },
+  { grade: "C", minProximity: 25 },
+  { grade: "C-", minProximity: 18 },
+  { grade: "D+", minProximity: 12 },
+  { grade: "D", minProximity: 6 },
+  { grade: "D-", minProximity: 2 },
+  { grade: "F", minProximity: 0 },
+];
+
+const GRADE_COLORS: Record<string, string> = {
+  S: "#FF40FF", // purple
+  "A+": "#4ade80", // bright green
+  A: "#4ade80",
+  "A-": "#86efac",
+  "B+": "#a3e635",
+  B: "#d9f99d",
+  "B-": "#fde68a",
+  "C+": "#fbbf24",
+  C: "#f97316",
+  "C-": "#fb923c",
+  "D+": "#f87171",
+  D: "#ef4444",
+  "D-": "#dc2626",
+  F: "#7f1d1d",
+};
+
+function getLetterGrade(
+  attr: Attribute,
+  ratingPercent: number,
+): { grade: string; color: string } {
+  const threshold = ATTR_GRADE_THRESHOLDS[attr] ?? { peak: 100, spread: 100 };
+  const distFromPeak = Math.abs(ratingPercent - threshold.peak);
+  const proximity = Math.max(0, 100 - (distFromPeak / threshold.spread) * 100);
+
+  const match = GRADE_BREAKPOINTS.find((b) => proximity >= b.minProximity);
+  const grade = match?.grade ?? "F";
+  return { grade, color: GRADE_COLORS[grade] ?? "#888" };
+}
 
 export const ATTRIBUTE_CONFIG = {
   /* All Positions */
@@ -277,5 +322,6 @@ export {
   DEFAULT_RATINGS_BY_LABEL,
   getConstants,
   getDefaultRatingForLabel,
+  getLetterGrade,
 };
 export type { Attribute, Ratings };

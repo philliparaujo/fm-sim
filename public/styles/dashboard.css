@@ -141,7 +141,7 @@
   color: #eee;
   width: 32px;
   text-align: right;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: normal;
 }
 
 .dash-slider {
@@ -178,4 +178,185 @@
   height: 6px;
   border-radius: 3px;
   background: #444;
+}
+
+/* ── Team section ── */
+.dash-team-section {
+  margin: 20px 0 32px;
+}
+
+.dash-team-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 6px;
+}
+
+.dash-team-name {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: "Courier New", monospace;
+}
+
+.dash-possession-badge {
+  font-size: 32px;
+  color: #888;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dash-sub-header {
+  font-size: 20px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 12px 0 4px;
+}
+
+/* ── Table ── */
+.dash-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.dash-table th {
+  font-size: 24px;
+  font-weight: 700;
+  color: #aaa;
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+  padding: 10px 8px;
+  border-bottom: 2px solid #333;
+}
+
+.dash-table td {
+  padding: 8px;
+  vertical-align: middle;
+  font-size: 14px; /* Increases default clarity across standard cell text */
+}
+
+.dash-th {
+  background: #111;
+  color: #666;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 10px;
+  text-align: center;
+  border-bottom: 1px solid #2a2a2a;
+  min-width: 90px;
+}
+
+.dash-th-label {
+  text-align: left;
+  min-width: 80px;
+  position: sticky;
+  left: 0;
+  background: #111;
+  z-index: 1;
+}
+
+.dash-row {
+  border-bottom: 1px solid #1e1e1e;
+  transition: background 0.1s;
+  background: #141414;
+}
+
+.dash-row:hover {
+  background: #1a1a1a;
+}
+
+.dash-td {
+  padding: 5px 10px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.dash-td-label {
+  padding: 5px 12px 5px 8px;
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: inherit;
+  z-index: 1;
+}
+
+.dash-td-empty {
+  color: #333;
+  font-size: 11px;
+}
+
+/* Player label pill */
+.dash-player-label {
+  display: inline-block;
+  font-weight: 800; /* Boosted from 700 for heavy emphasis */
+  font-size: 20px; /* Scaled up from 13px */
+  color: #ffffff; /* Pure white for maximum readability against dark bgs */
+  border-left: 4px solid #007bff; /* Thicker accent bar (using an athletic blue here) */
+  padding-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dash-bench-tag {
+  font-size: 9px;
+  color: #444;
+  margin-left: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Rating cell contents ── */
+.dash-rating-num {
+  display: inline-block;
+  width: 22px;
+  font-size: 12px;
+  color: #aaa;
+  text-align: right;
+  vertical-align: middle;
+  margin-right: 5px;
+  font-variant-numeric: normal;
+}
+
+.dash-grade-badge {
+  display: inline-block;
+  font-size: 25px;
+  font-weight: 700;
+  width: 22px;
+  text-align: left;
+  vertical-align: middle;
+  letter-spacing: -0.02em;
+  margin-right: 10px;
+}
+
+/* ── Compact Number Inputs ── */
+.dash-inline-number {
+  width: 48px;
+  padding: 2px 4px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: #222;
+  border: 1px solid #444;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.dash-inline-number:focus {
+  outline: none;
+  border-color: #007bff;
+  background: #2a2a2a;
 }
