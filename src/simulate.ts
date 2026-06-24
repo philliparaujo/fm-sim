@@ -755,11 +755,6 @@ function resetSimulation(reason: PlayEndReason) {
     (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
   );
 
-  console.log("RESETTING FOR", reason);
-  if (reason === "punt" || reason === "fieldgoal") {
-    console.log(nextLOS, prevScoreboard.LOS);
-  }
-
   if (reason === "sack") {
     state.playAdvanced.sackFrame = state.steps;
   }

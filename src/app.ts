@@ -8,7 +8,27 @@ import {
   state,
   tick,
 } from "./simulate";
-import { Player } from "./types";
+import { Player, Label, Role, PLAYER_LABELS } from "./types";
+
+// Explicit lookup map to resolve a roster player's attributes via their label
+const LABEL_TO_ROLE: Record<Label, Role> = {
+  QB: "passer",
+  RB: "runner",
+  XR: "catcher",
+  ZR: "catcher",
+  TE: "catcher",
+  LT: "blocker",
+  C: "blocker",
+  RT: "blocker",
+  LE: "rusher",
+  DT: "rusher",
+  RE: "rusher",
+  CB: "coverer",
+  NB: "coverer",
+  LB: "coverer",
+  FS: "coverer",
+  SS: "coverer",
+};
 
 // Which attributes are relevant per role
 const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
@@ -69,6 +89,19 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
 
 const SPEED_STEPS = [0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
+const PLAYER_RATINGS_CACHE: Record<
+  string,
+  Record<string, Record<string, number>>
+> = {
+  red: {},
+  blue: {},
+};
+
+const TEAM_PLAYBOOKS: Record<string, Record<string, number>> = {
+  red: { passPercent: 0.5, manPercent: 0.5, blitzPercent: 0.3 },
+  blue: { passPercent: 0.5, manPercent: 0.5, blitzPercent: 0.3 },
+};
+
 function ratingToPercent(r: number): string {
   return Math.round(r * 100) + "";
 }
@@ -77,40 +110,125 @@ function buildDashboard() {
   const container = document.getElementById("player-dashboard")!;
   container.innerHTML = "";
 
-  // Group players by team color then role
-  const offensePlayers = state.players.filter((p) => p.side === "offense");
-  const defensePlayers = state.players.filter((p) => p.side === "defense");
+  // Guard clause if the scoreboard state hasn't initialized yet
+  if (!state.scoreboard || !state.scoreboard.teams) return;
 
-  const groups: { side: string; players: Player[] }[] = [
-    { side: "Offense", players: offensePlayers },
-    { side: "Defense", players: defensePlayers },
-  ];
+  // 1. Force sync the newly spawned live field players with our persistent attributes cache
+  if (state.players) {
+    for (const p of state.players) {
+      const cachedPlayerRatings = PLAYER_RATINGS_CACHE[p.color]?.[p.label];
+      if (cachedPlayerRatings) {
+        for (const attr of Object.keys(cachedPlayerRatings)) {
+          p.ratings[attr as Attribute] = cachedPlayerRatings[attr as Attribute];
+        }
+      }
+    }
+  }
 
-  for (const group of groups) {
+  // 2. Identify active units to sync and update playbook slider positions
+  const offenseTeam = state.scoreboard.teams.find((t) => t.possessing);
+  const defenseTeam = state.scoreboard.teams.find((t) => !t.possessing);
+
+  if (offenseTeam) {
+    PLAYBOOK_CONFIG.passPercent = TEAM_PLAYBOOKS[offenseTeam.color].passPercent;
+    const passSlider = document.getElementById(
+      "pass-slider",
+    ) as HTMLInputElement;
+    const passLabel = document.getElementById("pass-label") as HTMLSpanElement;
+    if (passSlider && passLabel) {
+      passSlider.value = String(PLAYBOOK_CONFIG.passPercent);
+      passLabel.textContent = `${PLAYBOOK_CONFIG.passPercent * 100}%`;
+    }
+  }
+  if (defenseTeam) {
+    PLAYBOOK_CONFIG.manPercent = TEAM_PLAYBOOKS[defenseTeam.color].manPercent;
+    PLAYBOOK_CONFIG.blitzPercent =
+      TEAM_PLAYBOOKS[defenseTeam.color].blitzPercent;
+
+    const manSlider = document.getElementById("man-slider") as HTMLInputElement;
+    const manLabel = document.getElementById("man-label") as HTMLSpanElement;
+    if (manSlider && manLabel) {
+      manSlider.value = String(PLAYBOOK_CONFIG.manPercent);
+      manLabel.textContent = `${PLAYBOOK_CONFIG.manPercent * 100}%`;
+    }
+
+    const blitzSlider = document.getElementById(
+      "blitz-slider",
+    ) as HTMLInputElement;
+    const blitzLabel = document.getElementById(
+      "blitz-label",
+    ) as HTMLSpanElement;
+    if (blitzSlider && blitzLabel) {
+      blitzSlider.value = String(PLAYBOOK_CONFIG.blitzPercent);
+      blitzLabel.textContent = `${PLAYBOOK_CONFIG.blitzPercent * 100}%`;
+    }
+  }
+
+  // SORT TEAMS BY NAME: This keeps the visual columns locked to the same teams
+  const sortedTeams = [...state.scoreboard.teams].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
+  for (const team of sortedTeams) {
     const groupEl = document.createElement("div");
     groupEl.className = "dash-group";
 
     const groupHeader = document.createElement("div");
     groupHeader.className = "dash-group-header";
-    groupHeader.textContent = group.side;
+
+    groupHeader.textContent = team.possessing ? `${team.name} 🏈` : team.name;
     groupEl.appendChild(groupHeader);
 
     const cardsRow = document.createElement("div");
     cardsRow.className = "dash-cards-row";
 
-    for (const player of group.players) {
-      const attrs = ROLE_ATTRIBUTES[player.role] ?? ["SPEED"];
+    const sortedRoster = [...team.roster].sort(
+      (a, b) => PLAYER_LABELS.indexOf(a.label) - PLAYER_LABELS.indexOf(b.label),
+    );
+
+    for (const rosterPlayer of sortedRoster) {
+      const role = LABEL_TO_ROLE[rosterPlayer.label] ?? "blocker";
+      const attrs = ROLE_ATTRIBUTES[role] ?? ["SPEED"];
+
       const card = document.createElement("div");
       card.className = "dash-card";
 
+      const isOnField = state.players.some(
+        (p) => p.label === rosterPlayer.label && p.color === team.color,
+      );
+
+      if (!isOnField) {
+        card.style.opacity = "0.5";
+        card.style.filter = "desaturate(40%)";
+      }
+
       const roleLabel = document.createElement("div");
       roleLabel.className = "dash-role";
-      roleLabel.textContent = player.label;
-      roleLabel.style.borderColor = player.color;
+      roleLabel.textContent = isOnField
+        ? rosterPlayer.label
+        : `${rosterPlayer.label} (Bench)`;
+      roleLabel.style.borderColor = team.color;
       card.appendChild(roleLabel);
 
       for (const attr of attrs) {
-        const currentRating = player.ratings[attr] ?? 0.5;
+        // Initialize cache structures safely if they are blank
+        if (!PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label]) {
+          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label] = {};
+        }
+
+        // Apply from persistent cache or fill cache from current instance properties
+        if (
+          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr] !==
+          undefined
+        ) {
+          rosterPlayer.ratings[attr] =
+            PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr];
+        } else {
+          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr] =
+            rosterPlayer.ratings[attr] ?? 0.5;
+        }
+
+        const currentRating = rosterPlayer.ratings[attr];
 
         const row = document.createElement("div");
         row.className = "dash-attr-row";
@@ -133,8 +251,21 @@ function buildDashboard() {
 
         slider.addEventListener("input", () => {
           const newRating = Number(slider.value) / 100;
-          player.ratings[attr] = newRating;
-          saveRating(player.label, attr, newRating);
+
+          // 1. Update the isolated persistent data structures
+          PLAYER_RATINGS_CACHE[team.color][rosterPlayer.label][attr] =
+            newRating;
+          rosterPlayer.ratings[attr] = newRating;
+          saveRating(rosterPlayer.label, attr, newRating);
+
+          // 2. Synchronize directly into live play if they are on the field
+          const livePlayer = state.players.find(
+            (p) => p.label === rosterPlayer.label && p.color === team.color,
+          );
+          if (livePlayer) {
+            livePlayer.ratings[attr] = newRating;
+          }
+
           valueEl.textContent = slider.value;
         });
 
@@ -194,30 +325,40 @@ function setupPlaybookSliders() {
       sliderId: "pass-slider",
       labelId: "pass-label",
       configKey: "passPercent",
+      getRoleTeam: () => state.scoreboard?.teams?.find((t) => t.possessing), // Offense strategy
     },
-    { sliderId: "man-slider", labelId: "man-label", configKey: "manPercent" },
+    {
+      sliderId: "man-slider",
+      labelId: "man-label",
+      configKey: "manPercent",
+      getRoleTeam: () => state.scoreboard?.teams?.find((t) => !t.possessing), // Defense strategy
+    },
     {
       sliderId: "blitz-slider",
       labelId: "blitz-label",
       configKey: "blitzPercent",
+      getRoleTeam: () => state.scoreboard?.teams?.find((t) => !t.possessing), // Defense strategy
     },
   ] as const;
 
-  configs.forEach(({ sliderId, labelId, configKey }) => {
+  configs.forEach(({ sliderId, labelId, configKey, getRoleTeam }) => {
     const slider = document.getElementById(sliderId) as HTMLInputElement;
     const label = document.getElementById(labelId) as HTMLSpanElement;
 
     if (!slider || !label) return;
 
-    // Synchronize slider changes dynamically with the underlying engine state
     slider.addEventListener("input", () => {
       const numericValue = parseFloat(slider.value);
 
-      // Update our simulation playbook state object on-the-fly
+      // Update active engine variable on-the-fly
       PLAYBOOK_CONFIG[configKey] = numericValue;
-
-      // Update user interface text labels to mirror selection
       label.textContent = `${numericValue * 100}%`;
+
+      // Persist assignment values into the proper team playbook database
+      const targetTeam = getRoleTeam();
+      if (targetTeam && TEAM_PLAYBOOKS[targetTeam.color]) {
+        TEAM_PLAYBOOKS[targetTeam.color][configKey] = numericValue;
+      }
     });
   });
 }
