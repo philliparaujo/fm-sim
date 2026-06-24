@@ -386,6 +386,7 @@ function fillOutRosterPlayer(
     // Specific properties determined later
     assignedTarget: null,
     decisionTicks: 0,
+    cachedThrowEval: null,
     perceivedLoc: null,
     perceivedVel: null,
     reactionTimer: 0,

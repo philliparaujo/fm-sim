@@ -107,28 +107,171 @@ function ratingToPercent(r: number): string {
   return Math.round(r * 100) + "";
 }
 
-function buildDashboard() {
+// Move this to the top level so it persists
+let dashboardInitialized = false;
+
+function initDashboard() {
   const container = document.getElementById("player-dashboard")!;
   container.innerHTML = "";
 
   if (!state.scoreboard?.teams) return;
 
-  // Sync live player ratings from cache
-  if (state.players) {
-    for (const p of state.players) {
-      const cached = PLAYER_RATINGS_CACHE[p.color]?.[p.label];
-      if (cached) {
-        for (const attr of Object.keys(cached)) {
-          p.ratings[attr as Attribute] = cached[attr as Attribute];
+  const sortedTeams = [...state.scoreboard.teams].sort((a, b) =>
+    b.name.localeCompare(a.name),
+  );
+
+  for (const team of sortedTeams) {
+    const section = document.createElement("div");
+    section.className = "dash-team-section";
+
+    const header = document.createElement("div");
+    header.className = "dash-team-header";
+    header.innerHTML = `<span class="dash-team-name" style="color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${team.name}</span><span class="dash-possession-badge" data-team-badge="${team.color}"></span>`;
+    section.appendChild(header);
+
+    const sortedRoster = [...team.roster].sort(
+      (a, b) => PLAYER_LABELS.indexOf(a.label) - PLAYER_LABELS.indexOf(b.label),
+    );
+
+    const offensePlayers = sortedRoster.filter(
+      (rp) => labelToSide(rp.label) === "offense",
+    );
+    const defensePlayers = sortedRoster.filter(
+      (rp) => labelToSide(rp.label) === "defense",
+    );
+
+    for (const [groupLabel, group] of [
+      ["Offense", offensePlayers],
+      ["Defense", defensePlayers],
+    ] as [string, typeof sortedRoster][]) {
+      if (group.length === 0) continue;
+
+      const allAttrs = [
+        ...new Set(
+          group.flatMap((rp) => ROLE_ATTRIBUTES[LABEL_TO_ROLE[rp.label]] ?? []),
+        ),
+      ];
+
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "dash-table-wrap";
+
+      const groupLabel2 = document.createElement("div");
+      groupLabel2.className = "dash-sub-header";
+      groupLabel2.textContent = groupLabel;
+      tableWrap.appendChild(groupLabel2);
+
+      const table = document.createElement("table");
+      table.className = "dash-table";
+
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headerRow.innerHTML =
+        `<th class="dash-th dash-th-label">Player</th>` +
+        allAttrs
+          .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
+          .join("");
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      for (const rp of group) {
+        const role = LABEL_TO_ROLE[rp.label];
+        const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
+        const row = document.createElement("tr");
+        row.className = "dash-row";
+
+        const labelCell = document.createElement("td");
+        labelCell.className = "dash-td-label";
+        // We'll update the bench tag dynamically later
+        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${rp.label}</span><span class="dash-bench-tag" data-bench="${team.color}-${rp.label}" style="display:none;">bench</span>`;
+        row.appendChild(labelCell);
+
+        for (const attr of allAttrs) {
+          const td = document.createElement("td");
+          td.className = "dash-td";
+
+          if (!playerAttrs.includes(attr)) {
+            td.innerHTML = `<span class="dash-td-empty">—</span>`;
+            row.appendChild(td);
+            continue;
+          }
+
+          // Initialize cache
+          if (!PLAYER_RATINGS_CACHE[team.color][rp.label])
+            PLAYER_RATINGS_CACHE[team.color][rp.label] = {};
+          if (PLAYER_RATINGS_CACHE[team.color][rp.label][attr] === undefined) {
+            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] =
+              rp.ratings[attr] ?? 0.5;
+          }
+
+          // Assign unique data attributes so we can find these elements later without rebuilding
+          const ratingPct = Math.round((rp.ratings[attr] ?? 0.5) * 100);
+          const { grade, color } = getLetterGrade(attr, ratingPct);
+
+          const gradeEl = document.createElement("span");
+          gradeEl.className = "dash-grade-badge";
+          gradeEl.style.color = color;
+          gradeEl.textContent = grade;
+          gradeEl.setAttribute(
+            "data-grade",
+            `${team.color}-${rp.label}-${attr}`,
+          );
+
+          const slider = document.createElement("input");
+          slider.type = "number";
+          slider.min = "0";
+          slider.max = "100";
+          slider.step = "1";
+          slider.value = String(ratingPct);
+          slider.className = "dash-inline-number";
+          slider.setAttribute(
+            "data-slider",
+            `${team.color}-${rp.label}-${attr}`,
+          );
+
+          slider.addEventListener("input", () => {
+            const newRating = Number(slider.value) / 100;
+            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] = newRating;
+            rp.ratings[attr] = newRating;
+            saveRating(rp.label, attr, newRating);
+            const livePlayer = state.players.find(
+              (p) => p.label === rp.label && p.color === team.color,
+            );
+            if (livePlayer) livePlayer.ratings[attr] = newRating;
+            const pct = Math.round(newRating * 100);
+            const { grade: g, color: c } = getLetterGrade(attr, pct);
+
+            // Update grade inline immediately on user input
+            gradeEl.textContent = g;
+            gradeEl.style.color = c;
+          });
+
+          td.appendChild(gradeEl);
+          td.appendChild(slider);
+          row.appendChild(td);
         }
+        tbody.appendChild(row);
       }
+
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      section.appendChild(tableWrap);
     }
+
+    container.appendChild(section);
   }
+
+  dashboardInitialized = true;
+}
+
+function updateDashboardValues() {
+  if (!dashboardInitialized) return;
+  if (!state.scoreboard?.teams) return;
 
   const offenseTeam = state.scoreboard.teams.find((t) => t.possessing);
   const defenseTeam = state.scoreboard.teams.find((t) => !t.possessing);
 
-  // Sync playbook sliders
+  // 1. Update Playbook sliders silently
   if (offenseTeam) {
     PLAYBOOK_CONFIG.passPercent = TEAM_PLAYBOOKS[offenseTeam.color].passPercent;
     const ps = document.getElementById("pass-slider") as HTMLInputElement;
@@ -156,151 +299,66 @@ function buildDashboard() {
     }
   }
 
-  const sortedTeams = [...state.scoreboard.teams].sort((a, b) =>
-    b.name.localeCompare(a.name),
-  );
-
-  for (const team of sortedTeams) {
-    const section = document.createElement("div");
-    section.className = "dash-team-section";
-
-    // Team header
-    const header = document.createElement("div");
-    header.className = "dash-team-header";
-    header.innerHTML = `<span class="dash-team-name" style="color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${team.name}</span>${team.possessing ? ' <span class="dash-possession-badge">🏈 Offense</span>' : ' <span class="dash-possession-badge">🛡 Defense</span>'}`;
-    section.appendChild(header);
-
-    const sortedRoster = [...team.roster].sort(
-      (a, b) => PLAYER_LABELS.indexOf(a.label) - PLAYER_LABELS.indexOf(b.label),
-    );
-
-    // Group by offense / defense
-    const offensePlayers = sortedRoster.filter(
-      (rp) => labelToSide(rp.label) === "offense",
-    );
-    const defensePlayers = sortedRoster.filter(
-      (rp) => labelToSide(rp.label) === "defense",
-    );
-
-    for (const [groupLabel, group] of [
-      ["Offense", offensePlayers],
-      ["Defense", defensePlayers],
-    ] as [string, typeof sortedRoster][]) {
-      if (group.length === 0) continue;
-
-      // Collect all unique attrs for this group
-      const allAttrs = [
-        ...new Set(
-          group.flatMap((rp) => ROLE_ATTRIBUTES[LABEL_TO_ROLE[rp.label]] ?? []),
-        ),
-      ];
-
-      const tableWrap = document.createElement("div");
-      tableWrap.className = "dash-table-wrap";
-
-      const groupLabel2 = document.createElement("div");
-      groupLabel2.className = "dash-sub-header";
-      groupLabel2.textContent = groupLabel;
-      tableWrap.appendChild(groupLabel2);
-
-      const table = document.createElement("table");
-      table.className = "dash-table";
-
-      // Header row
-      const thead = document.createElement("thead");
-      const headerRow = document.createElement("tr");
-      headerRow.innerHTML =
-        `<th class="dash-th dash-th-label">Player</th>` +
-        allAttrs
-          .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
-          .join("");
-      thead.appendChild(headerRow);
-      table.appendChild(thead);
-
-      // Body rows
-      const tbody = document.createElement("tbody");
-      for (const rp of group) {
-        const role = LABEL_TO_ROLE[rp.label];
-        const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
-        const isOnField = state.players.some(
-          (p) => p.label === rp.label && p.color === team.color,
-        );
-
-        const row = document.createElement("tr");
-        row.className = "dash-row";
-
-        // Label cell
-        const labelCell = document.createElement("td");
-        labelCell.className = "dash-td-label";
-        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${rp.label}</span>${!isOnField ? '<span class="dash-bench-tag">bench</span>' : ""}`;
-        row.appendChild(labelCell);
-
-        // Attr cells
-        for (const attr of allAttrs) {
-          const td = document.createElement("td");
-          td.className = "dash-td";
-
-          if (!playerAttrs.includes(attr)) {
-            td.innerHTML = `<span class="dash-td-empty">—</span>`;
-            row.appendChild(td);
-            continue;
-          }
-
-          if (!PLAYER_RATINGS_CACHE[team.color][rp.label]) {
-            PLAYER_RATINGS_CACHE[team.color][rp.label] = {};
-          }
-          if (PLAYER_RATINGS_CACHE[team.color][rp.label][attr] !== undefined) {
-            rp.ratings[attr] = PLAYER_RATINGS_CACHE[team.color][rp.label][attr];
-          } else {
-            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] =
-              rp.ratings[attr] ?? 0.5;
-          }
-
-          const ratingPct = Math.round((rp.ratings[attr] ?? 0.5) * 100);
-          const { grade, color } = getLetterGrade(attr, ratingPct);
-
-          const gradeEl = document.createElement("span");
-          gradeEl.className = "dash-grade-badge";
-          gradeEl.style.color = color;
-          gradeEl.textContent = grade;
-
-          const slider = document.createElement("input");
-          slider.type = "number";
-          slider.min = "0";
-          slider.max = "100";
-          slider.step = "1";
-          slider.value = String(ratingPct);
-          slider.className = "dash-inline-number";
-
-          slider.addEventListener("input", () => {
-            const newRating = Number(slider.value) / 100;
-            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] = newRating;
-            rp.ratings[attr] = newRating;
-            saveRating(rp.label, attr, newRating);
-            const livePlayer = state.players.find(
-              (p) => p.label === rp.label && p.color === team.color,
-            );
-            if (livePlayer) livePlayer.ratings[attr] = newRating;
-            const pct = Math.round(newRating * 100);
-            const { grade: g, color: c } = getLetterGrade(attr, pct);
-            gradeEl.textContent = g;
-            gradeEl.style.color = c;
-          });
-
-          td.appendChild(gradeEl);
-          td.appendChild(slider);
-          row.appendChild(td);
+  // 2. Sync live player ratings from cache
+  if (state.players) {
+    for (const p of state.players) {
+      const cached = PLAYER_RATINGS_CACHE[p.color]?.[p.label];
+      if (cached) {
+        for (const attr of Object.keys(cached)) {
+          p.ratings[attr as Attribute] = cached[attr as Attribute];
         }
-
-        tbody.appendChild(row);
       }
-
-      table.appendChild(tbody);
-      tableWrap.appendChild(table);
-      section.appendChild(tableWrap);
     }
+  }
 
-    container.appendChild(section);
+  // 3. Update Possession Badges
+  document.querySelectorAll("[data-team-badge]").forEach((el) => {
+    const color = el.getAttribute("data-team-badge");
+    const isPoss = state.scoreboard.teams.find(
+      (t) => t.color === color,
+    )?.possessing;
+    el.textContent = isPoss ? "🏈 Offense" : "🛡 Defense";
+  });
+
+  // 4. Update Bench Tags
+  document.querySelectorAll("[data-bench]").forEach((el) => {
+    const id = el.getAttribute("data-bench"); // format: "red-QB"
+    const [color, label] = id!.split("-");
+    const isOnField = state.players.some(
+      (p) => p.label === label && p.color === color,
+    );
+    (el as HTMLElement).style.display = isOnField ? "none" : "inline";
+  });
+
+  // 5. Update Grades & Sliders (Only if values changed)
+  for (const team of state.scoreboard.teams) {
+    for (const rp of team.roster) {
+      const role = LABEL_TO_ROLE[rp.label];
+      const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
+      for (const attr of playerAttrs) {
+        const cachedVal = PLAYER_RATINGS_CACHE[team.color]?.[rp.label]?.[attr];
+        if (cachedVal !== undefined) {
+          rp.ratings[attr] = cachedVal;
+          const ratingPct = Math.round(cachedVal * 100);
+
+          // Only perform DOM lookups/updates if the number actually changed
+          const slider = document.querySelector(
+            `[data-slider="${team.color}-${rp.label}-${attr}"]`,
+          ) as HTMLInputElement;
+          if (slider && Number(slider.value) !== ratingPct) {
+            slider.value = String(ratingPct);
+            const { grade, color } = getLetterGrade(attr, ratingPct);
+            const gradeEl = document.querySelector(
+              `[data-grade="${team.color}-${rp.label}-${attr}"]`,
+            );
+            if (gradeEl) {
+              gradeEl.textContent = grade;
+              (gradeEl as HTMLElement).style.color = color;
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -402,8 +460,8 @@ async function init() {
   });
 
   // Build dashboard now, and rebuild after each play reset
-  buildDashboard();
-  onPlayReset(buildDashboard);
+  initDashboard();
+  onPlayReset(updateDashboardValues);
 
   // Replays
   setupReplayFeatures();

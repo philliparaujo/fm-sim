@@ -60,6 +60,7 @@ interface Player extends Entity, RosterPlayer {
 
   // For passers
   decisionTicks: number;
+  cachedThrowEval: any;
 
   // For receivers
   path: Vector[];

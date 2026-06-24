@@ -31,7 +31,20 @@ import {
   projectDefenderPosition,
 } from "./util";
 
-function stepAsPlayer(player: Player, state: State) {
+const MAX_PATH_LENGTH = 200; // Cap path arrays to prevent render bloat
+const THROW_EVAL_INTERVAL = 6; // QB evaluates throws every 6 frames (~0.1s)
+const MAX_PREDICTION_FRAMES = 120; // Reduced from 300. 2 seconds is plenty.
+
+function stepAsPlayer(
+  player: Player,
+  state: State,
+  cachedPlayers: {
+    rushers: Player[];
+    coverers: Player[];
+    catchers: Player[];
+    blockers: Player[];
+  },
+) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
   const ballInAir = state.ballFlight && state.ballFlight.isInFlight;
   const ballIntendedForMe =
@@ -115,12 +128,9 @@ function stepAsPlayer(player: Player, state: State) {
     // Downfield block-shifters or linemen evaluate rushers and coverers.
     const defenders = assignedDefender
       ? [assignedDefender]
-      : state.players.filter((p) => {
-          if (player.role === "runner" && isPassPlay(state)) {
-            return p.role === "rusher";
-          }
-          return p.role === "rusher" || p.role === "coverer";
-        });
+      : player.role === "runner" && isPassPlay(state)
+        ? cachedPlayers.rushers
+        : [...cachedPlayers.rushers, ...cachedPlayers.coverers];
 
     let targetLoc: Vector | null = null;
 
@@ -278,9 +288,15 @@ function stepAsPlayer(player: Player, state: State) {
     // array to match current coordinates simultaneously, which blanks out the line!
     if (!player.path) player.path = [];
     player.path.push({ x: player.loc.x, y: player.loc.y });
+    if (player.path.length > MAX_PATH_LENGTH) player.path.shift();
 
     // 1. OVERRIDE TARGET DIRECTION VIA CONTEXT STEERING MAP
-    const optimizedTargetDir = getContextSteering(player, state, targetDir);
+    const optimizedTargetDir = getContextSteering(
+      player,
+      state,
+      targetDir,
+      cachedPlayers,
+    );
 
     // 2. PRESERVE POST-CATCH SLOWDOWN MECHANICS
     const framesSinceCatch = state.steps - state.ballGivenAtStep;
@@ -327,7 +343,9 @@ function stepAsPlayer(player: Player, state: State) {
   function runRoute(player: Player) {
     if (!player.route) return;
     if (!state.ballGiven) {
+      if (!player.path) player.path = [];
       player.path.push({ x: player.loc.x, y: player.loc.y });
+      if (player.path.length > MAX_PATH_LENGTH) player.path.shift();
     }
 
     // Fetch the shared velocity physics
@@ -376,7 +394,7 @@ function stepAsPlayer(player: Player, state: State) {
       targetDir.y = -dy * 0.05;
     }
 
-    const rushers = state.players.filter((p) => p.role === "rusher");
+    const rushers = cachedPlayers.rushers;
     rushers.forEach((rusher) => {
       const diff = {
         x: player.loc.x - rusher.loc.x,
@@ -417,9 +435,9 @@ function stepAsPlayer(player: Player, state: State) {
   }
 
   function throwingDecision(player: Player) {
-    const coverers = state.players.filter((p) => p.role === "coverer");
-    const rushers = state.players.filter((p) => p.role === "rusher");
-    const catchers = state.players.filter((p) => p.role === "catcher");
+    const coverers = cachedPlayers.coverers;
+    const rushers = cachedPlayers.rushers;
+    const catchers = cachedPlayers.catchers;
     const { minThrowStep } = getConstants("decisionMaking", player);
     const { panicRusherDist, panicThrowChance } = getConstants(
       "pressureFeel",
@@ -433,26 +451,32 @@ function stepAsPlayer(player: Player, state: State) {
         : Infinity;
     const underPressure = nearestRusherDist < panicRusherDist;
 
-    resolveBallInAir(state);
+    resolveBallInAir(state, cachedPlayers);
 
-    const evaluatedOptions = catchers.map((catcher) => {
-      const { target, projected, framesUntil, defenderDistAtArrival } =
-        evaluateThrowWindow(player, catcher, state);
-      return {
-        catcher,
-        target,
-        projected,
-        framesUntil,
-        projectedOpenness: defenderDistAtArrival,
-        throwDist: dist(player.loc, target),
-      };
-    });
+    const thinkInterval = underPressure ? 3 : THROW_EVAL_INTERVAL;
+    if (!player.cachedThrowEval || state.steps % thinkInterval === 0) {
+      const evaluatedOptions = catchers.map((catcher: Player) => {
+        const { target, projected, framesUntil, defenderDistAtArrival } =
+          evaluateThrowWindow(player, catcher, state, cachedPlayers);
+        return {
+          catcher,
+          target,
+          projected,
+          framesUntil,
+          projectedOpenness: defenderDistAtArrival,
+          throwDist: dist(player.loc, target),
+        };
+      });
 
-    const bestOption = evaluatedOptions.sort(
-      (a, b) => b.projectedOpenness - a.projectedOpenness,
-    )[0];
+      player.cachedThrowEval = evaluatedOptions.sort(
+        (a: any, b: any) => b.projectedOpenness - a.projectedOpenness,
+      )[0];
+    }
 
+    const bestOption = player.cachedThrowEval;
+    if (!bestOption) return;
     if (state.steps <= minThrowStep || state.ballFlight !== null) return;
+    bestOption.throwDist = dist(player.loc, bestOption.target);
 
     let shouldThrow = false;
     let throwAway = false;
@@ -744,18 +768,13 @@ function stepAsPlayer(player: Player, state: State) {
 
     // 1. TARGET ACQUISITION
     let targetCatcher: Player | null = null;
-    const catchers = state.players.filter(
-      (p) => p.role === "catcher" && p.route,
-    );
+    const catchers = cachedPlayers.catchers;
 
     let isDeepOverrideActive = false;
     const DEEP_THRESHOLD = state.scoreboard.LOS + (W * 30) / 100; // 30 yards past LOS
 
     if (player.coverage === "man") {
-      targetCatcher =
-        state.players.find(
-          (p) => p.role === "catcher" && p === player.assignedTarget,
-        ) || null;
+      targetCatcher = catchers.find((p) => p === player.assignedTarget) || null;
     } else if (catchers.length > 0) {
       const deepThreats = catchers.filter((c) => c.loc.x > DEEP_THRESHOLD);
 
@@ -1080,6 +1099,12 @@ function getContextSteering(
   player: Player,
   state: State,
   baseIntent: Vector,
+  cachedPlayers: {
+    rushers: Player[];
+    coverers: Player[];
+    catchers: Player[];
+    blockers: Player[];
+  },
 ): Vector {
   const { lookAhead } = getConstants("VISION", player);
 
@@ -1123,30 +1148,23 @@ function getContextSteering(
   }
 
   // 2. Project Danger weights from defenders inside lookup distance
-  const defenders = state.players.filter(
-    (p) => p.role === "rusher" || p.role === "coverer",
-  );
-
-  for (const defender of defenders) {
+  const checkDefender = (defender: Player) => {
     const toDef = diff(defender.loc, player.loc);
     const distance = length(toDef);
-
     if (distance < lookAhead && distance > 0) {
       const normToDef = { x: toDef.x / distance, y: toDef.y / distance };
-
-      // Threat intensity scales up exponentially as defender gets closer
       const proximity = (lookAhead - distance) / lookAhead;
       const urgency = Math.pow(proximity, 2);
 
       for (const ray of rays) {
         const dot = ray.dir.x * normToDef.x + ray.dir.y * normToDef.y;
-        if (dot > 0) {
-          // Cubing the dot product focuses threat weight inside a tighter corridor
-          ray.danger += Math.pow(dot, 3) * urgency * 3.5;
-        }
+        if (dot > 0) ray.danger += Math.pow(dot, 3) * urgency * 3.5;
       }
     }
-  }
+  };
+
+  for (const r of cachedPlayers.rushers) checkDefender(r);
+  for (const c of cachedPlayers.coverers) checkDefender(c);
 
   // 3. Keep runner inside field geometry bounds (Sideline Danger mitigation)
   const SIDELINE_CUSHION = 110;
@@ -1478,6 +1496,12 @@ function evaluateThrowWindow(
   passer: Player,
   catcher: Player,
   state: State,
+  cachedPlayers: {
+    rushers: Player[];
+    coverers: Player[];
+    catchers: Player[];
+    blockers: Player[];
+  },
 ): {
   target: Vector;
   projected: Vector;
@@ -1491,9 +1515,7 @@ function evaluateThrowWindow(
   );
 
   // Project every relevant defender forward by flightFrames using simple linear extrapolation
-  const defenders = state.players.filter(
-    (p) => p.role === "coverer" || p.role === "rusher",
-  );
+  const defenders = [...cachedPlayers.rushers, ...cachedPlayers.coverers];
   const defenderDistAtArrival =
     defenders.length > 0
       ? Math.min(
@@ -1507,7 +1529,15 @@ function evaluateThrowWindow(
   return { target, projected, framesUntil, defenderDistAtArrival };
 }
 
-function resolveBallInAir(state: State) {
+function resolveBallInAir(
+  state: State,
+  cachedPlayers: {
+    rushers: Player[];
+    coverers: Player[];
+    catchers: Player[];
+    blockers: Player[];
+  },
+) {
   const { ballFlight } = state;
   if (!ballFlight || !ballFlight.isInFlight) return;
 
@@ -1515,7 +1545,7 @@ function resolveBallInAir(state: State) {
 
   if (ballFlight.framesElapsed >= ballFlight.totalFrames) {
     const { receiver, endLoc } = ballFlight;
-    const coverers = state.players.filter((p) => p.role === "coverer");
+    const coverers = cachedPlayers.coverers;
 
     // Track state outcomes explicitly
     let isComplete = false;
@@ -1580,7 +1610,7 @@ function resolveBallInAir(state: State) {
     // --- FINAL EVALUATION & METRIC TRACKING ---
     state.playAdvanced.wasOffTarget = false;
     if (isComplete) {
-      completePass(state, receiver, endLoc);
+      completePass(state, receiver, endLoc, cachedPlayers);
     } else if (isInterception) {
       if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
@@ -1598,7 +1628,17 @@ function resolveBallInAir(state: State) {
 }
 
 // Helper to clean up state on a successful catch
-function completePass(state: State, receiver: Player, endLoc: Vector) {
+function completePass(
+  state: State,
+  receiver: Player,
+  endLoc: Vector,
+  cachedPlayers: {
+    rushers: Player[];
+    coverers: Player[];
+    catchers: Player[];
+    blockers: Player[];
+  },
+) {
   state.ballFlight!.isInFlight = false;
   state.ball.loc = { ...receiver.loc };
   state.ballGiven = true;
@@ -1606,9 +1646,7 @@ function completePass(state: State, receiver: Player, endLoc: Vector) {
   state.playAdvanced.catchX = state.ball.loc.x;
 
   // Find all active defenders on the field
-  const defenders = state.players.filter(
-    (p) => p.role === "rusher" || p.role === "coverer",
-  );
+  const defenders = [...cachedPlayers.coverers, ...cachedPlayers.rushers];
 
   // Calculate the distance to the closest defender at the time of the catch
   if (defenders.length > 0) {

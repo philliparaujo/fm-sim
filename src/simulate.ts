@@ -214,10 +214,15 @@ function assignCoverageTargets() {
   });
 }
 
-function assignBlockingTargets() {
+function assignBlockingTargets(cachedPlayers: {
+  rushers: Player[];
+  coverers: Player[];
+  catchers: Player[];
+  blockers: Player[];
+}) {
   // --- Step 1: Assign OL blockers to rushers (1-on-1, no double teams) ---
-  const olBlockers = state.players.filter((p) => p.role === "blocker");
-  const rushers = state.players.filter((p) => p.role === "rusher");
+  const olBlockers = cachedPlayers.blockers;
+  const rushers = cachedPlayers.rushers;
 
   // Release stale OL assignments
   for (const [blocker, defender] of state.blockingAssignments) {
@@ -282,8 +287,8 @@ function assignBlockingTargets() {
 
   // --- Step 3: On run plays, assign catchers to their man coverer ---
   if (isRunPlay(state)) {
-    const catchers = state.players.filter(
-      (p) => p.role === "catcher" && !isCarryingBall(p, state.ball),
+    const catchers = cachedPlayers.catchers.filter(
+      (p) => !isCarryingBall(p, state.ball),
     );
 
     // Release stale catcher assignments
@@ -576,12 +581,18 @@ function stepSimulation() {
 
   // Player behavior
   state.steps++;
-  assignBlockingTargets();
+  const cachedPlayers = {
+    rushers: state.players.filter((p) => p.role === "rusher"),
+    coverers: state.players.filter((p) => p.role === "coverer"),
+    catchers: state.players.filter((p) => p.role === "catcher"),
+    blockers: state.players.filter((p) => p.role === "blocker"),
+  };
+  assignBlockingTargets(cachedPlayers);
 
   for (const player of state.players) {
     player.prevVel = { x: player.vel.x, y: player.vel.y };
     player.contactedThisFrame = false;
-    stepAsPlayer(player, state);
+    stepAsPlayer(player, state, cachedPlayers);
   }
 
   for (const player of state.players) {
