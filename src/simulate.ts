@@ -89,7 +89,7 @@ const createInitialState = (
     ballGivenAtStep: 0,
     blockingAssignments: new Map<Player, Player>(),
     scoreboard: scoreboard,
-    stats: createEmptyStats(),
+    stats: {},
     playAdvanced: {
       wasOffTarget: false,
       wasThrowAway: false,
@@ -737,10 +737,8 @@ function resetSimulation(reason: PlayEndReason) {
   const isFieldGoal = reason === "fieldgoal";
   const isPunt = reason == "punt";
 
-  // Determine where the ball naturally died before checking for a turnover
   const finalLOSBeforeFlip = isIncomplete ? prevScoreboard.LOS : endBallX;
 
-  // Detect a Turnover on Downs (Failed to cross firstDownLine on 4th down)
   const isTurnoverOnDowns =
     prevScoreboard.down === "4th" &&
     !isTouchdown &&
@@ -750,7 +748,6 @@ function resetSimulation(reason: PlayEndReason) {
     !isPunt &&
     finalLOSBeforeFlip < (prevScoreboard.firstDownLine ?? Infinity);
 
-  // Calculate the next Line of Scrimmage with a field-perspective flip if possession changes
   let nextLOS = START_DRIVE;
   if (TRAINING_MODE_ON) {
     // Training mode: Same team keeps ball
@@ -765,18 +762,11 @@ function resetSimulation(reason: PlayEndReason) {
       nextLOS = START_DRIVE;
     } else if (isPunt) {
       nextLOS = getLOSAfterPunt(prevScoreboard.LOS);
-    } else if (isTurnoverOnDowns) {
-      // Flip the ball position so the new offense drives left-to-right from that spot
+    } else if (isTurnoverOnDowns || isInterception) {
       nextLOS = TOTAL_W - finalLOSBeforeFlip;
-    } else if (isInterception) {
-      nextLOS = TOTAL_W - endBallX;
     } else {
       nextLOS = finalLOSBeforeFlip;
     }
-  }
-
-  if (reason === "interception") {
-    console.log("INT", endBallX, nextLOS);
   }
 
   const yards = yardsFromPixels(
@@ -787,8 +777,22 @@ function resetSimulation(reason: PlayEndReason) {
     state.playAdvanced.sackFrame = state.steps;
   }
 
-  const updatedStats = updateStatsAfterPlay(
-    prevStats,
+  // ─── NEW PER-TEAM STAT CALCULATION ───
+  // Ensure state.stats is initialized as a record dictionary
+  if (!prevStats || typeof (prevStats as any).qb !== "undefined") {
+    state.stats = {};
+  }
+
+  // Identify who was on offense during this play step
+  const activeOffenseTeam = getPossessingTeam(state);
+  const offenseTeamName = activeOffenseTeam.name;
+
+  // Grab or initialize this specific team's stat records
+  const currentTeamStats = state.stats[offenseTeamName] || createEmptyStats();
+
+  // Run the original calculation engine only for the active offense
+  const updatedTeamStats = updateStatsAfterPlay(
+    currentTeamStats,
     currentPlay,
     yards,
     isTouchdown,
@@ -801,10 +805,21 @@ function resetSimulation(reason: PlayEndReason) {
     endBallX,
   );
 
-  if (numPlays(updatedStats) % 100 == 0)
-    console.log(numPlays(updatedStats), updatedStats);
+  // Merge back into our global record store
+  const updatedGlobalStats = {
+    ...state.stats,
+    [offenseTeamName]: updatedTeamStats,
+  };
 
-  // Set up down and distance metadata (Turnovers grant a fresh 1st down)
+  if (numPlays(updatedTeamStats) % 100 == 0) {
+    console.log(
+      `${offenseTeamName} Offense Milestone:`,
+      numPlays(updatedTeamStats),
+      updatedTeamStats,
+    );
+  }
+  // ─────────────────────────────────────
+
   let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
   if (
     isTouchdown ||
@@ -824,7 +839,6 @@ function resetSimulation(reason: PlayEndReason) {
     downDistance = updateDownAndDistance(prevScoreboard, nextLOS);
   }
 
-  // Update replays
   if (currentPlayFrames.length > 0) {
     completedPlays.unshift([...currentPlayFrames]);
     if (completedPlays.length > 3) {
@@ -834,16 +848,12 @@ function resetSimulation(reason: PlayEndReason) {
     window.dispatchEvent(new CustomEvent("playRecorded"));
   }
 
-  // --- POSSESSION & SCORE MASTER UPDATE ---
-  // Find the exact active elements in the global teams array to keep data fresh
-  const activeOffenseTeam = getPossessingTeam(state);
   const globalOffenseTeam = teams.find(
     (t) => t.name === activeOffenseTeam.name,
   )!;
   const globalDefenseTeam =
     teamId(teams[0]) === teamId(globalOffenseTeam) ? teams[1] : teams[0];
 
-  // Apply scoring directly to the master global objects
   if (isTouchdown) {
     globalOffenseTeam.score += 7;
   } else if (isFieldGoal) {
@@ -852,7 +862,6 @@ function resetSimulation(reason: PlayEndReason) {
     globalDefenseTeam.score += 2;
   }
 
-  // Check all possible reasons possession shifts to the other team
   const flipPossession =
     !TRAINING_MODE_ON &&
     (isTouchdown ||
@@ -863,7 +872,6 @@ function resetSimulation(reason: PlayEndReason) {
       isTurnoverOnDowns);
 
   if (flipPossession) {
-    // Pass the fresh global master objects with updated scores to the new state
     Object.assign(
       state,
       createInitialState(globalDefenseTeam, globalOffenseTeam, nextLOS),
@@ -875,8 +883,9 @@ function resetSimulation(reason: PlayEndReason) {
     );
   }
 
-  // Sync historical scoreboard structures with the fresh layout
-  state.stats = updatedStats;
+  // Persist the entire dictionary block across the active session boundaries
+  state.stats = updatedGlobalStats;
+
   state.scoreboard = {
     ...state.scoreboard,
     quarter: prevScoreboard.quarter,
@@ -889,12 +898,10 @@ function resetSimulation(reason: PlayEndReason) {
   state.blockingAssignments = new Map();
   assignCoverageTargets();
 
-  // Reset timing logic
   simStartTime = state.pausedUntil;
   timeAccumulator = 0;
   runCount++;
 
-  // Draw scoreboard
   updateScoreboardUI(state.scoreboard);
   onPlayResetCallback?.();
 }

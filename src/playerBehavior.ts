@@ -279,7 +279,7 @@ function stepAsPlayer(
   ) {
     const { maxSpeed } = getConstants("SPEED", player);
     const { catchSlowdownDuration, minCatchSpeedMultiplier } = getConstants(
-      "catchAcceleration",
+      "CATCHACCELERATION",
       player,
     );
 
@@ -443,8 +443,8 @@ function stepAsPlayer(
       "pressureFeel",
       player,
     );
-    const MIN_OPENNESS_NEEDED = 200;
-    const PANIC_OPENNESS_NEEDED = 80;
+    const MIN_OPENNESS_NEEDED = 230;
+    const PANIC_OPENNESS_NEEDED = 120;
     const nearestRusherDist =
       rushers.length > 0
         ? Math.min(...rushers.map((r) => dist(player.loc, r.loc)))
@@ -896,7 +896,7 @@ const catcherRouteVariance = new WeakMap<
 >();
 
 function getCatcherRouteVariance(player: Player) {
-  const { routeStemDrift } = getConstants("routeRunning", player);
+  const { routeStemDrift } = getConstants("ROUTERUNNING", player);
   const { maxSpeed } = getConstants("SPEED", player);
 
   let variance = catcherRouteVariance.get(player);
@@ -1372,7 +1372,7 @@ function getReceiverVelocityAtFrame(
     stopAfterBreakThreshold,
     routeCutSpeedRetained,
     reaccelerationDuration,
-  } = getConstants("routeRunning", receiver);
+  } = getConstants("ROUTERUNNING", receiver);
 
   if (framesSinceBreak <= reaccelerationDuration) {
     const progress = framesSinceBreak / reaccelerationDuration;
@@ -1559,7 +1559,7 @@ function resolveBallInAir(
     }
 
     const { completionRadius: receiverRadius } = getConstants(
-      "catchRadius",
+      "CATCHRADIUS",
       receiver,
     );
     const receiverDist = dist(receiver.loc, endLoc);
@@ -1573,36 +1573,54 @@ function resolveBallInAir(
       if (d < minDefenderDist) {
         minDefenderDist = d;
         closestDefender = c;
-        defenderRadius = getConstants("catchRadius", c).completionRadius;
+        defenderRadius = getConstants("CATCHRADIUS", c).completionRadius;
       }
     });
 
-    // 1. Uncontested Catch Check
-    if (!closestDefender || minDefenderDist > receiverRadius) {
-      if (receiverDist < receiverRadius) {
-        isComplete = true;
-      } else {
-        isIncomplete = true;
+    // 1. Determine who is in range of the ball
+    const receiverInRadius = receiverDist <= receiverRadius;
+    const defenderInRadius = closestDefender
+      ? minDefenderDist <= defenderRadius
+      : false;
+
+    if (!receiverInRadius) {
+      // Pass is completely uncatchable by the receiver
+      isIncomplete = true;
+      if (receiverDist > receiverRadius * 1.5) {
+        state.playAdvanced.wasOffTarget = true;
       }
+    } else if (!defenderInRadius) {
+      // Receiver is in range, defender is nowhere near it -> Uncontested Catch
+      isComplete = true;
     } else {
-      // 2. Contested Catch Resolution
-      const CONTEST_PENALTY = 0.65;
-      const effectiveReceiverRadius = receiverRadius * CONTEST_PENALTY;
+      // ==========================================
+      // CONTESTED CATCH RESOLUTION
+      // ==========================================
 
-      const receiverStrength = effectiveReceiverRadius - receiverDist;
-      const DEFENSIVE_BOOST = 1.25;
-      const defenderStrength =
-        (defenderRadius - minDefenderDist) * DEFENSIVE_BOOST;
+      // Does the defender have clear position advantage?
+      // (e.g. They are standing right over the ball while the receiver is reaching in)
+      const defenderHasPosition =
+        minDefenderDist - defenderRadius < receiverDist - receiverRadius;
 
-      if (receiverDist > effectiveReceiverRadius) {
-        isIncomplete = true;
-      } else if (receiverStrength > defenderStrength) {
-        isComplete = true;
-      } else {
-        if (minDefenderDist < receiverDist * 0.4) {
+      if (defenderHasPosition) {
+        // Defender won the spot. But is it an INT or just a PBU?
+        // In the NFL, defenders drop or break up far more passes than they intercept.
+        // We add a probability roll to simulate this.
+        const INTERCEPT_CHANCE_ON_CONTEST = 0.3; // Tune this: 20% of "lost" contests become INTs
+
+        if (Math.random() < INTERCEPT_CHANCE_ON_CONTEST) {
           isInterception = true;
         } else {
-          isIncomplete = true;
+          isIncomplete = true; // Pass Broken Up!
+        }
+      } else {
+        // Receiver has equal or better position than the defender (e.g. receiver's body is between defender and ball)
+        // Catch chance decreases the closer the defender is.
+        const catchChance = 1 - minDefenderDist / (defenderRadius * 2);
+        if (Math.random() < catchChance) {
+          isComplete = true;
+        } else {
+          isIncomplete = true; // Contested incompletion
         }
       }
     }

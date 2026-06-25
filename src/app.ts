@@ -1,5 +1,5 @@
 import { setSimSpeed } from "./constants";
-import { PLAYBOOK_CONFIG, saveRating } from "./playbook";
+import { PLAYBOOK_CONFIG, saveRating, TEAM_PLAYBOOKS } from "./playbook";
 import { Attribute, getLetterGrade } from "./ratings";
 import {
   getCompletedPlaysCount,
@@ -8,7 +8,7 @@ import {
   state,
   tick,
 } from "./simulate";
-import { Player, Label, Role, PLAYER_LABELS } from "./types";
+import { Label, PLAYER_LABELS, Role } from "./types";
 import { labelToSide } from "./util";
 
 // Explicit lookup map to resolve a roster player's attributes via their label
@@ -47,9 +47,9 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
   catcher: [
     "SPEED",
     "SIZE",
-    "routeRunning",
-    "catchAcceleration",
-    "catchRadius",
+    "ROUTERUNNING",
+    "CATCHACCELERATION",
+    "CATCHRADIUS",
   ],
   blocker: ["SPEED", "SIZE", "PASSBLOCK", "RUNBLOCK"],
   rusher: ["SPEED", "SIZE", "BLOCKSHEDDING", "BEND"],
@@ -75,9 +75,9 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   throwPower: "Throw Power",
   VISION: "Vision",
   POWER: "Power",
-  routeRunning: "Route Running",
-  catchAcceleration: "Catch Accel.",
-  catchRadius: "Catch Radius",
+  ROUTERUNNING: "Route Running",
+  CATCHACCELERATION: "Catch Accel.",
+  CATCHRADIUS: "Catch Radius",
   PASSBLOCK: "Pass Block",
   RUNBLOCK: "Run Block",
   BLOCKSHEDDING: "Block Shed",
@@ -96,11 +96,6 @@ const PLAYER_RATINGS_CACHE: Record<
 > = {
   red: {},
   blue: {},
-};
-
-const TEAM_PLAYBOOKS: Record<string, Record<string, number>> = {
-  red: { passPercent: 0.5, manPercent: 0.5, blitzPercent: 0.3 },
-  blue: { passPercent: 0.5, manPercent: 0.5, blitzPercent: 0.3 },
 };
 
 function ratingToPercent(r: number): string {

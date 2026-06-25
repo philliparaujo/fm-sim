@@ -260,7 +260,7 @@ type State = {
   scoreboard: Scoreboard;
   currentPlay: CurrentPlay;
 
-  stats: Stats;
+  stats: Record<string, Stats>;
   playAdvanced: PlayAdvancedData;
 
   pausedUntil: number;

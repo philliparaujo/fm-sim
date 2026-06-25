@@ -1,5 +1,5 @@
 /* Global constants */
-export const TRAINING_MODE_ON = false;
+export const TRAINING_MODE_ON = true;
 
 /* Sizing constants */
 export const W = 720 * 3;
