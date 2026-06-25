@@ -5,6 +5,8 @@ import {
   H,
   LEAD_FRAMES,
   MIN_BLOCK_DISTANCE,
+  PANIC_RUSHER_DIST,
+  PANIC_THROW_CHANCE,
   PASSER_HANDOFF_SEPARATION,
   PIXELS_PER_STEP,
   PURSUER_STEER_FACTOR,
@@ -373,7 +375,7 @@ function stepAsPlayer(
 
   function navigatePocket(player: Player) {
     const { passerLookAhead, passerAvoidStrength, passerSteerFactor } =
-      getConstants("pocketPresence", player);
+      getConstants("POCKETPRESENCE", player);
 
     const pocket = getPocket(state.scoreboard.LOS);
     const dx = (player.loc.x - pocket.cx) / pocket.rx;
@@ -438,18 +440,13 @@ function stepAsPlayer(
     const coverers = cachedPlayers.coverers;
     const rushers = cachedPlayers.rushers;
     const catchers = cachedPlayers.catchers;
-    const { minThrowStep } = getConstants("decisionMaking", player);
-    const { panicRusherDist, panicThrowChance } = getConstants(
-      "pressureFeel",
-      player,
-    );
-    const MIN_OPENNESS_NEEDED = 230;
-    const PANIC_OPENNESS_NEEDED = 120;
+    const { minThrowStep, minOpennessNeeded, panicOpennessNeeded } =
+      getConstants("DECISIONMAKING", player);
     const nearestRusherDist =
       rushers.length > 0
         ? Math.min(...rushers.map((r) => dist(player.loc, r.loc)))
         : Infinity;
-    const underPressure = nearestRusherDist < panicRusherDist;
+    const underPressure = nearestRusherDist < PANIC_RUSHER_DIST;
 
     resolveBallInAir(state, cachedPlayers);
 
@@ -480,18 +477,18 @@ function stepAsPlayer(
 
     let shouldThrow = false;
     let throwAway = false;
-    let opennessThreshold = MIN_OPENNESS_NEEDED;
+    let opennessThreshold = minOpennessNeeded;
 
     if (underPressure) {
-      const pressureIntensity = 1 - nearestRusherDist / panicRusherDist;
+      const pressureIntensity = 1 - nearestRusherDist / PANIC_RUSHER_DIST;
 
       opennessThreshold = lerp(
         pressureIntensity,
-        MIN_OPENNESS_NEEDED,
-        PANIC_OPENNESS_NEEDED,
+        minOpennessNeeded,
+        panicOpennessNeeded,
       );
 
-      const forceThrowChance = panicThrowChance * pressureIntensity * 0.3;
+      const forceThrowChance = PANIC_THROW_CHANCE * pressureIntensity * 0.4;
 
       // How long the QB has been holding the ball this play, in frames since the snap
       const holdingFrames = state.steps;
@@ -501,8 +498,7 @@ function stepAsPlayer(
       const holdFactor = Math.min(1, holdingFrames / HOLD_RAMP_FRAMES);
 
       // Throw-away chance grows with both pressure intensity and how long he's held it
-      const throwAwayChance =
-        forceThrowChance * (0.4 + 0.6 * holdFactor) * pressureIntensity;
+      const throwAwayChance = lerp(holdFactor, 0.05, 0.35) * pressureIntensity;
 
       if (Math.random() < forceThrowChance) {
         if (bestOption.projectedOpenness > opennessThreshold) {
@@ -531,7 +527,7 @@ function stepAsPlayer(
         x: player.loc.x + 60,
         y: throwAwaySide < 0 ? -40 : TOTAL_H + 40,
       };
-      const { ballMetersPerSecond } = getConstants("throwPower", player);
+      const { ballMetersPerSecond } = getConstants("THROWPOWER", player);
       const PIXELS_PER_METER = (W / 100) * 1.09361;
       const ballPixelsPerFrame = (ballMetersPerSecond * PIXELS_PER_METER) / 60;
       const flightFrames = Math.ceil(
@@ -559,10 +555,10 @@ function stepAsPlayer(
 
     const { shortError } = getConstants("shortAccuracy", player);
     const { deepError } = getConstants("deepAccuracy", player);
-    const { pressureSensitivity } = getConstants("pressureFeel", player);
+    const { pressureSensitivity } = getConstants("POCKETPRESENCE", player);
 
     const rawPressure = underPressure
-      ? 1 - nearestRusherDist / panicRusherDist
+      ? 1 - nearestRusherDist / PANIC_RUSHER_DIST
       : 0;
     const pressureFactor = rawPressure * pressureSensitivity;
 
@@ -1212,7 +1208,7 @@ function calculatePerfectThrowTarget(
   const YARDS_PER_METER = 1.09361;
   const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
 
-  const { ballMetersPerSecond } = getConstants("throwPower", passer);
+  const { ballMetersPerSecond } = getConstants("THROWPOWER", passer);
   const updatedBMPS = ballMetersPerSecond + 8;
   const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
 

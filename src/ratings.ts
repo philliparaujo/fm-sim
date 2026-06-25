@@ -10,10 +10,9 @@ const ATTR_GRADE_THRESHOLDS: Record<Attribute, GradeThreshold> = {
   // Linear: higher is always better
   SPEED: { peak: 100, spread: 60 },
   SIZE: { peak: 100, spread: 100 },
-  throwPower: { peak: 100, spread: 100 },
-  pocketPresence: { peak: 100, spread: 100 },
-  pressureFeel: { peak: 100, spread: 100 },
-  decisionMaking: { peak: 100, spread: 100 },
+  THROWPOWER: { peak: 100, spread: 100 },
+  POCKETPRESENCE: { peak: 100, spread: 100 },
+  DECISIONMAKING: { peak: 100, spread: 100 },
   shortAccuracy: { peak: 100, spread: 100 },
   deepAccuracy: { peak: 100, spread: 100 },
   ROUTERUNNING: { peak: 100, spread: 100 },
@@ -89,20 +88,16 @@ export const ATTRIBUTE_CONFIG = {
   SIZE: (r: number) => ({ radius: lerp(r, 22, 30) }),
 
   /* Passers */
-  pocketPresence: (r: number) => ({
+  POCKETPRESENCE: (r: number) => ({
     passerLookAhead: lerp(r, 180, 300),
     passerAvoidStrength: lerp(r, 1.0, 2.4),
     passerSteerFactor: lerp(r, 0.1, 0.3),
+    pressureSensitivity: lerp(r, 1, 1),
   }),
-  pressureFeel: (r: number) => ({
-    panicRusherDist: lerp(r, 120, 60),
-    panicThrowChance: lerp(r, 0.05, 0.45),
-    pressureSensitivity: lerp(r, 1.7, 0.4),
-  }),
-  decisionMaking: (r: number) => ({
-    minThrowStep: lerp(r, 70, 30),
-    earlyThrowChance: lerp(r, 0.6, 1),
-    earlyThrowSeparation: lerp(r, 100, 50),
+  DECISIONMAKING: (r: number) => ({
+    minThrowStep: lerp(r, 90, 30),
+    minOpennessNeeded: lerp(r, 280, 200),
+    panicOpennessNeeded: lerp(r, 130, 110),
   }),
   shortAccuracy: (r: number) => ({
     shortError: lerp(r, 0.6, 0.2),
@@ -110,7 +105,7 @@ export const ATTRIBUTE_CONFIG = {
   deepAccuracy: (r: number) => ({
     deepError: lerp(r, 0.85, 0.2),
   }),
-  throwPower: (r: number) => ({
+  THROWPOWER: (r: number) => ({
     ballMetersPerSecond: lerp(r, 18, 30),
   }),
 
@@ -195,12 +190,11 @@ type Ratings = Record<Attribute, number>;
 const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   SPEED: 0.75,
   SIZE: 0.3,
-  pocketPresence: 0.5,
-  pressureFeel: 0.5,
-  decisionMaking: 0.5,
+  POCKETPRESENCE: 0.5,
+  DECISIONMAKING: 0.64,
   shortAccuracy: 0.5,
   deepAccuracy: 0.5,
-  throwPower: 0.5,
+  THROWPOWER: 0.5,
   VISION: 0.2,
   POWER: 0.1,
   ROUTERUNNING: 0.5,
@@ -228,12 +222,32 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     SIZE: 0.23,
     VISION: 0.6,
     POWER: 0.5,
+    ROUTERUNNING: 0.3,
+    CATCHACCELERATION: 0.75,
     CATCHRADIUS: 0.45,
     PASSBLOCK: 0.1,
   }),
-  XR: createBaseRatings({ SPEED: 0.91, SIZE: 0.13, CATCHRADIUS: 0.75 }),
-  ZR: createBaseRatings({ SPEED: 0.89, SIZE: 0.1, CATCHRADIUS: 0.55 }),
-  TE: createBaseRatings({ SPEED: 0.7, SIZE: 0.47, CATCHRADIUS: 0.66 }),
+  XR: createBaseRatings({
+    SPEED: 0.91,
+    SIZE: 0.13,
+    ROUTERUNNING: 0.5,
+    CATCHACCELERATION: 0.45,
+    CATCHRADIUS: 0.75,
+  }),
+  ZR: createBaseRatings({
+    SPEED: 0.89,
+    SIZE: 0.1,
+    ROUTERUNNING: 0.65,
+    CATCHACCELERATION: 0.65,
+    CATCHRADIUS: 0.55,
+  }),
+  TE: createBaseRatings({
+    SPEED: 0.7,
+    SIZE: 0.47,
+    CATCHACCELERATION: 0.5,
+    ROUTERUNNING: 0.4,
+    CATCHRADIUS: 0.66,
+  }),
 
   // Blockers
   LT: createBaseRatings({

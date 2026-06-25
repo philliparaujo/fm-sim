@@ -48,6 +48,8 @@ export const PURSUER_STEER_FACTOR = 0.5;
 export const BALL_GIVEN_STEPS = 400;
 export const PASSER_HANDOFF_SEPARATION = 80;
 export const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
+export const PANIC_RUSHER_DIST = 80;
+export const PANIC_THROW_CHANCE = 0.25;
 
 // Tackling
 export const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)
