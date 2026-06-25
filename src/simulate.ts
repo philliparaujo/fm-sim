@@ -7,6 +7,7 @@ import {
   START_DRIVE,
   TOTAL_H,
   TOTAL_W,
+  TRAINING_MODE_ON,
   W,
 } from "./constants";
 import {
@@ -751,15 +752,31 @@ function resetSimulation(reason: PlayEndReason) {
 
   // Calculate the next Line of Scrimmage with a field-perspective flip if possession changes
   let nextLOS = START_DRIVE;
-  if (isTouchdown || isSafety || isInterception || isFieldGoal) {
-    nextLOS = START_DRIVE;
-  } else if (isPunt) {
-    nextLOS = getLOSAfterPunt(prevScoreboard.LOS);
-  } else if (isTurnoverOnDowns) {
-    // Flip the ball position so the new offense drives left-to-right from that spot
-    nextLOS = TOTAL_W - finalLOSBeforeFlip;
+  if (TRAINING_MODE_ON) {
+    // Training mode: Same team keeps ball
+    if (isTouchdown || isSafety || isFieldGoal) {
+      nextLOS = START_DRIVE;
+    } else {
+      nextLOS = finalLOSBeforeFlip;
+    }
   } else {
-    nextLOS = finalLOSBeforeFlip;
+    // Normal game: Possession switches to other team
+    if (isTouchdown || isSafety || isFieldGoal) {
+      nextLOS = START_DRIVE;
+    } else if (isPunt) {
+      nextLOS = getLOSAfterPunt(prevScoreboard.LOS);
+    } else if (isTurnoverOnDowns) {
+      // Flip the ball position so the new offense drives left-to-right from that spot
+      nextLOS = TOTAL_W - finalLOSBeforeFlip;
+    } else if (isInterception) {
+      nextLOS = TOTAL_W - endBallX;
+    } else {
+      nextLOS = finalLOSBeforeFlip;
+    }
+  }
+
+  if (reason === "interception") {
+    console.log("INT", endBallX, nextLOS);
   }
 
   const yards = yardsFromPixels(
@@ -837,12 +854,13 @@ function resetSimulation(reason: PlayEndReason) {
 
   // Check all possible reasons possession shifts to the other team
   const flipPossession =
-    isTouchdown ||
-    isFieldGoal ||
-    isSafety ||
-    isPunt ||
-    isInterception ||
-    isTurnoverOnDowns;
+    !TRAINING_MODE_ON &&
+    (isTouchdown ||
+      isFieldGoal ||
+      isSafety ||
+      isPunt ||
+      isInterception ||
+      isTurnoverOnDowns);
 
   if (flipPossession) {
     // Pass the fresh global master objects with updated scores to the new state

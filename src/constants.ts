@@ -1,3 +1,6 @@
+/* Global constants */
+export const TRAINING_MODE_ON = false;
+
 /* Sizing constants */
 export const W = 720 * 3;
 export const H = 400 * 3;
