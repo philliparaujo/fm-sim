@@ -476,8 +476,10 @@ function render(state: State) {
       if (ALL_PREDICTED_ROUTE_ON) {
         drawReceiverPredictedRoute(passer, catcher, state);
       }
-      if (ALL_PREDICTED_TARGET_ON && catcher.predictedTarget) {
-        drawThrowTarget(catcher.predictedTarget);
+      if (ALL_PREDICTED_TARGET_ON && catcher.predictedTargets != null) {
+        for (const target of catcher.predictedTargets) {
+          drawThrowTarget(target);
+        }
       }
     }
   }

@@ -391,7 +391,7 @@ function fillOutRosterPlayer(
     breakFrame: null,
     routeSideMultiplier: null,
     improvAngleRad: null,
-    predictedTarget: null,
+    predictedTargets: null,
     coverage: coverage ?? undefined,
     playRushSeed: undefined,
     rushSpeedVariance: undefined,

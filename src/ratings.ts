@@ -13,8 +13,8 @@ const ATTR_GRADE_THRESHOLDS: Record<Attribute, GradeThreshold> = {
   THROWPOWER: { peak: 100, spread: 100 },
   POCKETPRESENCE: { peak: 100, spread: 100 },
   DECISIONMAKING: { peak: 100, spread: 100 },
-  shortAccuracy: { peak: 100, spread: 100 },
-  deepAccuracy: { peak: 100, spread: 100 },
+  SHORTACCURACY: { peak: 100, spread: 100 },
+  DEEPACCURACY: { peak: 100, spread: 100 },
   ROUTERUNNING: { peak: 100, spread: 100 },
   CATCHACCELERATION: { peak: 100, spread: 100 },
   CATCHRADIUS: { peak: 100, spread: 85 },
@@ -99,11 +99,11 @@ export const ATTRIBUTE_CONFIG = {
     minOpennessNeeded: lerp(r, 280, 200),
     panicOpennessNeeded: lerp(r, 130, 110),
   }),
-  shortAccuracy: (r: number) => ({
-    shortError: lerp(r, 0.6, 0.2),
+  SHORTACCURACY: (r: number) => ({
+    shortError: lerp(r, 0.6, 0),
   }),
-  deepAccuracy: (r: number) => ({
-    deepError: lerp(r, 0.85, 0.2),
+  DEEPACCURACY: (r: number) => ({
+    deepError: lerp(r, 0.85, 0),
   }),
   THROWPOWER: (r: number) => ({
     ballMetersPerSecond: lerp(r, 18, 30),
@@ -192,8 +192,8 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   SIZE: 0.3,
   POCKETPRESENCE: 0.5,
   DECISIONMAKING: 0.64,
-  shortAccuracy: 0.5,
-  deepAccuracy: 0.5,
+  SHORTACCURACY: 0.5,
+  DEEPACCURACY: 0.5,
   THROWPOWER: 0.5,
   VISION: 0.2,
   POWER: 0.1,

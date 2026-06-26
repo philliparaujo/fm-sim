@@ -19,7 +19,7 @@ import {
 } from "./constants";
 import { getConstants } from "./ratings";
 import { resetSimulation, resolveCollision, state } from "./simulate";
-import { Player, State, Vector } from "./types";
+import { cornerRoute, outRoute, Player, State, Vector } from "./types";
 import {
   closestPointOnSegment,
   diff,
@@ -453,21 +453,27 @@ function stepAsPlayer(
     const thinkInterval = underPressure ? 3 : THROW_EVAL_INTERVAL;
     if (!player.cachedThrowEval || state.steps % thinkInterval === 0) {
       const evaluatedOptions = catchers.map((catcher: Player) => {
-        const { target, projected, framesUntil, defenderDistAtArrival } =
-          evaluateThrowWindow(player, catcher, state, cachedPlayers);
+        const throwWindowRes = evaluateThrowWindow(
+          player,
+          catcher,
+          state,
+          cachedPlayers,
+        );
+        if (throwWindowRes === null) return null;
+
+        const { target, framesUntil, defenderDistAtArrival } = throwWindowRes;
         return {
           catcher,
           target,
-          projected,
           framesUntil,
           projectedOpenness: defenderDistAtArrival,
           throwDist: dist(player.loc, target),
         };
       });
 
-      player.cachedThrowEval = evaluatedOptions.sort(
-        (a: any, b: any) => b.projectedOpenness - a.projectedOpenness,
-      )[0];
+      player.cachedThrowEval = evaluatedOptions
+        .filter((a) => a !== null)
+        .sort((a, b) => b.projectedOpenness - a.projectedOpenness)[0];
     }
 
     const bestOption = player.cachedThrowEval;
@@ -553,8 +559,8 @@ function stepAsPlayer(
     state.playAdvanced.wasThrowAway = false;
     if (!shouldThrow) return;
 
-    const { shortError } = getConstants("shortAccuracy", player);
-    const { deepError } = getConstants("deepAccuracy", player);
+    const { shortError } = getConstants("SHORTACCURACY", player);
+    const { deepError } = getConstants("DEEPACCURACY", player);
     const { pressureSensitivity } = getConstants("POCKETPRESENCE", player);
 
     const rawPressure = underPressure
@@ -834,12 +840,17 @@ function stepAsPlayer(
         let coverageFocusX = extrapolatedLoc.x;
         let coverageFocusY = extrapolatedLoc.y;
 
-        if (targetCatcher.predictedTarget) {
+        if (
+          targetCatcher.predictedTargets !== null &&
+          targetCatcher.predictedTargets.length > 0
+        ) {
+          const target =
+            targetCatcher.predictedTargets[
+              Math.floor(targetCatcher.predictedTargets.length / 2)
+            ];
           // Shift focus halfway towards the anticipated throw spot to cheat toward the target
-          coverageFocusX =
-            (coverageFocusX + targetCatcher.predictedTarget.x) / 2;
-          coverageFocusY =
-            (coverageFocusY + targetCatcher.predictedTarget.y) / 2;
+          coverageFocusX = (coverageFocusX + target.x) / 2;
+          coverageFocusY = (coverageFocusY + target.y) / 2;
         }
 
         if (isDeepOverrideActive) {
@@ -1203,72 +1214,85 @@ function calculatePerfectThrowTarget(
   passer: Player,
   receiver: Player,
   state: State,
-): { framesUntil: number; target: Vector; projected: Vector } {
+): { framesUntil: number; target: Vector } | null {
   const PIXELS_PER_YARD = W / 100;
   const YARDS_PER_METER = 1.09361;
   const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
 
   const { ballMetersPerSecond } = getConstants("THROWPOWER", passer);
-  const updatedBMPS = ballMetersPerSecond + 8;
+  const updatedBMPS = ballMetersPerSecond;
   const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
 
-  // 1. GENERATE THE RECEIVER'S FUTURE PATH TIMELINE
   const MAX_PREDICTION_FRAMES = 180;
-  // TODO: Fix corner route from being underthrown
   const receiverTimeline = predictReceiverRoute(passer, receiver, state);
 
-  // 2. DEFINE BOUNDARY LIMITS (With a ~1-yard safety margin away from lines)
   const BOUNDARY_MARGIN = PIXELS_PER_YARD;
   const MIN_PLAYABLE_X = BOUNDARY_MARGIN;
   const MAX_PLAYABLE_X = TOTAL_W - BOUNDARY_MARGIN;
   const MIN_PLAYABLE_Y = BOUNDARY_MARGIN;
   const MAX_PLAYABLE_Y = TOTAL_H - BOUNDARY_MARGIN;
 
-  // 3. SCAN THE TIMELINE TO FIND THE ANTICIPATED INTERCEPTION SPOT
+  // Fetch the receiver's catch radius so we know what "catchable" means
+  const { completionRadius } = getConstants("CATCHRADIUS", receiver);
+
+  // 1. COLLECT ALL CATCHABLE TARGETS
+  const catchableTargets: {
+    frame: number;
+    target: Vector;
+  }[] = [];
+
   for (let frame = 1; frame <= MAX_PREDICTION_FRAMES; frame++) {
-    const projectedSpot = receiverTimeline[frame - 1]; // Array is 0-indexed
+    const projectedSpot = receiverTimeline[frame - 1];
     if (!projectedSpot) break;
 
+    // Clip target to field boundaries
     const isOutOfBounds =
       projectedSpot.x < MIN_PLAYABLE_X ||
       projectedSpot.x > MAX_PLAYABLE_X ||
       projectedSpot.y < MIN_PLAYABLE_Y ||
       projectedSpot.y > MAX_PLAYABLE_Y;
+    if (isOutOfBounds) continue;
 
-    // If the path drifted out of bounds, clip this individual frame position to the bounds
-    const clampedSpot: Vector = {
-      x: Math.max(MIN_PLAYABLE_X, Math.min(MAX_PLAYABLE_X, projectedSpot.x)),
-      y: Math.max(MIN_PLAYABLE_Y, Math.min(MAX_PLAYABLE_Y, projectedSpot.y)),
-    };
-
-    const travelDistance = dist(passer.loc, clampedSpot);
+    // Calculate how many frames it takes the ball to reach this specific clamped spot
+    const travelDistance = dist(passer.loc, projectedSpot);
     const ballTravelFrames = travelDistance / ballPixelsPerFrame;
+    const arrivalFrame = Math.round(ballTravelFrames);
 
-    // A mathematically valid interception point
-    if (ballTravelFrames <= frame) {
-      return {
-        framesUntil: frame,
-        target: clampedSpot,
-        projected: projectedSpot,
-      };
+    // Ensure the ball's arrival time falls within our prediction timeline
+    if (arrivalFrame >= 1 && arrivalFrame <= MAX_PREDICTION_FRAMES) {
+      // Look up where the receiver will ACTUALLY be at the exact frame the ball lands
+      const actualReceiverSpotAtArrival = receiverTimeline[arrivalFrame - 1];
+
+      if (actualReceiverSpotAtArrival) {
+        // The pass is only completable if the landing spot is within the
+        // receiver's catch radius at the exact moment of ball arrival.
+        const separation = dist(projectedSpot, actualReceiverSpotAtArrival);
+
+        if (separation <= completionRadius) {
+          catchableTargets.push({
+            frame: frame, // The timeline index where this throw was targeted
+            target: projectedSpot,
+          });
+        }
+      }
     }
   }
 
-  // Fallback to the furthest predicted spot clamped cleanly inside bounds
-  const rawFallback =
-    receiverTimeline[receiverTimeline.length - 1] ?? receiver.loc;
-  const clampedFallback: Vector = {
-    x: Math.max(MIN_PLAYABLE_X, Math.min(MAX_PLAYABLE_X, rawFallback.x)),
-    y: Math.max(MIN_PLAYABLE_Y, Math.min(MAX_PLAYABLE_Y, rawFallback.y)),
-  };
+  // 2. RETURN THE MIDDLE FRAMED TARGET
+  if (catchableTargets.length > 10) {
+    const index = Math.round(catchableTargets.length / 2);
+    const middleTarget = catchableTargets[index];
+    receiver.predictedTargets = catchableTargets.map((target) => target.target);
 
-  receiver.predictedTarget = clampedFallback;
+    return {
+      framesUntil: middleTarget.frame - 5,
+      target: middleTarget.target,
+    };
+  }
 
-  return {
-    framesUntil: receiverTimeline.length,
-    target: clampedFallback,
-    projected: rawFallback,
-  };
+  // 3. FALLBACK: If no catchable window was found, don't throw
+  receiver.predictedTargets = null;
+  return null;
 }
 
 interface RouteVelocityContext {
@@ -1305,9 +1329,9 @@ function getReceiverVelocityAtFrame(
   // Ensure we compute currentLoc accurately for both phases
   const currentLoc = { x: ctx.currentLocX, y: ctx.currentLocY };
 
-  const routeBreakThreshold = Math.floor(
-    (receiver.route.steps * PIXELS_PER_STEP) / maxSpeed,
-  );
+  const routeBreakThreshold =
+    ctx.breakFrame ??
+    Math.floor((receiver.route.steps * PIXELS_PER_STEP) / maxSpeed);
 
   // 1) STEM PHASE
   if (ctx.absoluteFrame < routeBreakThreshold) {
@@ -1332,6 +1356,16 @@ function getReceiverVelocityAtFrame(
   //   hitSideline(currentLoc);
 
   if (isTriggeredByTime) {
+    if (ctx.improvAngleRad !== null) {
+      return {
+        velX: Math.cos(ctx.improvAngleRad) * maxSpeed,
+        velY: Math.sin(ctx.improvAngleRad) * maxSpeed,
+        sideMultiplier: sideMultiplier,
+        isBreaking: false,
+        improvAngleRad: ctx.improvAngleRad,
+      };
+    }
+
     const baseVelX = receiver.vel.x || maxSpeed;
     const baseVelY = receiver.vel.y || 0;
 
@@ -1500,15 +1534,13 @@ function evaluateThrowWindow(
   },
 ): {
   target: Vector;
-  projected: Vector;
   framesUntil: number;
   defenderDistAtArrival: number;
-} {
-  const { framesUntil, target, projected } = calculatePerfectThrowTarget(
-    passer,
-    catcher,
-    state,
-  );
+} | null {
+  const throwTargetRes = calculatePerfectThrowTarget(passer, catcher, state);
+  if (throwTargetRes === null) return null;
+
+  const { framesUntil, target } = throwTargetRes;
 
   // Project every relevant defender forward by flightFrames using simple linear extrapolation
   const defenders = [...cachedPlayers.rushers, ...cachedPlayers.coverers];
@@ -1522,7 +1554,7 @@ function evaluateThrowWindow(
         )
       : Infinity;
 
-  return { target, projected, framesUntil, defenderDistAtArrival };
+  return { target, framesUntil, defenderDistAtArrival };
 }
 
 function resolveBallInAir(

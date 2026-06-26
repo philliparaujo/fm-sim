@@ -67,7 +67,7 @@ interface Player extends Entity, RosterPlayer {
   breakFrame: number | null;
   routeSideMultiplier: 1 | -1 | null;
   improvAngleRad: number | null;
-  predictedTarget: Vector | null;
+  predictedTargets: Vector[] | null;
 
   // For rushers
   playRushSeed?: number;
