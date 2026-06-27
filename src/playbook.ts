@@ -383,6 +383,12 @@ function fillOutRosterPlayer(
 
     contactedThisFrame: false,
     isBursting: false,
+    shedCooldown: 0,
+    shedImmunityFrames: 0,
+
+    // Properties for rendering
+    contextRays: null,
+    chosenRayDir: null,
   };
 }
 

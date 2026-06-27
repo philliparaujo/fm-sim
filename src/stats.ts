@@ -101,6 +101,43 @@ function emptyAdvancedStats(): AdvancedStats {
   };
 }
 
+function applyQBStats(
+  s: QBStats,
+  isPassAttempt: boolean,
+  isSack: boolean,
+  completion: boolean,
+  isInterception: boolean,
+  isTouchdown: boolean,
+  yards: number,
+) {
+  if (isPassAttempt) s.attempts++;
+  if (isSack) {
+    s.sacks++;
+  } else if (completion) {
+    s.completions++;
+    s.yards += yards;
+    if (isTouchdown) s.tds++;
+  } else if (isInterception) {
+    s.ints++;
+  }
+  s.cmp = s.attempts > 0 ? round2(s.completions / s.attempts) : 0;
+  s.ypa = s.attempts > 0 ? round2(s.yards / s.attempts) : 0;
+}
+
+function applyRBStats(
+  s: RBStats,
+  isRush: boolean,
+  isTouchdown: boolean,
+  yards: number,
+) {
+  if (!isRush) return;
+  s.rushes++;
+  s.yards += yards;
+  if (yards < 0) s.tfls++;
+  if (isTouchdown) s.tds++;
+  s.ypc = s.rushes > 0 ? round2(s.yards / s.rushes) : 0;
+}
+
 function playcallCoverageKey(
   offense: OffensivePlayType,
   defense: DefensiveCoverageType,
@@ -237,88 +274,53 @@ export function updateStatsAfterPlay(
       next.playcallCoverage[matchupKey].count,
   );
 
-  // --- playcallCoverageStats ---
-  const matchupStats = next.playcallCoverageStats[matchupKey];
-
+  // --- Per-matchup + aggregate stats ---
   if (play.offense === "pass") {
-    const s = matchupStats as QBStats;
-    if (isPassAttempt) s.attempts++;
-    if (isSack) {
-      s.sacks++;
-    } else if (completion) {
-      s.completions++;
-      s.yards += yards;
-      if (isTouchdown) s.tds++;
-    } else if (isInterception) {
-      s.ints++;
-    }
-    s.cmp = s.attempts > 0 ? round2(s.completions / s.attempts) : 0;
-    s.ypa = s.attempts > 0 ? round2(s.yards / s.attempts) : 0;
-  } else {
-    const s = matchupStats as RBStats;
-    if (isRush) {
-      s.rushes++;
-      s.yards += yards;
-      if (yards < 0) s.tfls++;
-      if (isTouchdown) s.tds++;
-      s.ypc = s.rushes > 0 ? round2(s.yards / s.rushes) : 0;
-    }
-  }
+    applyQBStats(
+      next.playcallCoverageStats[matchupKey] as QBStats,
+      isPassAttempt,
+      isSack,
+      completion,
+      isInterception,
+      isTouchdown,
+      yards,
+    );
+    applyQBStats(
+      next.qb,
+      isPassAttempt,
+      isSack,
+      completion,
+      isInterception,
+      isTouchdown,
+      yards,
+    );
 
-  // --- Aggregate QB stats ---
-  if (play.offense === "pass") {
-    if (isPassAttempt) next.qb.attempts++;
-    if (isSack) {
-      next.qb.sacks++;
-    } else if (completion) {
-      next.qb.completions++;
-      next.qb.yards += yards;
-      if (isTouchdown) next.qb.tds++;
-    } else if (isInterception) {
-      next.qb.ints++;
-    }
-    next.qb.ypa =
-      next.qb.attempts > 0 ? round2(next.qb.yards / next.qb.attempts) : 0;
-    next.qb.cmp =
-      next.qb.attempts > 0 ? round2(next.qb.completions / next.qb.attempts) : 0;
-
-    // Route tracking
     if (isPassAttempt || isSack) {
       for (const route of play.routes) {
         bumpCountYards(next.routes, routeKey(route));
       }
       if (completion && ballCarrierRoute) {
-        const key = routeKey(ballCarrierRoute);
-        if (next.routes[key]) {
-          next.routes[key].yards += yards;
-        }
+        next.routes[routeKey(ballCarrierRoute)].yards += yards;
       }
       for (const route of play.routes) {
         const key = routeKey(route);
-        if (next.routes[key]) {
-          (next.routes[key] as any).avg = round2(
-            next.routes[key].yards / next.routes[key].count,
-          );
-        }
+        next.routes[key].avg = round2(
+          next.routes[key].yards / next.routes[key].count,
+        );
       }
     }
   } else {
-    // --- Aggregate RB stats ---
-    if (isRush) {
-      next.rb.rushes++;
-      next.rb.yards += yards;
-      if (yards < 0) next.rb.tfls++;
-      if (isTouchdown) next.rb.tds++;
-      next.rb.ypc =
-        next.rb.rushes > 0 ? round2(next.rb.yards / next.rb.rushes) : 0;
-    }
+    applyRBStats(
+      next.playcallCoverageStats[matchupKey] as RBStats,
+      isRush,
+      isTouchdown,
+      yards,
+    );
+    applyRBStats(next.rb, isRush, isTouchdown, yards);
 
     if (play.runAngle && isRush) {
       const key = runAngleKey(play.runAngle);
-      if (!next.runAngles[key])
-        next.runAngles[key] = { count: 0, yards: 0, avg: 0 };
-      next.runAngles[key].count++;
-      next.runAngles[key].yards += yards;
+      bumpCountYards(next.runAngles, key, yards);
       next.runAngles[key].avg = round2(
         next.runAngles[key].yards / next.runAngles[key].count,
       );
@@ -364,37 +366,22 @@ export function updateStatsAfterPlay(
     }
 
     // Off-target throw %
-    if (
-      isPassAttempt &&
-      playAdvanced.wasOffTarget !== undefined &&
-      passCount > 0
-    ) {
-      const badCount =
-        adv.offTargetThrowRate * (passCount - 1) +
-        (playAdvanced.wasOffTarget ? 1 : 0);
-      adv.offTargetThrowRate = badCount / passCount;
+    if (isPassAttempt && passCount > 0) {
+      adv.offTargetThrowRate =
+        (adv.offTargetThrowRate * (passCount - 1) +
+          (playAdvanced.wasOffTarget ? 1 : 0)) /
+        passCount;
     }
 
-    if (isPassAttempt && playAdvanced.wasThrowAway !== undefined) {
-      const incompletions = passCount - completionCount;
-
-      if (playAdvanced.wasThrowAway && passCount > 0) {
-        const prevThrowawayCount = adv.throwAwayRate * (passCount - 1);
-        const newThrowawayCount = prevThrowawayCount + 1;
-
-        adv.throwAwayRate = newThrowawayCount / passCount;
-      } else if (passCount > 0) {
-        const prevThrowawayCount = adv.throwAwayRate * (passCount - 1);
-        adv.throwAwayRate = prevThrowawayCount / passCount;
-      } else {
-        adv.throwAwayRate = 0;
-      }
-
-      // Safeguard: A throwaway rate can never mathematically exceed the total incompletion rate
-      const maxPossibleRate = passCount > 0 ? incompletions / passCount : 0;
-      if (adv.throwAwayRate > maxPossibleRate) {
+    // Throw-away rate — safeguard: cannot exceed total incompletion rate
+    if (isPassAttempt && passCount > 0) {
+      adv.throwAwayRate =
+        (adv.throwAwayRate * (passCount - 1) +
+          (playAdvanced.wasThrowAway ? 1 : 0)) /
+        passCount;
+      const maxPossibleRate = (passCount - completionCount) / passCount;
+      if (adv.throwAwayRate > maxPossibleRate)
         adv.throwAwayRate = round2(maxPossibleRate);
-      }
     }
 
     // Pressure rate

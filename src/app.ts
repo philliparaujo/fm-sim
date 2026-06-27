@@ -8,28 +8,8 @@ import {
   state,
   tick,
 } from "./simulate";
-import { Label, PLAYER_LABELS, Role } from "./types";
-import { labelToSide } from "./util";
-
-// Explicit lookup map to resolve a roster player's attributes via their label
-const LABEL_TO_ROLE: Record<Label, Role> = {
-  QB: "passer",
-  RB: "runner",
-  XR: "catcher",
-  ZR: "catcher",
-  TE: "catcher",
-  LT: "blocker",
-  C: "blocker",
-  RT: "blocker",
-  LE: "rusher",
-  DT: "rusher",
-  RE: "rusher",
-  CB: "coverer",
-  NB: "coverer",
-  LB: "coverer",
-  FS: "coverer",
-  SS: "coverer",
-};
+import { PLAYER_LABELS } from "./types";
+import { labelToRole, labelToSide } from "./util";
 
 // Which attributes are relevant per role
 const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
@@ -137,7 +117,7 @@ function initDashboard() {
 
       const allAttrs = [
         ...new Set(
-          group.flatMap((rp) => ROLE_ATTRIBUTES[LABEL_TO_ROLE[rp.label]] ?? []),
+          group.flatMap((rp) => ROLE_ATTRIBUTES[labelToRole(rp.label)] ?? []),
         ),
       ];
 
@@ -164,7 +144,7 @@ function initDashboard() {
 
       const tbody = document.createElement("tbody");
       for (const rp of group) {
-        const role = LABEL_TO_ROLE[rp.label];
+        const role = labelToRole(rp.label);
         const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
         const row = document.createElement("tr");
         row.className = "dash-row";
@@ -322,7 +302,7 @@ function updateDashboardValues() {
   // 5. Update Grades & Sliders (Only if values changed)
   for (const team of state.scoreboard.teams) {
     for (const rp of team.roster) {
-      const role = LABEL_TO_ROLE[rp.label];
+      const role = labelToRole(rp.label);
       const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
       for (const attr of playerAttrs) {
         const cachedVal = PLAYER_RATINGS_CACHE[team.color]?.[rp.label]?.[attr];

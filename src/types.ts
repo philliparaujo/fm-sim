@@ -72,6 +72,8 @@ interface Player extends Entity, RosterPlayer {
   // For rushers
   playRushSeed?: number;
   rushSpeedVariance?: number;
+  shedImmunityFrames: number;
+  shedCooldown: number;
 
   // Coverer state
   assignedTarget: Player | null;
@@ -86,7 +88,25 @@ interface Player extends Entity, RosterPlayer {
   burstFrames?: number;
   isBursting: boolean;
   contactedThisFrame: boolean;
+
+  // For rendering
+  contextRays: Ray[] | null;
+  chosenRayDir: Vector | null;
 }
+
+type CachedPlayers = {
+  rushers: Player[];
+  coverers: Player[];
+  catchers: Player[];
+  blockers: Player[];
+};
+
+type Ray = {
+  dir: Vector;
+  interest: number;
+  danger: number;
+  score: number;
+};
 
 type Route = {
   breakAngle: number;
@@ -287,6 +307,7 @@ export {
 export type {
   AdvancedStats,
   Ball,
+  CachedPlayers,
   Coverage,
   CurrentPlay,
   DefensiveCoverageType,
@@ -300,6 +321,7 @@ export type {
   PlayEndReason,
   Player,
   QBStats,
+  Ray,
   RBStats,
   ReplayFrame,
   Role,

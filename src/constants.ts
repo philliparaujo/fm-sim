@@ -1,9 +1,9 @@
 /* Global constants */
-export const TRAINING_MODE_ON = true;
+export const TRAINING_MODE_ON = false;
 
 /* Sizing constants */
-export const W = 720 * 3;
-export const H = 400 * 3;
+export const W = 2160;
+export const H = 1200;
 
 export const ENDZONE_W = (W * 1) / 10;
 export const TOTAL_W = W + 2 * ENDZONE_W;
@@ -45,6 +45,7 @@ export const PURSUER_STEER_FACTOR = 0.5;
 export const PASSER_HANDOFF_SEPARATION = 80;
 export const PANIC_RUSHER_DIST = 80;
 export const PANIC_THROW_CHANCE = 0.25;
+export const MAX_PREDICTION_FRAMES = 300;
 
 // Tackling
 export const TACKLE_PRESSURE_PER_FRAME = 0.05; // How fast pressure builds while in contact (0–1 scale)

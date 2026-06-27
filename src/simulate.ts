@@ -23,6 +23,7 @@ import { updateScoreboardUI } from "./scoreboard";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
 import {
   Ball,
+  CachedPlayers,
   Entity,
   PlayEndReason,
   Player,
@@ -213,12 +214,7 @@ function assignCoverageTargets() {
   });
 }
 
-function assignBlockingTargets(cachedPlayers: {
-  rushers: Player[];
-  coverers: Player[];
-  catchers: Player[];
-  blockers: Player[];
-}) {
+function assignBlockingTargets(cachedPlayers: CachedPlayers) {
   // --- Step 1: Assign OL blockers to rushers (1-on-1, no double teams) ---
   const olBlockers = cachedPlayers.blockers;
   const rushers = cachedPlayers.rushers;
@@ -352,10 +348,8 @@ function triggerMove(entity: Ball | Player) {
 }
 
 function resolveCollision(a: Player, b: Entity) {
-  // 1. Calculate the distance between centers
-  const dx = b.loc.x - a.loc.x;
-  const dy = b.loc.y - a.loc.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  const toB = diff(b.loc, a.loc);
+  const distance = length(toB);
   const aRadius = getConstants("SIZE", a).radius;
   const bRadius =
     b.type === "ball"
@@ -395,24 +389,18 @@ function resolveCollision(a: Player, b: Entity) {
       // NEW: RUN DEFENSE BLOCK-SHEDDING ENGINE
       // ==========================================
       if (blocker && defender) {
-        // Initialize persistent properties safely if they aren't typed in fillOutPlayer
-        if ((defender as any).shedImmunityFrames === undefined)
-          (defender as any).shedImmunityFrames = 0;
-        if ((defender as any).shedCooldown === undefined)
-          (defender as any).shedCooldown = 0;
-
         // If the defender is currently in a successful shed burst, bypass block penalties entirely
-        if ((defender as any).shedImmunityFrames > 0) {
-          (defender as any).shedImmunityFrames--;
+        if (defender.shedImmunityFrames > 0) {
+          defender.shedImmunityFrames--;
           return; // Skip standard collision/damping so they can run free
         }
 
-        if ((defender as any).shedCooldown > 0) {
-          (defender as any).shedCooldown--;
+        if (defender.shedCooldown > 0) {
+          defender.shedCooldown--;
         }
 
         // Only roll for a shed if they are actively colliding and not on cooldown
-        if ((defender as any).shedCooldown === 0) {
+        if (defender.shedCooldown === 0) {
           // Fetch raw ratings from 0.0 to 1.0
           // const shedderRating = defender.ratings?.blockShedding ?? 0.5;
           // const blockerRating = blocker.ratings?.RUNBLOCK ?? 0.5;
@@ -432,8 +420,8 @@ function resolveCollision(a: Player, b: Entity) {
 
           if (Math.random() < shedChance) {
             // SUCCESSFUL SHED!
-            (defender as any).shedImmunityFrames = 10; // 20 frames (~0.33s) of block immunity
-            (defender as any).shedCooldown = 90; // Cooldown before getting locked in another block
+            defender.shedImmunityFrames = 10; // 20 frames (~0.33s) of block immunity
+            defender.shedCooldown = 90; // Cooldown before getting locked in another block
 
             // PHYSICAL BYPASS NUDGE: Teleport the defender slightly past the blocker toward the ball
             const toBall = diff(state.ball.loc, defender.loc);
@@ -450,9 +438,6 @@ function resolveCollision(a: Player, b: Entity) {
 
       // Initiate blocking (Standard fallback if block isn't shed)
       if (blocker && defender) {
-        // Track engagement flag safely since contactedThisFrame is cleared prematurely
-        (defender as any).isPhysicallyEngaged = true;
-
         const { rusherDampingFactor } = getConstants("PASSBLOCK", blocker);
         const {
           runBlockDampingFactor,
@@ -502,9 +487,9 @@ function resolveCollision(a: Player, b: Entity) {
 
       // Resolve regular collision
       const overlap = minDistance - distance;
-      const nx = dx / distance;
+      const nx = toB.x / distance;
       const ny =
-        dy / distance + (Math.random() * INLINE_NUDGE - INLINE_NUDGE / 2);
+        toB.y / distance + (Math.random() * INLINE_NUDGE - INLINE_NUDGE / 2);
 
       const moveX = nx * (overlap / 2);
       const moveY = ny * (overlap / 2);
@@ -777,7 +762,7 @@ function resetSimulation(reason: PlayEndReason) {
 
   // ─── NEW PER-TEAM STAT CALCULATION ───
   // Ensure state.stats is initialized as a record dictionary
-  if (!prevStats || typeof (prevStats as any).qb !== "undefined") {
+  if (!prevStats) {
     state.stats = {};
   }
 

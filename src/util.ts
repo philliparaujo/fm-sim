@@ -121,8 +121,6 @@ export function computeFirstDownLine(
   return LOS + (distance * W) / 100;
 }
 
-const DOWNS = ["1st", "2nd", "3rd", "4th"] as const;
-
 export function yardsFromPixels(pixels: number): number {
   return (pixels / W) * 100;
 }
@@ -137,6 +135,7 @@ export function distanceAfterFirstDown(LOS: number): "goal" | number {
 }
 
 function nextDown(down: Scoreboard["down"]): Scoreboard["down"] {
+  const DOWNS = ["1st", "2nd", "3rd", "4th"] as const;
   const idx = DOWNS.indexOf(down);
   return DOWNS[Math.min(idx + 1, DOWNS.length - 1)];
 }
@@ -236,22 +235,6 @@ export function projectDefenderPosition(
   };
 }
 
-export function hitSideline(loc: Vector): boolean {
-  const BOUNDARY_MARGIN = W / 100;
-
-  const MIN_PLAYABLE_X = BOUNDARY_MARGIN;
-  const MAX_PLAYABLE_X = TOTAL_W - BOUNDARY_MARGIN;
-  const MIN_PLAYABLE_Y = BOUNDARY_MARGIN;
-  const MAX_PLAYABLE_Y = TOTAL_H - BOUNDARY_MARGIN;
-
-  return (
-    loc.x <= MIN_PLAYABLE_X ||
-    loc.x >= MAX_PLAYABLE_X ||
-    loc.y <= MIN_PLAYABLE_Y ||
-    loc.y >= MAX_PLAYABLE_Y
-  );
-}
-
 export function isRunPlay(state: State): boolean {
   return (
     state.currentPlay.special === null && state.currentPlay.offense === "run"
@@ -332,7 +315,7 @@ export function teamId(team: Team): string {
   return `${team.color}|${team.name}`;
 }
 
-function getFieldBounds() {
+export function getFieldBounds() {
   const BOUNDARY_MARGIN = W / 100;
   return {
     minX: BOUNDARY_MARGIN,

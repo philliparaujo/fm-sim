@@ -294,7 +294,7 @@ function drawContextSteeringRays(
   player: Player,
   ctx: CanvasRenderingContext2D,
 ) {
-  const rays = (player as any).contextRays;
+  const rays = player.contextRays;
   if (!rays || rays.length === 0) return;
 
   ctx.save();
@@ -327,7 +327,7 @@ function drawContextSteeringRays(
     ctx.stroke();
 
     // Draw bullet dot over chosen target direction index
-    const chosen = (player as any).chosenRayDir;
+    const chosen = player.chosenRayDir;
     if (chosen && chosen.x === ray.dir.x && chosen.y === ray.dir.y) {
       ctx.beginPath();
       ctx.arc(targetX, targetY, 4.5, 0, Math.PI * 2);

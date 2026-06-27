@@ -4,6 +4,7 @@ import {
   BROKEN_TACKLE_SPEED_BURST,
   H,
   LEAD_FRAMES,
+  MAX_PREDICTION_FRAMES,
   MIN_BLOCK_DISTANCE,
   PANIC_RUSHER_DIST,
   PANIC_THROW_CHANCE,
@@ -14,17 +15,17 @@ import {
   RUSHER_STEER_FACTOR,
   TACKLE_PRESSURE_PER_FRAME,
   TOTAL_H,
-  TOTAL_W,
   W,
 } from "./constants";
 import { getConstants } from "./ratings";
 import { resetSimulation, resolveCollision, state } from "./simulate";
-import { Player, State, Vector } from "./types";
+import { CachedPlayers, Player, Ray, State, Vector } from "./types";
 import {
   clampPosInBounds,
   closestPointOnSegment,
   diff,
   dist,
+  getFieldBounds,
   getPocket,
   isCarryingBall,
   isPassPlay,
@@ -41,12 +42,7 @@ const THROW_EVAL_INTERVAL = 6; // QB evaluates throws every 6 frames (~0.1s)
 function stepAsPlayer(
   player: Player,
   state: State,
-  cachedPlayers: {
-    rushers: Player[];
-    coverers: Player[];
-    catchers: Player[];
-    blockers: Player[];
-  },
+  cachedPlayers: CachedPlayers,
 ) {
   const isBlocking = !isCarryingBall(player, state.ball) && state.ballGiven;
   const ballInAir = state.ballFlight && state.ballFlight.isInFlight;
@@ -376,14 +372,14 @@ function stepAsPlayer(
     const pocket = getPocket(state.scoreboard.LOS);
     const dx = (player.loc.x - pocket.cx) / pocket.rx;
     const dy = (player.loc.y - pocket.cy) / pocket.ry;
-    const distSq = dx * dx + dy * dy;
+    const ellipseDist = length({ x: dx, y: dy });
 
     // Calculate the direction to travel in to stay within the pocket and avoid defenders
     let targetDir = { x: 0, y: 0 };
 
-    if (distSq > 1.0) {
+    if (ellipseDist > 1.0) {
       // Pull back if drift from the ellipse boundary
-      const pullStrength = (distSq - 1.0) * 0.5;
+      const pullStrength = (ellipseDist - 1.0) * 0.5;
       targetDir.x = -dx * pullStrength;
       targetDir.y = -dy * pullStrength;
     } else {
@@ -394,16 +390,13 @@ function stepAsPlayer(
 
     const rushers = cachedPlayers.rushers;
     rushers.forEach((rusher) => {
-      const diff = {
-        x: player.loc.x - rusher.loc.x,
-        y: player.loc.y - rusher.loc.y,
-      };
-      const d = length(diff);
+      const toRusher = diff(player.loc, rusher.loc);
+      const d = length(toRusher);
 
       if (d < passerLookAhead) {
         const weight = Math.pow((passerLookAhead - d) / passerLookAhead, 2);
-        targetDir.x += (diff.x / d) * weight * passerAvoidStrength;
-        targetDir.y += (diff.y / d) * weight * passerAvoidStrength;
+        targetDir.x += (toRusher.x / d) * weight * passerAvoidStrength;
+        targetDir.y += (toRusher.y / d) * weight * passerAvoidStrength;
       }
     });
 
@@ -1051,22 +1044,12 @@ function updateCovererPerception(player: Player, targetCatcher: Player | null) {
 function getContextSteering(
   player: Player,
   baseIntent: Vector,
-  cachedPlayers: {
-    rushers: Player[];
-    coverers: Player[];
-    catchers: Player[];
-    blockers: Player[];
-  },
+  cachedPlayers: CachedPlayers,
 ): Vector {
   const { lookAhead } = getConstants("VISION", player);
 
   const NUM_RAYS = 64;
-  const rays: {
-    dir: Vector;
-    interest: number;
-    danger: number;
-    score: number;
-  }[] = [];
+  const rays: Ray[] = [];
 
   // 1. Initialize rays and map baseline downfield Interest
   const intentLen = length(baseIntent) || 1;
@@ -1149,8 +1132,8 @@ function getContextSteering(
   }
 
   // Attach metadata dynamically to player object for render visualization
-  (player as any).contextRays = rays;
-  (player as any).chosenRayDir = bestRay.dir;
+  player.contextRays = rays;
+  player.chosenRayDir = bestRay.dir;
 
   return bestRay.dir;
 }
@@ -1172,7 +1155,6 @@ function calculatePerfectThrowTarget(
   const updatedBMPS = ballMetersPerSecond;
   const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
 
-  const MAX_PREDICTION_FRAMES = 180;
   const { timeline: receiverTimeline, framesUntilBreak } = predictReceiverRoute(
     receiver,
     state,
@@ -1303,10 +1285,6 @@ function getReceiverVelocityAtFrame(
 
   // --- FIX: Pass the moving currentLoc here instead of the live receiver object ---
   const isTriggeredByTime = state.steps > 200;
-  // const isTriggeredByWall =
-  //   receiver.improvAngleRad ||
-  //   ctx.improvAngleRad !== null ||
-  //   hitSideline(currentLoc);
 
   if (isTriggeredByTime) {
     if (ctx.improvAngleRad !== null) {
@@ -1384,11 +1362,11 @@ function getImprovisedVelocity(
   incomingVelY: number,
   currentSpeed: number,
 ): { velX: number; velY: number; angleRad: number } {
-  const BOUNDARY_MARGIN = W / 100;
-  const hitTop = currentLoc.y <= BOUNDARY_MARGIN;
-  const hitBottom = currentLoc.y >= TOTAL_H - BOUNDARY_MARGIN;
+  const { maxX, minY, maxY } = getFieldBounds();
+  const hitTop = currentLoc.y <= minY;
+  const hitBottom = currentLoc.y >= maxY;
   const hitLeft = currentLoc.x <= LOS;
-  const hitRight = currentLoc.x >= TOTAL_W - BOUNDARY_MARGIN;
+  const hitRight = currentLoc.x >= maxX;
 
   let angleRad =
     receiver.improvAngleRad ?? Math.atan2(incomingVelY, incomingVelX);
@@ -1434,7 +1412,6 @@ function predictReceiverRoute(
 ): { timeline: Vector[]; framesUntilBreak: number } {
   if (!receiver.route) return { timeline: [], framesUntilBreak: 0 };
 
-  const MAX_PREDICTION_FRAMES = 300;
   const receiverTimeline: Vector[] = [];
   let currentSimulatedLoc = { ...receiver.loc };
 
@@ -1483,12 +1460,7 @@ function evaluateThrowWindow(
   passer: Player,
   catcher: Player,
   state: State,
-  cachedPlayers: {
-    rushers: Player[];
-    coverers: Player[];
-    catchers: Player[];
-    blockers: Player[];
-  },
+  cachedPlayers: CachedPlayers,
 ): {
   target: Vector;
   framesUntil: number;
@@ -1514,15 +1486,7 @@ function evaluateThrowWindow(
   return { target, framesUntil: framesUntilLand, defenderDistAtArrival };
 }
 
-function resolveBallInAir(
-  state: State,
-  cachedPlayers: {
-    rushers: Player[];
-    coverers: Player[];
-    catchers: Player[];
-    blockers: Player[];
-  },
-) {
+function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
   const { ballFlight } = state;
   if (!ballFlight || !ballFlight.isInFlight) return;
 
@@ -1646,12 +1610,7 @@ function resolveBallInAir(
 function completePass(
   state: State,
   receiver: Player,
-  cachedPlayers: {
-    rushers: Player[];
-    coverers: Player[];
-    catchers: Player[];
-    blockers: Player[];
-  },
+  cachedPlayers: CachedPlayers,
 ) {
   state.ballFlight!.isInFlight = false;
   state.ball.loc = { ...receiver.loc };
