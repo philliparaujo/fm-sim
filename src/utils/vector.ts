@@ -51,14 +51,14 @@ export function closestPointOnSegment(p: Vector, a: Vector, b: Vector): Vector {
   };
 }
 
-/** Returns the projected position of an entity after `frames` frames at its current velocity. */
+/** Returns the projected position of an entity after `ticks` ticks at its current velocity. */
 export function predictFutureLocation(
   currentLoc: Vector,
   currentVel: Vector,
-  frames: number,
+  ticks: number,
 ): Vector {
   return {
-    x: currentLoc.x + currentVel.x * frames,
-    y: currentLoc.y + currentVel.y * frames,
+    x: currentLoc.x + currentVel.x * ticks,
+    y: currentLoc.y + currentVel.y * ticks,
   };
 }

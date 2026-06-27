@@ -162,12 +162,6 @@ export function getPocket(LOS: number) {
   };
 }
 
-export function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
 export function isNoBreakRoute(route: Route): boolean {
   return route.yardsBeforeBreak === 0 || route.breakAngle === 0;
 }
@@ -329,7 +323,7 @@ export function fillOutRosterPlayer(
     route: route ?? undefined,
     runAngle: runAngle ?? undefined,
     path: [],
-    breakFrame: null,
+    breakTick: null,
     routeSideMultiplier: null,
     improvAngleRad: null,
     predictedTargets: null,
@@ -346,10 +340,10 @@ export function fillOutRosterPlayer(
     reactionTimer: 0,
     zone: nullVector(),
 
-    contactedThisFrame: false,
+    contactedThisTick: false,
     isBursting: false,
     shedCooldown: 0,
-    shedImmunityFrames: 0,
+    shedImmunityTicks: 0,
 
     // Properties for rendering
     contextRays: null,

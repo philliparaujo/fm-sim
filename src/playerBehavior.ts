@@ -2,8 +2,8 @@ import {
   ARRIVAL_RADIUS,
   BROKEN_TACKLE_BURST_DURATION,
   BROKEN_TACKLE_SPEED_BURST,
-  LEAD_FRAMES,
-  MAX_PREDICTION_FRAMES,
+  LEAD_TICKS,
+  MAX_PREDICTION_TICKS,
   MIN_BLOCK_DISTANCE,
   PANIC_RUSHER_DIST,
   PANIC_THROW_CHANCE,
@@ -11,7 +11,8 @@ import {
   PURSUER_STEER_FACTOR,
   ROUTE_BREAK_ANGLE_JITTER,
   RUSHER_STEER_FACTOR,
-  TACKLE_PRESSURE_PER_FRAME,
+  TACKLE_PRESSURE_PER_TICK,
+  THROW_EVAL_INTERVAL,
 } from "./core/constants";
 import { getConstants } from "./core/ratings";
 import { CachedPlayers, Player, Ray, State, Vector } from "./core/types";
@@ -26,7 +27,14 @@ import {
   lerp,
   nearSideline,
 } from "./util";
-import { H, metersToPx, TOTAL_H, yardsToPx } from "./utils/units";
+import {
+  H,
+  metersToPx,
+  perSecondToPerTick,
+  secondsToTicks,
+  TOTAL_H,
+  yardsToPx,
+} from "./utils/units";
 import {
   closestPointOnSegment,
   diff,
@@ -36,7 +44,6 @@ import {
 } from "./utils/vector";
 
 const MAX_PATH_LENGTH = 200; // Cap path arrays to prevent render bloat
-const THROW_EVAL_INTERVAL = 6; // QB evaluates throws every 6 frames (~0.1s)
 
 function stepAsPlayer(
   player: Player,
@@ -88,7 +95,7 @@ function stepAsPlayer(
       break;
     }
     case "coverer": {
-      if (ballInAir && state.ballFlight!.framesElapsed > 20) {
+      if (ballInAir && state.ballFlight!.ticksElapsed > 20) {
         runTowardsBall(player, state.ballFlight!.endLoc);
       } else if (!state.ballGiven && !ballInAir) {
         cover(player);
@@ -292,21 +299,21 @@ function stepAsPlayer(
     );
 
     // 2. PRESERVE POST-CATCH SLOWDOWN MECHANICS
-    const framesSinceCatch = state.steps - state.ballGivenAtStep;
+    const ticksSinceCatch = state.steps - state.ballGivenAtStep;
     let currentSpeed = maxSpeed;
     if (
-      framesSinceCatch < catchSlowdownDuration &&
+      ticksSinceCatch < catchSlowdownDuration &&
       isCarryingBall(player, state.ball)
     ) {
-      const progress = framesSinceCatch / catchSlowdownDuration;
+      const progress = ticksSinceCatch / catchSlowdownDuration;
       const multiplier = lerp(progress, minCatchSpeedMultiplier, 1);
       currentSpeed *= multiplier;
     }
 
     // 3. PRESERVE BROKEN TACKLE SPEED BURSTS
-    if (player.burstFrames && player.burstFrames > 0) {
+    if (player.burstTicks && player.burstTicks > 0) {
       currentSpeed *= BROKEN_TACKLE_SPEED_BURST;
-      player.burstFrames--;
+      player.burstTicks--;
     }
 
     // 4. SMOOTH PHYSICS MODEL STEERING
@@ -342,21 +349,21 @@ function stepAsPlayer(
     }
 
     // Fetch the shared velocity physics
-    const res = getReceiverVelocityAtFrame(player, {
-      absoluteFrame: state.steps,
+    const res = getReceiverVelocityAtTick(player, {
+      absoluteTick: state.steps,
       currentLocX: player.loc.x,
       currentLocY: player.loc.y,
       routeSideMultiplier: player.routeSideMultiplier,
-      breakFrame: player.breakFrame,
+      breakTick: player.breakTick,
       improvAngleRad: player.improvAngleRad,
     });
 
     // Persist properties exactly when entering the break state
     if (
       res.isBreaking &&
-      (player.breakFrame === undefined || player.breakFrame === null)
+      (player.breakTick === undefined || player.breakTick === null)
     ) {
-      player.breakFrame = state.steps;
+      player.breakTick = state.steps;
       player.routeSideMultiplier = res.sideMultiplier;
     }
 
@@ -448,11 +455,15 @@ function stepAsPlayer(
         );
         if (throwWindowRes === null) return null;
 
-        const { target, framesUntil, defenderDistAtArrival } = throwWindowRes;
+        const {
+          target,
+          ticksUntil: ticksUntil,
+          defenderDistAtArrival,
+        } = throwWindowRes;
         return {
           catcher,
           target,
-          framesUntil,
+          ticksUntil: ticksUntil,
           projectedOpenness: defenderDistAtArrival,
           throwDist: dist(player.loc, target),
         };
@@ -483,12 +494,12 @@ function stepAsPlayer(
 
       const forceThrowChance = PANIC_THROW_CHANCE * pressureIntensity * 0.4;
 
-      // How long the QB has been holding the ball this play, in frames since the snap
-      const holdingFrames = state.steps;
+      // How long the QB has been holding the ball this play, in ticks since the snap
+      const holdingTicks = state.steps;
       // Ramp 0→1 over a few seconds of holding under pressure — the longer he's
       // been in the pocket with a rusher closing, the more desperate he gets
-      const HOLD_RAMP_FRAMES = 150; // ~1.5s at 60fps to reach max desperation
-      const holdFactor = Math.min(1, holdingFrames / HOLD_RAMP_FRAMES);
+      const HOLD_RAMP_TICKS = 150; // ~1.5s at 60fps to reach max desperation
+      const holdFactor = Math.min(1, holdingTicks / HOLD_RAMP_TICKS);
 
       // Throw-away chance grows with both pressure intensity and how long he's held it
       const throwAwayChance = lerp(holdFactor, 0.05, 0.35) * pressureIntensity;
@@ -521,21 +532,23 @@ function stepAsPlayer(
         y: throwAwaySide < 0 ? -40 : TOTAL_H + 40,
       };
       const { ballMetersPerSecond } = getConstants("THROWPOWER", player);
-      const ballPixelsPerFrame = metersToPx(ballMetersPerSecond) / 60;
-      const flightFrames = Math.ceil(
-        dist(player.loc, throwAwayTarget) / ballPixelsPerFrame,
+      const ballPixelsPerTick = metersToPx(
+        perSecondToPerTick(ballMetersPerSecond),
+      );
+      const flightTicks = Math.ceil(
+        dist(player.loc, throwAwayTarget) / ballPixelsPerTick,
       );
 
       state.ballFlight = {
         startLoc: { ...state.ball.loc },
         endLoc: throwAwayTarget,
         isInFlight: true,
-        framesElapsed: 0,
-        totalFrames: flightFrames,
+        ticksElapsed: 0,
+        totalTicks: flightTicks,
         receiver: null,
       };
 
-      state.playAdvanced.throwFrame = state.steps;
+      state.playAdvanced.throwTick = state.steps;
       state.playAdvanced.airYards = throwAwayTarget.x - state.scoreboard.LOS;
       state.playAdvanced.wasUnderPressure = underPressure;
       state.playAdvanced.wasThrowAway = true;
@@ -576,12 +589,12 @@ function stepAsPlayer(
       startLoc: { ...state.ball.loc },
       endLoc: physicalBallDestination,
       isInFlight: true,
-      framesElapsed: 0,
-      totalFrames: bestOption.framesUntil,
+      ticksElapsed: 0,
+      totalTicks: bestOption.ticksUntil,
       receiver: bestOption.catcher,
     };
 
-    state.playAdvanced.throwFrame = state.steps;
+    state.playAdvanced.throwTick = state.steps;
     state.playAdvanced.airYards =
       physicalBallDestination.x - state.scoreboard.LOS;
     state.playAdvanced.wasUnderPressure = underPressure;
@@ -682,7 +695,7 @@ function stepAsPlayer(
 
     const perpX = -dirY;
     const perpY = dirX;
-    const speedModifier = player.contactedThisFrame ? 0.25 : 1.0;
+    const speedModifier = player.contactedThisTick ? 0.25 : 1.0;
     const targetVelX = (dirX + perpX * lateral) * uniqueSpeed * speedModifier;
     const targetVelY = (dirY + perpY * lateral) * uniqueSpeed * speedModifier;
     player.vel.x += (targetVelX - player.vel.x) * RUSHER_STEER_FACTOR;
@@ -701,7 +714,7 @@ function stepAsPlayer(
 
     // 1. Fetch both pursuit and bend attributes simultaneously
     const {
-      predictionFrames,
+      predictionTicks: predictionTicks,
       pursuerHomingFactor,
       pursuerContainOffset,
       pursuitLateralFreq,
@@ -712,7 +725,7 @@ function stepAsPlayer(
     const timeToReach = toBall / maxSpeed;
 
     // Project where the ball will be
-    const totalLookAhead = timeToReach + predictionFrames;
+    const totalLookAhead = timeToReach + predictionTicks;
     const predX = state.ball.loc.x + state.ball.vel.x * totalLookAhead;
     const predY = state.ball.loc.y + state.ball.vel.y * totalLookAhead;
 
@@ -837,11 +850,11 @@ function stepAsPlayer(
           x:
             extrapolatedLoc.x +
             (toBallX / toBallDist) * manCushion +
-            baseVel.x * LEAD_FRAMES,
+            baseVel.x * LEAD_TICKS,
           y:
             extrapolatedLoc.y +
             (toBallY / toBallDist) * manCushion +
-            baseVel.y * LEAD_FRAMES,
+            baseVel.y * LEAD_TICKS,
         };
       } else {
         // ZONE COVERAGE ENHANCEMENT:
@@ -869,8 +882,8 @@ function stepAsPlayer(
           const CONSERVATIVE_CUSHION = yardsToPx(7);
 
           targetPoint = {
-            x: coverageFocusX + CONSERVATIVE_CUSHION + baseVel.x * LEAD_FRAMES,
-            y: coverageFocusY + baseVel.y * LEAD_FRAMES,
+            x: coverageFocusX + CONSERVATIVE_CUSHION + baseVel.x * LEAD_TICKS,
+            y: coverageFocusY + baseVel.y * LEAD_TICKS,
           };
         } else {
           // STANDARD UNDERNEATH/INTERMEDIATE ZONE MODE:
@@ -879,11 +892,11 @@ function stepAsPlayer(
             x:
               player.zone!.x +
               (coverageFocusX - player.zone!.x) * zonePull +
-              baseVel.x * LEAD_FRAMES,
+              baseVel.x * LEAD_TICKS,
             y:
               player.zone!.y +
               (coverageFocusY - player.zone!.y) * zonePull +
-              baseVel.y * LEAD_FRAMES,
+              baseVel.y * LEAD_TICKS,
           };
         }
       }
@@ -945,7 +958,6 @@ function attemptTackle(defender: Player, carrier: Player) {
     return;
   }
 
-  // 1. Structural Cooldown Guard (from the frame-rate fix)
   defender.tackleCooldownTicks = defender.tackleCooldownTicks ?? 0;
   if (defender.tackleCooldownTicks > 0) {
     defender.tackleCooldownTicks--;
@@ -953,9 +965,9 @@ function attemptTackle(defender: Player, carrier: Player) {
   }
 
   // Attrition pressure accumulates on contact
-  carrier.contactedThisFrame = true;
+  carrier.contactedThisTick = true;
   carrier.tacklePressure =
-    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_FRAME;
+    (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_TICK;
 
   if (carrier.tacklePressure >= tacklePressureThreshold) {
     resetSimulation("tackle");
@@ -1014,7 +1026,7 @@ function attemptTackle(defender: Player, carrier: Player) {
     } else {
       // Broken tackle logic
       carrier.tacklePressure = 0;
-      carrier.burstFrames = BROKEN_TACKLE_BURST_DURATION;
+      carrier.burstTicks = BROKEN_TACKLE_BURST_DURATION;
       carrier.isBursting = true;
 
       if (carrierMag > 0) {
@@ -1024,7 +1036,7 @@ function attemptTackle(defender: Player, carrier: Player) {
           (carrier.vel.y / carrierMag) * maxSpeed * BROKEN_TACKLE_SPEED_BURST;
       }
 
-      defender.tackleCooldownTicks = 45; // Put defender on cooldown
+      defender.tackleCooldownTicks = secondsToTicks(0.75); // Put defender on cooldown
     }
   }
 }
@@ -1141,43 +1153,41 @@ function calculatePerfectThrowTarget(
   receiver: Player,
   state: State,
 ): {
-  framesUntilLand: number;
-  framesUntilBreak: number;
+  ticksUntilLand: number;
+  ticksUntilBreak: number;
   target: Vector;
 } | null {
   const { ballMetersPerSecond } = getConstants("THROWPOWER", passer);
-  const ballPixelsPerFrame = metersToPx(ballMetersPerSecond) / 60;
+  const ballPixelsPerTick = metersToPx(perSecondToPerTick(ballMetersPerSecond));
 
-  const { timeline: receiverTimeline, framesUntilBreak } = predictReceiverRoute(
-    receiver,
-    state,
-  );
+  const { timeline: receiverTimeline, ticksUntilBreak: ticksUntilBreak } =
+    predictReceiverRoute(receiver, state);
 
   // Fetch the receiver's catch radius so we know what "catchable" means
   const { completionRadius } = getConstants("CATCHRADIUS", receiver);
 
   // 1. COLLECT ALL CATCHABLE TARGETS
   const catchableTargets: {
-    frame: number;
+    tick: number;
     target: Vector;
   }[] = [];
 
-  for (let frame = 1; frame <= MAX_PREDICTION_FRAMES; frame++) {
-    const projectedSpot = receiverTimeline[frame - 1];
+  for (let tick = 1; tick <= MAX_PREDICTION_TICKS; tick++) {
+    const projectedSpot = receiverTimeline[tick - 1];
     if (!projectedSpot) break;
 
     // Clip target to field boundaries
     const clampedSpot: Vector = clampPosInBounds(projectedSpot);
 
-    // Calculate how many frames it takes the ball to reach this specific clamped spot
+    // Calculate how many ticks it takes the ball to reach this specific clamped spot
     const travelDistance = dist(passer.loc, clampedSpot);
-    const ballTravelFrames = travelDistance / ballPixelsPerFrame;
-    const arrivalFrame = Math.round(ballTravelFrames);
+    const ballTravelTicks = travelDistance / ballPixelsPerTick;
+    const arrivalTick = Math.round(ballTravelTicks);
 
     // Ensure the ball's arrival time falls within our prediction timeline
-    if (arrivalFrame >= 1 && arrivalFrame <= MAX_PREDICTION_FRAMES) {
-      // Look up where the receiver will ACTUALLY be at the exact frame the ball lands
-      const actualReceiverSpotAtArrival = receiverTimeline[arrivalFrame - 1];
+    if (arrivalTick >= 1 && arrivalTick <= MAX_PREDICTION_TICKS) {
+      // Look up where the receiver will ACTUALLY be at the exact tick the ball lands
+      const actualReceiverSpotAtArrival = receiverTimeline[arrivalTick - 1];
 
       if (actualReceiverSpotAtArrival) {
         // The pass is only completable if the landing spot is within the
@@ -1186,7 +1196,7 @@ function calculatePerfectThrowTarget(
 
         if (separation <= completionRadius) {
           catchableTargets.push({
-            frame: arrivalFrame, // The timeline index where this throw was targeted
+            tick: arrivalTick, // The timeline index where this throw was targeted
             target: clampedSpot,
           });
         }
@@ -1194,16 +1204,16 @@ function calculatePerfectThrowTarget(
     }
   }
 
-  // 2. RETURN THE MIDDLE FRAMED TARGET
+  // 2. RETURN THE MIDDLE TICK TARGET
   if (catchableTargets.length > 10) {
     const index = Math.round(catchableTargets.length / 2);
     const middleTarget = catchableTargets[index];
     receiver.predictedTargets = catchableTargets.map((target) => target.target);
 
     return {
-      framesUntilLand: middleTarget.frame - 5,
+      ticksUntilLand: middleTarget.tick - 5,
       target: middleTarget.target,
-      framesUntilBreak,
+      ticksUntilBreak: ticksUntilBreak,
     };
   }
 
@@ -1213,15 +1223,15 @@ function calculatePerfectThrowTarget(
 }
 
 interface RouteVelocityContext {
-  absoluteFrame: number;
+  absoluteTick: number;
   currentLocX: number; // Added to trace X-axis position safely
   currentLocY: number;
   routeSideMultiplier: 1 | -1 | null;
-  breakFrame: number | null;
+  breakTick: number | null;
   improvAngleRad: number | null; // Added tracking field
 }
 
-function getReceiverVelocityAtFrame(
+function getReceiverVelocityAtTick(
   receiver: Player,
   ctx: RouteVelocityContext,
 ): {
@@ -1247,11 +1257,11 @@ function getReceiverVelocityAtFrame(
   const currentLoc = { x: ctx.currentLocX, y: ctx.currentLocY };
 
   const routeBreakThreshold =
-    ctx.breakFrame ??
+    ctx.breakTick ??
     Math.floor(yardsToPx(receiver.route.yardsBeforeBreak) / maxSpeed);
 
   // 1) STEM PHASE
-  if (ctx.absoluteFrame < routeBreakThreshold) {
+  if (ctx.absoluteTick < routeBreakThreshold) {
     if (nearSideline(receiver.loc)) {
       return {
         velX: 0,
@@ -1318,8 +1328,8 @@ function getReceiverVelocityAtFrame(
     sideMultiplier *
     (Math.PI / 180);
 
-  const activeBreakFrame = ctx.breakFrame ?? routeBreakThreshold;
-  const framesSinceBreak = ctx.absoluteFrame - activeBreakFrame;
+  const activeBreakTick = ctx.breakTick ?? routeBreakThreshold;
+  const ticksSinceBreak = ctx.absoluteTick - activeBreakTick;
   let currentSpeed = maxSpeed;
 
   const {
@@ -1328,8 +1338,8 @@ function getReceiverVelocityAtFrame(
     reaccelerationDuration,
   } = getConstants("ROUTERUNNING", receiver);
 
-  if (framesSinceBreak <= reaccelerationDuration) {
-    const progress = framesSinceBreak / reaccelerationDuration;
+  if (ticksSinceBreak <= reaccelerationDuration) {
+    const progress = ticksSinceBreak / reaccelerationDuration;
     currentSpeed = maxSpeed * lerp(progress, routeCutSpeedRetained, 1.0);
   }
 
@@ -1338,7 +1348,7 @@ function getReceiverVelocityAtFrame(
 
   if (
     receiver.route.stopAfterBreak &&
-    ctx.absoluteFrame > routeBreakThreshold + stopAfterBreakThreshold
+    ctx.absoluteTick > routeBreakThreshold + stopAfterBreakThreshold
   ) {
     velX *= 0.3;
     velY *= 0.3;
@@ -1402,25 +1412,25 @@ function getImprovisedVelocity(
 function predictReceiverRoute(
   receiver: Player,
   state: State,
-): { timeline: Vector[]; framesUntilBreak: number } {
-  if (!receiver.route) return { timeline: [], framesUntilBreak: 0 };
+): { timeline: Vector[]; ticksUntilBreak: number } {
+  if (!receiver.route) return { timeline: [], ticksUntilBreak: 0 };
 
   const receiverTimeline: Vector[] = [];
   let currentSimulatedLoc = { ...receiver.loc };
 
-  let simulatedBreakFrame = receiver.breakFrame;
+  let simulatedBreakTick = receiver.breakTick;
   let simulatedSideMultiplier = receiver.routeSideMultiplier;
   let simulatedImprovAngle = receiver.improvAngleRad; // Track the heading look-ahead
 
-  for (let frame = 1; frame <= MAX_PREDICTION_FRAMES; frame++) {
-    const absoluteFrame = state.steps + frame;
+  for (let tick = 1; tick <= MAX_PREDICTION_TICKS; tick++) {
+    const absoluteTick = state.steps + tick;
 
-    const res = getReceiverVelocityAtFrame(receiver, {
-      absoluteFrame,
+    const res = getReceiverVelocityAtTick(receiver, {
+      absoluteTick: absoluteTick,
       currentLocX: currentSimulatedLoc.x,
       currentLocY: currentSimulatedLoc.y,
       routeSideMultiplier: simulatedSideMultiplier,
-      breakFrame: simulatedBreakFrame,
+      breakTick: simulatedBreakTick,
       improvAngleRad: simulatedImprovAngle, // Persist across timeline iterations
     });
 
@@ -1430,9 +1440,9 @@ function predictReceiverRoute(
 
     if (
       res.isBreaking &&
-      (simulatedBreakFrame === undefined || simulatedBreakFrame === null)
+      (simulatedBreakTick === undefined || simulatedBreakTick === null)
     ) {
-      simulatedBreakFrame = absoluteFrame;
+      simulatedBreakTick = absoluteTick;
       simulatedSideMultiplier = res.sideMultiplier;
     }
 
@@ -1445,7 +1455,7 @@ function predictReceiverRoute(
 
   return {
     timeline: receiverTimeline,
-    framesUntilBreak: (simulatedBreakFrame ?? state.steps) - state.steps,
+    ticksUntilBreak: (simulatedBreakTick ?? state.steps) - state.steps,
   };
 }
 
@@ -1456,15 +1466,15 @@ function evaluateThrowWindow(
   cachedPlayers: CachedPlayers,
 ): {
   target: Vector;
-  framesUntil: number;
+  ticksUntil: number;
   defenderDistAtArrival: number;
 } | null {
   const throwTargetRes = calculatePerfectThrowTarget(passer, catcher, state);
   if (throwTargetRes === null) return null;
 
-  const { framesUntilLand, target } = throwTargetRes;
+  const { ticksUntilLand: ticksUntilLand, target } = throwTargetRes;
 
-  // Project every relevant defender forward by flightFrames using simple linear extrapolation
+  // Project every relevant defender forward by flightTicks using simple linear extrapolation
   const defenders = [...cachedPlayers.rushers, ...cachedPlayers.coverers];
   const defenderDistAtArrival =
     defenders.length > 0
@@ -1473,23 +1483,23 @@ function evaluateThrowWindow(
             const projected = predictFutureLocation(
               cov.loc,
               cov.vel,
-              framesUntilLand,
+              ticksUntilLand,
             );
             return dist(projected, target);
           }),
         )
       : Infinity;
 
-  return { target, framesUntil: framesUntilLand, defenderDistAtArrival };
+  return { target, ticksUntil: ticksUntilLand, defenderDistAtArrival };
 }
 
 function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
   const { ballFlight } = state;
   if (!ballFlight || !ballFlight.isInFlight) return;
 
-  ballFlight.framesElapsed++;
+  ballFlight.ticksElapsed++;
 
-  if (ballFlight.framesElapsed >= ballFlight.totalFrames) {
+  if (ballFlight.ticksElapsed >= ballFlight.totalTicks) {
     const { receiver, endLoc } = ballFlight;
     const coverers = cachedPlayers.coverers;
 

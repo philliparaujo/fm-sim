@@ -25,7 +25,7 @@ import {
   Vector,
 } from "./core/types";
 import { round2 } from "./util";
-import { ENDZONE_W, pxToYards, W } from "./utils/units";
+import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "./utils/units";
 
 const ROUTE_NAMES: [string, Route][] = [
   ["streak", streakRoute],
@@ -338,16 +338,16 @@ export function updateStatsAfterPlay(
     // FIX 1: Weight Time to Throw against Pass Attempts only, NOT global dropbacks
     if (
       isPassAttempt &&
-      playAdvanced.throwFrame !== undefined &&
+      playAdvanced.throwTick !== undefined &&
       passCount > 0
     ) {
-      const ttt = playAdvanced.throwFrame / 60;
+      const ttt = ticksToSeconds(playAdvanced.throwTick);
       adv.timeToThrow = (adv.timeToThrow * (passCount - 1) + ttt) / passCount;
     }
 
     // FIX 2: Weight Time to Sack against Sack Count only
-    if (isSack && playAdvanced.sackFrame !== undefined && sackCount > 0) {
-      const ttt = playAdvanced.sackFrame / 60;
+    if (isSack && playAdvanced.sackTick !== undefined && sackCount > 0) {
+      const ttt = ticksToSeconds(playAdvanced.sackTick);
       adv.timeToSack = (adv.timeToSack * (sackCount - 1) + ttt) / sackCount;
     }
 

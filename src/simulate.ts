@@ -1,6 +1,5 @@
 import {
   INLINE_NUDGE,
-  LOGIC_TICK_MS,
   PAUSE_MS_AFTER_PLAY,
   simSpeed,
   TRAINING_MODE_ON,
@@ -37,6 +36,7 @@ import {
 } from "./util";
 import {
   ENDZONE_W,
+  LOGIC_TICK_MS,
   pxToYards,
   START_DRIVE,
   TOTAL_H,
@@ -313,8 +313,8 @@ function resolveCollision(a: Player, b: Entity) {
       // ==========================================
       if (blocker && defender) {
         // If the defender is currently in a successful shed burst, bypass block penalties entirely
-        if (defender.shedImmunityFrames > 0) {
-          defender.shedImmunityFrames--;
+        if (defender.shedImmunityTicks > 0) {
+          defender.shedImmunityTicks--;
           return; // Skip standard collision/damping so they can run free
         }
 
@@ -335,7 +335,7 @@ function resolveCollision(a: Player, b: Entity) {
             ? getConstants("PASSBLOCK", blocker).antiBlockShed
             : getConstants("RUNBLOCK", blocker).antiBlockShed;
 
-          // Per-frame base probability (~2% chance per frame baseline at 60 FPS)
+          // Per-tick base probability (~2% chance per tick baseline at 60 FPS)
           const BASE_SHED_CHANCE = 0.006;
           // Scale chance: high block-shedding vs low run-blocking increases the odds drastically
           const shedChance =
@@ -343,7 +343,7 @@ function resolveCollision(a: Player, b: Entity) {
 
           if (Math.random() < shedChance) {
             // SUCCESSFUL SHED!
-            defender.shedImmunityFrames = 10; // 20 frames (~0.33s) of block immunity
+            defender.shedImmunityTicks = 10; // 20 ticks (~0.33s) of block immunity
             defender.shedCooldown = 90; // Cooldown before getting locked in another block
 
             // PHYSICAL BYPASS NUDGE: Teleport the defender slightly past the blocker toward the ball
@@ -498,7 +498,7 @@ function stepSimulation() {
 
   for (const player of state.players) {
     player.prevVel = { x: player.vel.x, y: player.vel.y };
-    player.contactedThisFrame = false;
+    player.contactedThisTick = false;
     stepAsPlayer(player, state, cachedPlayers);
   }
 
@@ -522,7 +522,7 @@ function stepSimulation() {
   }
 
   for (const player of state.players) {
-    if (isCarryingBall(player, state.ball) && !player.contactedThisFrame) {
+    if (isCarryingBall(player, state.ball) && !player.contactedThisTick) {
       player.tacklePressure = 0; // reset fully — they're in the clear
     }
   }
@@ -680,7 +680,7 @@ function resetSimulation(reason: PlayEndReason) {
   );
 
   if (reason === "sack") {
-    state.playAdvanced.sackFrame = state.steps;
+    state.playAdvanced.sackTick = state.steps;
   }
 
   // ─── NEW PER-TEAM STAT CALCULATION ───

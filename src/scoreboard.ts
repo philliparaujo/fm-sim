@@ -1,5 +1,6 @@
 import { Scoreboard } from "./core/types";
-import { formatTime, LOSToString } from "./util";
+import { LOSToString } from "./util";
+import { secondsToTimeString } from "./utils/units";
 
 export function updateScoreboardUI(data: Scoreboard) {
   const redTeam = data.teams[0].color === "red" ? data.teams[0] : data.teams[1];
@@ -39,6 +40,8 @@ export function updateScoreboardUI(data: Scoreboard) {
   document.getElementById("yard-line")!.textContent = LOSToString(data.LOS);
 
   // 6. Update Clock and Quarter
-  document.getElementById("game-clock")!.textContent = formatTime(data.time);
+  document.getElementById("game-clock")!.textContent = secondsToTimeString(
+    data.time,
+  );
   document.getElementById("quarter")!.textContent = data.quarter;
 }

@@ -172,7 +172,7 @@ const ATTRIBUTE_CONFIG = {
   }),
   // Best = ~0.5
   PURSUIT: (r: number) => ({
-    predictionFrames: lerp(r, 50, 10),
+    predictionTicks: lerp(r, 50, 10),
     pursuerHomingFactor: lerp(r, 0.01, 0.2),
     pursuerContainOffset: lerp(r, -5, 20),
     pursuitLateralStrength: lerp(r, 0.4, 0),

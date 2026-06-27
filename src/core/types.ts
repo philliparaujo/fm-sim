@@ -60,11 +60,17 @@ interface Player extends Entity, RosterPlayer {
 
   // For passers
   decisionTicks: number;
-  cachedThrowEval: any;
+  cachedThrowEval: {
+    catcher: Player;
+    target: Vector;
+    ticksUntil: number;
+    projectedOpenness: number;
+    throwDist: number;
+  } | null;
 
   // For receivers
   path: Vector[];
-  breakFrame: number | null;
+  breakTick: number | null;
   routeSideMultiplier: 1 | -1 | null;
   improvAngleRad: number | null;
   predictedTargets: Vector[] | null;
@@ -72,7 +78,7 @@ interface Player extends Entity, RosterPlayer {
   // For rushers
   playRushSeed?: number;
   rushSpeedVariance?: number;
-  shedImmunityFrames: number;
+  shedImmunityTicks: number;
   shedCooldown: number;
 
   // Coverer state
@@ -85,9 +91,9 @@ interface Player extends Entity, RosterPlayer {
   // Tackle state
   tacklePressure?: number;
   tackleCooldownTicks?: number;
-  burstFrames?: number;
+  burstTicks?: number;
   isBursting: boolean;
-  contactedThisFrame: boolean;
+  contactedThisTick: boolean;
 
   // For rendering
   contextRays: Ray[] | null;
@@ -179,8 +185,8 @@ type RBStats = {
 };
 
 type PlayAdvancedData = {
-  throwFrame?: number; // state.steps when throw occurred
-  sackFrame?: number; // state.steps when sack occurred
+  throwTick?: number; // state.steps when throw occurred
+  sackTick?: number; // state.steps when sack occurred
   airYards?: number; // pixels from LOS to catcher at throw time
   wasOffTarget: boolean; // throw was uncatchable
   wasUnderPressure: boolean; // at least one frame under pressure this play
@@ -303,8 +309,8 @@ type BallFlightState = {
   startLoc: Vector;
   endLoc: Vector;
   receiver: Player | null;
-  totalFrames: number;
-  framesElapsed: number;
+  totalTicks: number;
+  ticksElapsed: number;
 };
 
 type State = {

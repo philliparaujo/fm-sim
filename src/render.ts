@@ -61,7 +61,7 @@ function drawFieldGoalPosts(x: number) {
   const centerY = TOTAL_H / 2;
   const halfCrossbar = GOALPOST_CROSSBAR_WIDTH / 2;
   const POST_MARKER_RADIUS = 6;
-  const CENTER_TICK_LENGTH = 14;
+  const CENTER_HASH_LENGTH = 14;
 
   ctx.save();
   ctx.strokeStyle = GOALPOST_COLOR;
@@ -84,10 +84,10 @@ function drawFieldGoalPosts(x: number) {
   ctx.arc(x, centerY + halfCrossbar, POST_MARKER_RADIUS, 0, Math.PI * 2);
   ctx.fill();
 
-  // Center tick — small perpendicular mark at the midpoint for alignment reference
+  // Center hash — small perpendicular mark at the midpoint for alignment reference
   ctx.beginPath();
-  ctx.moveTo(x - CENTER_TICK_LENGTH / 2, centerY);
-  ctx.lineTo(x + CENTER_TICK_LENGTH / 2, centerY);
+  ctx.moveTo(x - CENTER_HASH_LENGTH / 2, centerY);
+  ctx.lineTo(x + CENTER_HASH_LENGTH / 2, centerY);
   ctx.stroke();
 
   ctx.restore();
@@ -133,7 +133,7 @@ function drawField(
     if (i === 10) continue;
 
     // 4. Draw Hash Marks (Top and Bottom)
-    // Small ticks between the main yard lines
+    // Small hashes between the main yard lines
     ctx.globalAlpha = 0.5;
     for (let j = 1; j < 5; j++) {
       const hashX = x - (yardSpacing / 5) * j;
