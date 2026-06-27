@@ -394,7 +394,7 @@ function drawReceiverPredictedRoute(
   receiver: Player,
   state: State,
 ) {
-  const predictedRoute: Vector[] = predictReceiverRoute(
+  const { timeline: predictedRoute, framesUntilBreak } = predictReceiverRoute(
     passer,
     receiver,
     state,

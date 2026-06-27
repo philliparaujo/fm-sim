@@ -95,9 +95,9 @@ export const ATTRIBUTE_CONFIG = {
     pressureSensitivity: lerp(r, 1, 1),
   }),
   DECISIONMAKING: (r: number) => ({
-    minThrowStep: lerp(r, 90, 30),
-    minOpennessNeeded: lerp(r, 280, 200),
-    panicOpennessNeeded: lerp(r, 130, 110),
+    minThrowStep: lerp(r, 140, 80),
+    minOpennessNeeded: lerp(r, 130, 110),
+    panicOpennessNeeded: lerp(r, 90, 70),
   }),
   SHORTACCURACY: (r: number) => ({
     shortError: lerp(r, 0.6, 0),
@@ -118,8 +118,8 @@ export const ATTRIBUTE_CONFIG = {
     steerDuration: lerp(r, 110, 50),
   }),
   POWER: (r: number) => ({
-    carrierPower: lerp(r, 0.2, 1.2),
-    tacklePressureThreshold: lerp(r, 0.05, 0.7),
+    carrierPower: lerp(r, 0.2, 1),
+    tacklePressureThreshold: lerp(r, 0.05, 0.6),
   }),
 
   /* Catchers */
@@ -135,28 +135,29 @@ export const ATTRIBUTE_CONFIG = {
   }),
   CATCHRADIUS: (r: number) => ({
     completionRadius: lerp(r, 30, 80),
+    catchInTraffic: lerp(r, 0.35, 0.75),
   }),
 
   /* Blockers */
   PASSBLOCK: (r: number) => ({
-    rusherDampingFactor: lerp(r, 0.99, 0.89),
-    antiBlockShed: lerp(r, 2.2, 2.6),
+    rusherDampingFactor: lerp(r, 1, 0.88),
+    antiBlockShed: lerp(r, 2, 2.5),
   }),
   RUNBLOCK: (r: number) => ({
-    runBlockDampingFactor: lerp(r, 0.85, 0.45),
+    runBlockDampingFactor: lerp(r, 0.9, 0.55),
     covererDampingFactor: lerp(r, 0.75, 0.35),
-    runBlockPushStrength: lerp(r, 0.5, 2.2),
-    antiBlockShed: lerp(r, 0.5, 1.7),
+    runBlockPushStrength: lerp(r, 0.5, 1.9),
+    antiBlockShed: lerp(r, 0.3, 1.5),
   }),
 
   /* Rushers */
   BLOCKSHEDDING: (r: number) => ({
     blockShed: lerp(r, 0, 2),
-    randomJitter: lerp(r, -0.5, 0.6),
+    randomJitter: lerp(r, 0, 0.6),
   }),
   BEND: (r: number) => ({
-    lateralStrength: lerp(r, 0.2, 1.4),
-    lateralFreq: lerp(r, 0.01, 0.05),
+    lateralStrength: lerp(r, 0.5, 1.1),
+    lateralFreq: lerp(r, 0.05, 0.1),
   }),
 
   /* Coverers */
@@ -180,8 +181,8 @@ export const ATTRIBUTE_CONFIG = {
 
   /* Defenders */
   TACKLING: (r: number) => ({
-    defenderTackle: lerp(r, 0.7, 0.9),
-    tackleAttemptChance: lerp(r, 0.1, 0.3),
+    defenderTackle: lerp(r, 0.7, 0.95),
+    tackleAttemptChance: lerp(r, 0.1, 0.4),
   }),
 } as const;
 
@@ -220,8 +221,8 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   RB: createBaseRatings({
     SPEED: 0.81,
     SIZE: 0.23,
-    VISION: 0.6,
-    POWER: 0.5,
+    VISION: 0.5,
+    POWER: 0.55,
     ROUTERUNNING: 0.3,
     CATCHACCELERATION: 0.75,
     CATCHRADIUS: 0.45,
@@ -253,20 +254,20 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   LT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.93,
-    RUNBLOCK: 0.42,
-    PASSBLOCK: 0.5,
+    RUNBLOCK: 0.45,
+    PASSBLOCK: 0.55,
   }),
   C: createBaseRatings({
     SPEED: 0.43,
     SIZE: 0.87,
-    RUNBLOCK: 0.52,
-    PASSBLOCK: 0.4,
+    RUNBLOCK: 0.5,
+    PASSBLOCK: 0.45,
   }),
   RT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.96,
-    RUNBLOCK: 0.47,
-    PASSBLOCK: 0.45,
+    RUNBLOCK: 0.5,
+    PASSBLOCK: 0.5,
   }),
 
   // Rushers

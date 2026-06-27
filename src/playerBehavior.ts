@@ -19,8 +19,16 @@ import {
 } from "./constants";
 import { getConstants } from "./ratings";
 import { resetSimulation, resolveCollision, state } from "./simulate";
-import { cornerRoute, outRoute, Player, State, Vector } from "./types";
 import {
+  cornerRoute,
+  flatRoute,
+  outRoute,
+  Player,
+  State,
+  Vector,
+} from "./types";
+import {
+  clampPosInBounds,
   closestPointOnSegment,
   diff,
   dist,
@@ -30,6 +38,7 @@ import {
   isRunPlay,
   length,
   lerp,
+  nearSideline,
   projectDefenderPosition,
 } from "./util";
 
@@ -624,20 +633,47 @@ function stepAsPlayer(
   function rushTowardsBall(player: Player) {
     const { lateralStrength, lateralFreq } = getConstants("BEND", player);
     const { maxSpeed } = getConstants("SPEED", player);
-
     let targetLoc = { ...state.ball.loc };
 
-    // GAP CONTAINMENT
+    // Determine if this is an edge rusher by label
+    const isEdgeRusher = player.label === "LE" || player.label === "RE";
+
+    // Gap containment on run plays (existing logic)
     if (isRunPlay(state) && state.ball.loc.x < state.scoreboard.LOS) {
       const playerIndex = state.players.indexOf(player);
       const isOuterRusher = playerIndex === 0 || playerIndex === 2;
-
       if (isOuterRusher) {
         targetLoc.x = state.scoreboard.LOS + 10;
       }
     }
 
-    // Initialize random play seeds with proper type safety
+    // EDGE BEND: push the target point outside on pass rush so the rusher
+    // arcs around the tackle rather than running straight into them.
+    // The bend collapses toward the ball as the rusher passes the LOS.
+    if (isEdgeRusher && !isRunPlay(state)) {
+      const EDGE_CONTAIN_OFFSET = 120;
+      const scaledOffset = EDGE_CONTAIN_OFFSET * lateralStrength;
+      const outsideDir = player.label === "LE" ? -1 : 1;
+
+      // Collapse based on distance TO the ball rather than distance past LOS —
+      // this ensures the arc fully resolves before the rusher arrives, not after
+      const distToBall = dist(player.loc, state.ball.loc);
+      const COLLAPSE_START = (12 / 100) * W; // start collapsing at 12 yards from ball
+      const COLLAPSE_END = (4 / 100) * W; // fully collapsed at 4 yards from ball
+
+      const collapseT =
+        distToBall < COLLAPSE_START
+          ? Math.min(
+              1,
+              (COLLAPSE_START - distToBall) / (COLLAPSE_START - COLLAPSE_END),
+            )
+          : 0;
+
+      const activeOffset = scaledOffset * (1 - collapseT);
+      targetLoc.y += outsideDir * activeOffset;
+    }
+
+    // Initialize random play seeds
     if (player.playRushSeed === undefined || player.playRushSeed === null) {
       player.playRushSeed = (Math.random() - 0.5) * 10.0;
       player.rushSpeedVariance = 0.93 + Math.random() * 0.14;
@@ -648,7 +684,7 @@ function stepAsPlayer(
 
     let toTarget = diff(targetLoc, player.loc);
 
-    if (!isRunPlay) {
+    if (!isRunPlay(state)) {
       toTarget.x += Math.sin(state.steps * 0.05 + playSeed) * 8;
       toTarget.y += Math.cos(state.steps * 0.05 + playSeed) * 8;
     }
@@ -660,7 +696,7 @@ function stepAsPlayer(
     const dirY = toTarget.y / d;
 
     let lateral = 0;
-    if (!isRunPlay) {
+    if (!isRunPlay(state)) {
       const phaseOffset = state.players.indexOf(player) * 2.1 + playSeed;
       lateral =
         Math.sin(state.steps * 0.166 * lateralFreq + phaseOffset) *
@@ -669,12 +705,9 @@ function stepAsPlayer(
 
     const perpX = -dirY;
     const perpY = dirX;
-
     const speedModifier = player.contactedThisFrame ? 0.25 : 1.0;
-
     const targetVelX = (dirX + perpX * lateral) * uniqueSpeed * speedModifier;
     const targetVelY = (dirY + perpY * lateral) * uniqueSpeed * speedModifier;
-
     player.vel.x += (targetVelX - player.vel.x) * RUSHER_STEER_FACTOR;
     player.vel.y += (targetVelY - player.vel.y) * RUSHER_STEER_FACTOR;
   }
@@ -1214,7 +1247,11 @@ function calculatePerfectThrowTarget(
   passer: Player,
   receiver: Player,
   state: State,
-): { framesUntil: number; target: Vector } | null {
+): {
+  framesUntilLand: number;
+  framesUntilBreak: number;
+  target: Vector;
+} | null {
   const PIXELS_PER_YARD = W / 100;
   const YARDS_PER_METER = 1.09361;
   const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
@@ -1224,7 +1261,11 @@ function calculatePerfectThrowTarget(
   const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
 
   const MAX_PREDICTION_FRAMES = 180;
-  const receiverTimeline = predictReceiverRoute(passer, receiver, state);
+  const { timeline: receiverTimeline, framesUntilBreak } = predictReceiverRoute(
+    passer,
+    receiver,
+    state,
+  );
 
   const BOUNDARY_MARGIN = PIXELS_PER_YARD;
   const MIN_PLAYABLE_X = BOUNDARY_MARGIN;
@@ -1246,15 +1287,10 @@ function calculatePerfectThrowTarget(
     if (!projectedSpot) break;
 
     // Clip target to field boundaries
-    const isOutOfBounds =
-      projectedSpot.x < MIN_PLAYABLE_X ||
-      projectedSpot.x > MAX_PLAYABLE_X ||
-      projectedSpot.y < MIN_PLAYABLE_Y ||
-      projectedSpot.y > MAX_PLAYABLE_Y;
-    if (isOutOfBounds) continue;
+    const clampedSpot: Vector = clampPosInBounds(projectedSpot);
 
     // Calculate how many frames it takes the ball to reach this specific clamped spot
-    const travelDistance = dist(passer.loc, projectedSpot);
+    const travelDistance = dist(passer.loc, clampedSpot);
     const ballTravelFrames = travelDistance / ballPixelsPerFrame;
     const arrivalFrame = Math.round(ballTravelFrames);
 
@@ -1266,12 +1302,12 @@ function calculatePerfectThrowTarget(
       if (actualReceiverSpotAtArrival) {
         // The pass is only completable if the landing spot is within the
         // receiver's catch radius at the exact moment of ball arrival.
-        const separation = dist(projectedSpot, actualReceiverSpotAtArrival);
+        const separation = dist(clampedSpot, actualReceiverSpotAtArrival);
 
         if (separation <= completionRadius) {
           catchableTargets.push({
-            frame: frame, // The timeline index where this throw was targeted
-            target: projectedSpot,
+            frame: arrivalFrame, // The timeline index where this throw was targeted
+            target: clampedSpot,
           });
         }
       }
@@ -1285,8 +1321,9 @@ function calculatePerfectThrowTarget(
     receiver.predictedTargets = catchableTargets.map((target) => target.target);
 
     return {
-      framesUntil: middleTarget.frame - 5,
+      framesUntilLand: middleTarget.frame - 5,
       target: middleTarget.target,
+      framesUntilBreak,
     };
   }
 
@@ -1335,6 +1372,17 @@ function getReceiverVelocityAtFrame(
 
   // 1) STEM PHASE
   if (ctx.absoluteFrame < routeBreakThreshold) {
+    if (nearSideline(receiver.loc)) {
+      return {
+        velX: 0,
+        velY: 0,
+        sideMultiplier:
+          ctx.routeSideMultiplier ?? (ctx.currentLocY < H / 2 ? 1 : -1),
+        isBreaking: false,
+        improvAngleRad: null,
+      };
+    }
+
     return {
       velX: maxSpeed,
       velY: getCatcherRouteVariance(receiver).stemDrift,
@@ -1479,8 +1527,8 @@ function predictReceiverRoute(
   passer: Player,
   receiver: Player,
   state: State,
-): Vector[] {
-  if (!receiver.route) return [];
+): { timeline: Vector[]; framesUntilBreak: number } {
+  if (!receiver.route) return { timeline: [], framesUntilBreak: 0 };
 
   const MAX_PREDICTION_FRAMES = 300;
   const receiverTimeline: Vector[] = [];
@@ -1516,10 +1564,15 @@ function predictReceiverRoute(
 
     currentSimulatedLoc.x += res.velX;
     currentSimulatedLoc.y += res.velY;
-    receiverTimeline.push({ ...currentSimulatedLoc });
+
+    const clampedLoc = clampPosInBounds(currentSimulatedLoc);
+    receiverTimeline.push({ ...clampedLoc });
   }
 
-  return receiverTimeline;
+  return {
+    timeline: receiverTimeline,
+    framesUntilBreak: (simulatedBreakFrame ?? state.steps) - state.steps,
+  };
 }
 
 function evaluateThrowWindow(
@@ -1540,7 +1593,7 @@ function evaluateThrowWindow(
   const throwTargetRes = calculatePerfectThrowTarget(passer, catcher, state);
   if (throwTargetRes === null) return null;
 
-  const { framesUntil, target } = throwTargetRes;
+  const { framesUntilLand, target, framesUntilBreak } = throwTargetRes;
 
   // Project every relevant defender forward by flightFrames using simple linear extrapolation
   const defenders = [...cachedPlayers.rushers, ...cachedPlayers.coverers];
@@ -1548,13 +1601,13 @@ function evaluateThrowWindow(
     defenders.length > 0
       ? Math.min(
           ...defenders.map((cov) => {
-            const projected = projectDefenderPosition(cov, framesUntil);
+            const projected = projectDefenderPosition(cov, framesUntilLand);
             return dist(projected, target);
           }),
         )
       : Infinity;
 
-  return { target, framesUntil, defenderDistAtArrival };
+  return { target, framesUntil: framesUntilLand, defenderDistAtArrival };
 }
 
 function resolveBallInAir(
@@ -1586,7 +1639,7 @@ function resolveBallInAir(
       return;
     }
 
-    const { completionRadius: receiverRadius } = getConstants(
+    const { completionRadius: receiverRadius, catchInTraffic } = getConstants(
       "CATCHRADIUS",
       receiver,
     );
@@ -1614,7 +1667,7 @@ function resolveBallInAir(
     if (!receiverInRadius) {
       // Pass is completely uncatchable by the receiver
       isIncomplete = true;
-      if (receiverDist > receiverRadius * 1.5) {
+      if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
       }
     } else if (!defenderInRadius) {
@@ -1644,7 +1697,7 @@ function resolveBallInAir(
       } else {
         // Receiver has equal or better position than the defender (e.g. receiver's body is between defender and ball)
         // Catch chance decreases the closer the defender is.
-        const catchChance = 1 - minDefenderDist / (defenderRadius * 2);
+        const catchChance = catchInTraffic;
         if (Math.random() < catchChance) {
           isComplete = true;
         } else {

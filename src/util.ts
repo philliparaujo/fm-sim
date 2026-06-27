@@ -1,5 +1,5 @@
 import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
-import { getDefaultRatingForLabel } from "./ratings";
+import { getConstants, getDefaultRatingForLabel } from "./ratings";
 import {
   Ball,
   cornerRoute,
@@ -336,4 +336,33 @@ export function getPossessingTeam(state: State): Team {
 
 export function teamId(team: Team): string {
   return `${team.color}|${team.name}`;
+}
+
+function getFieldBounds() {
+  const BOUNDARY_MARGIN = W / 100;
+  return {
+    minX: BOUNDARY_MARGIN,
+    maxX: TOTAL_W - BOUNDARY_MARGIN,
+    minY: BOUNDARY_MARGIN,
+    maxY: TOTAL_H - BOUNDARY_MARGIN,
+  };
+}
+
+export function nearSideline(pos: Vector): boolean {
+  const { minX, maxX, minY, maxY } = getFieldBounds();
+
+  if (pos.x < minX || pos.x > maxX || pos.y < minY || pos.y > maxY) {
+    return true;
+  }
+
+  return false;
+}
+
+export function clampPosInBounds(pos: Vector): Vector {
+  const { minX, maxX, minY, maxY } = getFieldBounds();
+
+  return {
+    x: Math.max(minX, Math.min(maxX, pos.x)),
+    y: Math.max(minY, Math.min(maxY, pos.y)),
+  };
 }

@@ -31,8 +31,8 @@ const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
 const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 1, // Offensive playcall
-  manPercent: 0.5, // Defensive underneath coverage
+  passPercent: 0.5, // Offensive playcall
+  manPercent: 0.4, // Defensive underneath coverage
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
 
@@ -226,7 +226,7 @@ function generateDefensivePlaycall2(
   const zoneStep =
     catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
 
-  const COVERER_X = LOS + (12 / 100) * W;
+  const COVERER_X = LOS + (10 / 100) * W;
   const covererIndexMap: Record<string, number> = { CB: 0, NB: 1, LB: 2 };
   const covererYPositions =
     covererCoverage === "man"
