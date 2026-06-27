@@ -1,4 +1,3 @@
-import { ENDZONE_W, W } from "./constants";
 import {
   AdvancedStats,
   cornerRoute,
@@ -24,8 +23,9 @@ import {
   Stats,
   streakRoute,
   Vector,
-} from "./types";
-import { round2, yardsFromPixels } from "./util";
+} from "./core/types";
+import { round2 } from "./util";
+import { ENDZONE_W, pxToYards, W } from "./utils/units";
 
 const ROUTE_NAMES: [string, Route][] = [
   ["streak", streakRoute],
@@ -177,13 +177,13 @@ function routeKey(route: Route): string {
   for (const [name, known] of ROUTE_NAMES) {
     if (
       known.breakAngle === route.breakAngle &&
-      known.steps === route.steps &&
+      known.yardsBeforeBreak === route.yardsBeforeBreak &&
       known.stopAfterBreak === route.stopAfterBreak
     ) {
       return name;
     }
   }
-  return `custom_${route.breakAngle}_${route.steps}`;
+  return `custom_${route.breakAngle}_${route.yardsBeforeBreak}`;
 }
 
 function runAngleKey(runAngle: Vector): string {
@@ -353,7 +353,7 @@ export function updateStatsAfterPlay(
 
     // Air Yards
     if (isPassAttempt && playAdvanced.airYards !== undefined && passCount > 0) {
-      const airYardsYds = yardsFromPixels(Math.max(0, playAdvanced.airYards));
+      const airYardsYds = pxToYards(Math.max(0, playAdvanced.airYards));
       adv.intendedAirYards =
         (adv.intendedAirYards * (passCount - 1) + airYardsYds) / passCount;
 
@@ -399,7 +399,7 @@ export function updateStatsAfterPlay(
       isFinite(playAdvanced.separationAtCatch) &&
       completionCount > 0
     ) {
-      const sepYds = yardsFromPixels(playAdvanced.separationAtCatch);
+      const sepYds = pxToYards(playAdvanced.separationAtCatch);
       adv.receiverSeparation =
         (adv.receiverSeparation * (completionCount - 1) + sepYds) /
         completionCount;
@@ -411,7 +411,7 @@ export function updateStatsAfterPlay(
       if (playAdvanced.firstContactX === undefined) {
         ybc = yards;
       } else {
-        ybc = yardsFromPixels(playAdvanced.firstContactX - los);
+        ybc = pxToYards(playAdvanced.firstContactX - los);
       }
       const yac = yards - ybc;
       const n = next.rb.rushes;
@@ -431,7 +431,7 @@ export function updateStatsAfterPlay(
       completionCount > 0
     ) {
       const endX = isTouchdown ? W + ENDZONE_W : finalBallX;
-      const yac = Math.max(0, yardsFromPixels(endX - playAdvanced.catchX));
+      const yac = Math.max(0, pxToYards(endX - playAdvanced.catchX));
       adv.receiverYardsAfterCatch =
         (adv.receiverYardsAfterCatch * (completionCount - 1) + yac) /
         completionCount;

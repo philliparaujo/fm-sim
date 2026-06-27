@@ -2,39 +2,38 @@ import {
   ARRIVAL_RADIUS,
   BROKEN_TACKLE_BURST_DURATION,
   BROKEN_TACKLE_SPEED_BURST,
-  H,
   LEAD_FRAMES,
   MAX_PREDICTION_FRAMES,
   MIN_BLOCK_DISTANCE,
   PANIC_RUSHER_DIST,
   PANIC_THROW_CHANCE,
   PASSER_HANDOFF_SEPARATION,
-  PIXELS_PER_STEP,
   PURSUER_STEER_FACTOR,
   ROUTE_BREAK_ANGLE_JITTER,
   RUSHER_STEER_FACTOR,
   TACKLE_PRESSURE_PER_FRAME,
-  TOTAL_H,
-  W,
-} from "./constants";
-import { getConstants } from "./ratings";
+} from "./core/constants";
+import { getConstants } from "./core/ratings";
+import { CachedPlayers, Player, Ray, State, Vector } from "./core/types";
 import { resetSimulation, resolveCollision, state } from "./simulate";
-import { CachedPlayers, Player, Ray, State, Vector } from "./types";
 import {
   clampPosInBounds,
-  closestPointOnSegment,
-  diff,
-  dist,
   getFieldBounds,
   getPocket,
   isCarryingBall,
   isPassPlay,
   isRunPlay,
-  length,
   lerp,
   nearSideline,
-  projectDefenderPosition,
 } from "./util";
+import { H, metersToPx, TOTAL_H, yardsToPx } from "./utils/units";
+import {
+  closestPointOnSegment,
+  diff,
+  dist,
+  length,
+  predictFutureLocation,
+} from "./utils/vector";
 
 const MAX_PATH_LENGTH = 200; // Cap path arrays to prevent render bloat
 const THROW_EVAL_INTERVAL = 6; // QB evaluates throws every 6 frames (~0.1s)
@@ -522,8 +521,7 @@ function stepAsPlayer(
         y: throwAwaySide < 0 ? -40 : TOTAL_H + 40,
       };
       const { ballMetersPerSecond } = getConstants("THROWPOWER", player);
-      const PIXELS_PER_METER = (W / 100) * 1.09361;
-      const ballPixelsPerFrame = (ballMetersPerSecond * PIXELS_PER_METER) / 60;
+      const ballPixelsPerFrame = metersToPx(ballMetersPerSecond) / 60;
       const flightFrames = Math.ceil(
         dist(player.loc, throwAwayTarget) / ballPixelsPerFrame,
       );
@@ -637,8 +635,8 @@ function stepAsPlayer(
       // Collapse based on distance TO the ball rather than distance past LOS —
       // this ensures the arc fully resolves before the rusher arrives, not after
       const distToBall = dist(player.loc, state.ball.loc);
-      const COLLAPSE_START = (12 / 100) * W; // start collapsing at 12 yards from ball
-      const COLLAPSE_END = (4 / 100) * W; // fully collapsed at 4 yards from ball
+      const COLLAPSE_START = yardsToPx(12); // start collapsing at 12 yards from ball
+      const COLLAPSE_END = yardsToPx(4); // fully collapsed at 4 yards from ball
 
       const collapseT =
         distToBall < COLLAPSE_START
@@ -785,7 +783,7 @@ function stepAsPlayer(
     const catchers = cachedPlayers.catchers;
 
     let isDeepOverrideActive = false;
-    const DEEP_THRESHOLD = state.scoreboard.LOS + (W * 30) / 100; // 30 yards past LOS
+    const DEEP_THRESHOLD = state.scoreboard.LOS + yardsToPx(30); // 30 yards past LOS
 
     if (player.coverage === "man") {
       targetCatcher = catchers.find((p) => p === player.assignedTarget) || null;
@@ -868,7 +866,7 @@ function stepAsPlayer(
         if (isDeepOverrideActive) {
           // EXTRA CONSERVATIVE DEEP ZONE MODE:
           // Position downfield/in front of the anticipated pass focus zone by a protective cushion
-          const CONSERVATIVE_CUSHION = (W * 7) / 100;
+          const CONSERVATIVE_CUSHION = yardsToPx(7);
 
           targetPoint = {
             x: coverageFocusX + CONSERVATIVE_CUSHION + baseVel.x * LEAD_FRAMES,
@@ -1147,13 +1145,8 @@ function calculatePerfectThrowTarget(
   framesUntilBreak: number;
   target: Vector;
 } | null {
-  const PIXELS_PER_YARD = W / 100;
-  const YARDS_PER_METER = 1.09361;
-  const PIXELS_PER_METER = PIXELS_PER_YARD * YARDS_PER_METER;
-
   const { ballMetersPerSecond } = getConstants("THROWPOWER", passer);
-  const updatedBMPS = ballMetersPerSecond;
-  const ballPixelsPerFrame = (updatedBMPS * PIXELS_PER_METER) / 60;
+  const ballPixelsPerFrame = metersToPx(ballMetersPerSecond) / 60;
 
   const { timeline: receiverTimeline, framesUntilBreak } = predictReceiverRoute(
     receiver,
@@ -1255,7 +1248,7 @@ function getReceiverVelocityAtFrame(
 
   const routeBreakThreshold =
     ctx.breakFrame ??
-    Math.floor((receiver.route.steps * PIXELS_PER_STEP) / maxSpeed);
+    Math.floor(yardsToPx(receiver.route.yardsBeforeBreak) / maxSpeed);
 
   // 1) STEM PHASE
   if (ctx.absoluteFrame < routeBreakThreshold) {
@@ -1477,7 +1470,11 @@ function evaluateThrowWindow(
     defenders.length > 0
       ? Math.min(
           ...defenders.map((cov) => {
-            const projected = projectDefenderPosition(cov, framesUntilLand);
+            const projected = predictFutureLocation(
+              cov.loc,
+              cov.vel,
+              framesUntilLand,
+            );
             return dist(projected, target);
           }),
         )

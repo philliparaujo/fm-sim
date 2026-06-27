@@ -1,3 +1,7 @@
+import { getConstants } from "./core/ratings";
+import { Ball, Player, Scoreboard, State, Vector } from "./core/types";
+import { predictReceiverRoute } from "./playerBehavior";
+import { getPocket, isCarryingBall, isPassPlay } from "./util";
 import {
   ENDZONE_W,
   GOALPOST_CROSSBAR_WIDTH,
@@ -5,11 +9,7 @@ import {
   TOTAL_H,
   TOTAL_W,
   W,
-} from "./constants";
-import { predictReceiverRoute } from "./playerBehavior";
-import { getConstants } from "./ratings";
-import { Ball, Player, Scoreboard, State, Vector } from "./types";
-import { getPocket, isCarryingBall, isPassPlay } from "./util";
+} from "./utils/units";
 
 const GRASS_COLOR = "#66aa22";
 const FIELD_HASH_COLOR = "rgba(255, 255, 255, 0.2)";

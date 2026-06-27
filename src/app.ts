@@ -1,6 +1,6 @@
-import { setSimSpeed } from "./constants";
-import { PLAYBOOK_CONFIG, saveRating, TEAM_PLAYBOOKS } from "./playbook";
-import { Attribute, getLetterGrade } from "./ratings";
+import { setSimSpeed } from "./core/constants";
+import { PLAYBOOK_CONFIG, saveRating, TEAM_PLAYBOOKS } from "./core/playbook";
+import { Attribute, getLetterGrade } from "./core/ratings";
 import {
   getCompletedPlaysCount,
   onPlayReset,
@@ -8,7 +8,7 @@ import {
   state,
   tick,
 } from "./simulate";
-import { PLAYER_LABELS } from "./types";
+import { PLAYER_LABELS } from "./core/types";
 import { labelToRole, labelToSide } from "./util";
 
 // Which attributes are relevant per role

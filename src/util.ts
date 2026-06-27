@@ -1,8 +1,9 @@
-import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
-import { getDefaultRatingForLabel } from "./ratings";
+import { getSavedRatings } from "./core/playbook";
+import { getDefaultRatingForLabel } from "./core/ratings";
 import {
   Ball,
   cornerRoute,
+  Coverage,
   curlRoute,
   dragRoute,
   flatRoute,
@@ -14,6 +15,7 @@ import {
   postRoute,
   Role,
   Roster,
+  RosterPlayer,
   Route,
   Scoreboard,
   Side,
@@ -23,43 +25,17 @@ import {
   streakRoute,
   Team,
   Vector,
-} from "./types";
-
-export function length(vector: Vector): number {
-  return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
-}
-
-export function dist(a: Vector, b: Vector): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  return length({ x: dx, y: dy });
-}
-
-export function diff(a: Vector, b: Vector): Vector {
-  return {
-    x: a.x - b.x,
-    y: a.y - b.y,
-  };
-}
-
-// Finds nearest point on line segment AB to point P
-export function closestPointOnSegment(p: Vector, a: Vector, b: Vector): Vector {
-  const pax = p.x - a.x;
-  const pay = p.y - a.y;
-  const bax = b.x - a.x;
-  const bay = b.y - a.y;
-
-  // Calculate the projection "t" (0.0 to 1.0) along the line
-  let t = (pax * bax + pay * bay) / (bax * bax + bay * bay);
-
-  // Clamp t to the segment so the blocker doesn't go behind the rusher or ball
-  t = Math.max(0, Math.min(1, t));
-
-  return {
-    x: a.x + t * bax,
-    y: a.y + t * bay,
-  };
-}
+} from "./core/types";
+import {
+  ENDZONE_W,
+  H,
+  pxToYards,
+  TOTAL_H,
+  TOTAL_W,
+  W,
+  yardsToPx,
+} from "./utils/units";
+import { dist, nullVector } from "./utils/vector";
 
 // Slow down player's velocity (when in contact with blocker)
 export function applyDamping(player: Player, factor: number, jitter: number) {
@@ -93,18 +69,10 @@ export function randomRoute(): Route {
   return routes[Math.floor(Math.random() * routes.length)];
 }
 
-export function vectorToString(vector: Vector): string {
-  return `${vector.x}|${vector.y}`;
-}
-
-export function emptyVector(): Vector {
-  return { x: 0, y: 0 };
-}
-
 export function randomRunVector(): Vector {
   // 1. Generate a random angle between +80 and -80
-  const MAX_ANGLE_DEGRESS = 60;
-  const maxAngleRad = (MAX_ANGLE_DEGRESS * Math.PI) / 180;
+  const MAX_ANGLE_DEGREES = 60;
+  const maxAngleRad = (MAX_ANGLE_DEGREES * Math.PI) / 180;
   const angle = (Math.random() * 2 - 1) * maxAngleRad;
 
   return {
@@ -115,19 +83,15 @@ export function randomRunVector(): Vector {
 
 export function computeFirstDownLine(
   LOS: number,
-  distance: "goal" | number,
+  yardsToGo: "goal" | number,
 ): number | null {
-  if (distance === "goal") return null;
-  return LOS + (distance * W) / 100;
-}
-
-export function yardsFromPixels(pixels: number): number {
-  return (pixels / W) * 100;
+  if (yardsToGo === "goal") return null;
+  return LOS + yardsToPx(yardsToGo);
 }
 
 export function yardsToGoal(LOS: number): number {
   const goalLine = W + ENDZONE_W;
-  return Math.max(0, yardsFromPixels(goalLine - LOS));
+  return Math.max(0, pxToYards(goalLine - LOS));
 }
 
 export function distanceAfterFirstDown(LOS: number): "goal" | number {
@@ -156,7 +120,7 @@ export function updateDownAndDistance(
     };
   }
 
-  const yardsGained = yardsFromPixels(nextLOS - prev.LOS);
+  const yardsGained = pxToYards(nextLOS - prev.LOS);
   const distance: "goal" | number =
     prev.distance === "goal"
       ? "goal"
@@ -175,7 +139,7 @@ export function LOSToString(LOS: number) {
   if (LOS >= W + ENDZONE_W) return "Touchdown";
 
   const adjLOS = LOS - ENDZONE_W;
-  const yardsNumber = Math.round((adjLOS / W) * 100);
+  const yardsNumber = Math.round(pxToYards(adjLOS));
 
   if (yardsNumber < 50) {
     return `< ${yardsNumber}`;
@@ -191,7 +155,7 @@ const POCKET_RX = 90;
 const POCKET_RY = 360;
 export function getPocket(LOS: number) {
   return {
-    cx: LOS - (W * 5) / 100,
+    cx: LOS - yardsToPx(5),
     cy: POCKET_CY,
     rx: POCKET_RX,
     ry: POCKET_RY,
@@ -205,7 +169,7 @@ export function formatTime(seconds: number): string {
 }
 
 export function isNoBreakRoute(route: Route): boolean {
-  return route.steps === 0 || route.breakAngle === 0;
+  return route.yardsBeforeBreak === 0 || route.breakAngle === 0;
 }
 
 export function lerp(rating: number, min: number, max: number): number {
@@ -223,16 +187,6 @@ export function numPlays(stats: Stats) {
 
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-export function projectDefenderPosition(
-  defender: Player,
-  frames: number,
-): Vector {
-  return {
-    x: defender.loc.x + defender.vel.x * frames,
-    y: defender.loc.y + defender.vel.y * frames,
-  };
 }
 
 export function isRunPlay(state: State): boolean {
@@ -257,8 +211,8 @@ export function isPuntPlay(state: State): boolean {
 
 export function getLOSAfterPunt(prevLOS: number): number {
   // Convert yard scales cleanly to pixel measurements using field width
-  const AVERAGE_NET_PUNT = (45 / 100) * W;
-  const TOUCHBACK_POSITION = ENDZONE_W + (20 / 100) * W; // Left goal line + 20 yards
+  const AVERAGE_NET_PUNT = yardsToPx(45);
+  const TOUCHBACK_POSITION = ENDZONE_W + yardsToPx(20); // Left goal line + 20 yards
   const OPPONENT_GOAL_LINE = TOTAL_W - ENDZONE_W; // Right goal line
 
   // 1. Where does the ball physically land on the screen? (Moving right)
@@ -301,22 +255,28 @@ export function buildDefaultRoster(teamColor: string): Roster {
   }));
 }
 
-export function getPossessingTeam(state: State): Team {
+export function getOffenseTeam(state: State): Team {
   const teams = state.scoreboard.teams;
   for (const team of teams) {
     if (team.possessing) return team;
   }
 
-  console.warn("No team found with possession??");
+  console.warn("No offense team found??");
   return teams[0];
 }
 
-export function teamId(team: Team): string {
-  return `${team.color}|${team.name}`;
+export function getDefenseTeam(state: State): Team {
+  const teams = state.scoreboard.teams;
+  for (const team of teams) {
+    if (!team.possessing) return team;
+  }
+
+  console.warn("No defense team found??");
+  return teams[0];
 }
 
 export function getFieldBounds() {
-  const BOUNDARY_MARGIN = W / 100;
+  const BOUNDARY_MARGIN = yardsToPx(1);
   return {
     minX: BOUNDARY_MARGIN,
     maxX: TOTAL_W - BOUNDARY_MARGIN,
@@ -341,5 +301,58 @@ export function clampPosInBounds(pos: Vector): Vector {
   return {
     x: Math.max(minX, Math.min(maxX, pos.x)),
     y: Math.max(minY, Math.min(maxY, pos.y)),
+  };
+}
+
+export function fillOutRosterPlayer(
+  rp: RosterPlayer,
+  loc?: Vector,
+  route?: Route,
+  runAngle?: Vector,
+  coverage?: Coverage,
+  roleOverride?: Role,
+): Player {
+  return {
+    color: rp.color,
+    label: rp.label,
+    loc: loc ?? nullVector(),
+    role: roleOverride ?? labelToRole(rp.label),
+    side: labelToSide(rp.label),
+    type: "player",
+    vel: nullVector(),
+    prevVel: nullVector(),
+
+    // TEMP: Ratings
+    ratings: getSavedRatings(rp.label),
+
+    // Specific properties determined on creation
+    route: route ?? undefined,
+    runAngle: runAngle ?? undefined,
+    path: [],
+    breakFrame: null,
+    routeSideMultiplier: null,
+    improvAngleRad: null,
+    predictedTargets: null,
+    coverage: coverage ?? undefined,
+    playRushSeed: undefined,
+    rushSpeedVariance: undefined,
+
+    // Specific properties determined later
+    assignedTarget: null,
+    decisionTicks: 0,
+    cachedThrowEval: null,
+    perceivedLoc: null,
+    perceivedVel: null,
+    reactionTimer: 0,
+    zone: nullVector(),
+
+    contactedThisFrame: false,
+    isBursting: false,
+    shedCooldown: 0,
+    shedImmunityFrames: 0,
+
+    // Properties for rendering
+    contextRays: null,
+    chosenRayDir: null,
   };
 }

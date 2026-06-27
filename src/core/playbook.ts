@@ -1,25 +1,25 @@
-import { ENDZONE_W, H, W } from "./constants";
+import {
+  computeFirstDownLine,
+  fillOutRosterPlayer,
+  labelToRole,
+  labelToSide,
+  randomRoute,
+  randomRunVector,
+} from "../util";
+import { ENDZONE_W, H, pxToYards, W, yardsToPx } from "../utils/units";
+import { nullVector } from "../utils/vector";
 import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
 import {
   Ball,
   Coverage,
   Player,
   Role,
-  RosterPlayer,
   Route,
   Scoreboard,
   SpecialPlayType,
   Team,
   Vector,
 } from "./types";
-import {
-  emptyVector,
-  labelToRole,
-  labelToSide,
-  randomRoute,
-  randomRunVector,
-  yardsFromPixels,
-} from "./util";
 
 const BLOCKERS_INCLUDED = true;
 const PASSER_INCLUDED = true;
@@ -48,21 +48,6 @@ const TEAM_PLAYBOOKS: Record<string, Record<string, number>> = {
   },
 };
 
-function generateBall(LOS: number): Ball {
-  const BALL_RADIUS = 18;
-  const STROKE_WIDTH = 0.8;
-  const LACE_WIDTH = 2;
-  const BALL_X = LOS - (5 * W) / 100;
-  return {
-    type: "ball",
-    loc: { x: BALL_X, y: H / 2 },
-    vel: emptyVector(),
-    radius: BALL_RADIUS,
-    strokeWidth: STROKE_WIDTH,
-    laceWidth: LACE_WIDTH,
-  };
-}
-
 const savedRatings: Record<string, Partial<Ratings>> = {};
 function saveRating(label: string, attr: Attribute, value: number) {
   if (!savedRatings[label]) savedRatings[label] = {};
@@ -72,7 +57,41 @@ function getSavedRatings(label: string): Ratings {
   return { ...getDefaultRatingForLabel(label), ...savedRatings[label] };
 }
 
-function generateOffensePlaycall2(
+function generateBall(LOS: number): Ball {
+  const BALL_RADIUS = 18;
+  const STROKE_WIDTH = 0.8;
+  const LACE_WIDTH = 2;
+  const BALL_X = LOS - yardsToPx(5);
+  return {
+    type: "ball",
+    loc: { x: BALL_X, y: H / 2 },
+    vel: nullVector(),
+    radius: BALL_RADIUS,
+    strokeWidth: STROKE_WIDTH,
+    laceWidth: LACE_WIDTH,
+  };
+}
+
+function generateScoreboard(
+  LOS: number,
+  offenseTeam: Team,
+  defenseTeam: Team,
+): Scoreboard {
+  return {
+    distance: 10,
+    down: "1st",
+    LOS: LOS,
+    firstDownLine: computeFirstDownLine(LOS, 10),
+    quarter: "1st",
+    teams: [
+      { ...offenseTeam, possessing: true },
+      { ...defenseTeam, possessing: false },
+    ],
+    time: 900,
+  };
+}
+
+function generateOffensePlaycall(
   LOS: number,
   ball: Ball,
   team: Team,
@@ -146,11 +165,7 @@ function generateOffensePlaycall2(
       }
       case "TE": {
         players.push(
-          fillOutRosterPlayer(
-            rp,
-            { x: LOS - (2 / 100) * W, y: yTE },
-            routes[2],
-          ),
+          fillOutRosterPlayer(rp, { x: LOS - yardsToPx(2), y: yTE }, routes[2]),
         );
         break;
       }
@@ -158,7 +173,7 @@ function generateOffensePlaycall2(
         players.push(
           fillOutRosterPlayer(
             rp,
-            { x: ball.loc.x - (5 / 100) * W, y: CENTER_Y },
+            { x: ball.loc.x - yardsToPx(5), y: CENTER_Y },
             undefined,
             runAngle,
           ),
@@ -175,7 +190,7 @@ function generateOffensePlaycall2(
   };
 }
 
-function generateDefensivePlaycall2(
+function generateDefensivePlaycall(
   LOS: number,
   team: Team,
   offensivePlayers: Player[],
@@ -202,7 +217,7 @@ function generateDefensivePlaycall2(
   const zoneStep =
     catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
 
-  const COVERER_X = LOS + (10 / 100) * W;
+  const COVERER_X = LOS + yardsToPx(10);
   const covererIndexMap: Record<string, number> = { CB: 0, NB: 1, LB: 2 };
   const covererYPositions =
     covererCoverage === "man"
@@ -214,7 +229,7 @@ function generateDefensivePlaycall2(
       : [zoneMargin, zoneMargin + 2 * zoneStep, zoneMargin + zoneStep];
 
   const ssRole: Role = isBlitz ? "rusher" : "coverer";
-  const ssX = isBlitz ? LOS + (6 / 100) * W : LOS + (35 / 100) * W;
+  const ssX = LOS + (isBlitz ? yardsToPx(6) : yardsToPx(35));
   const ssY = isBlitz
     ? Math.random() < 0.5
       ? H * 0.25
@@ -222,7 +237,7 @@ function generateDefensivePlaycall2(
     : (25 / 100) * H;
   const ssCoverage: Coverage = "zone";
 
-  const fsX = LOS + (35 / 100) * W;
+  const fsX = LOS + yardsToPx(35);
   const fsY = isBlitz ? H / 2 : (75 / 100) * H;
 
   for (const rp of team.roster) {
@@ -246,7 +261,7 @@ function generateDefensivePlaycall2(
       case "LE":
         players.push(
           fillOutRosterPlayer(rp, {
-            x: LOS + (3 / 100) * W,
+            x: LOS + yardsToPx(3),
             y: CENTER_Y - (1 / 7) * H,
           }),
         );
@@ -255,7 +270,7 @@ function generateDefensivePlaycall2(
       case "DT":
         players.push(
           fillOutRosterPlayer(rp, {
-            x: LOS + (3 / 100) * W,
+            x: LOS + yardsToPx(3),
             y: CENTER_Y,
           }),
         );
@@ -264,7 +279,7 @@ function generateDefensivePlaycall2(
       case "RE":
         players.push(
           fillOutRosterPlayer(rp, {
-            x: LOS + (3 / 100) * W,
+            x: LOS + yardsToPx(3),
             y: CENTER_Y + (1 / 7) * H,
           }),
         );
@@ -323,9 +338,7 @@ function generateSpecialPlaycall(scoreboard: Scoreboard): SpecialPlayType {
   const FIELD_GOAL_SNAP_DEPTH = 7; // yards back from LOS for the kick spot
   const HOLDER_TO_CROSSBAR_DEPTH = 10; // yards from goal line to back of endzone/crossbar
 
-  const yardsToOpponentEndzone = yardsFromPixels(
-    W + ENDZONE_W - scoreboard.LOS,
-  );
+  const yardsToOpponentEndzone = pxToYards(W + ENDZONE_W - scoreboard.LOS);
   const fieldGoalKickDistance =
     yardsToOpponentEndzone + FIELD_GOAL_SNAP_DEPTH + HOLDER_TO_CROSSBAR_DEPTH;
 
@@ -339,64 +352,13 @@ function generateSpecialPlaycall(scoreboard: Scoreboard): SpecialPlayType {
   return "punt";
 }
 
-function fillOutRosterPlayer(
-  rp: RosterPlayer,
-  loc?: Vector,
-  route?: Route,
-  runAngle?: Vector,
-  coverage?: Coverage,
-  roleOverride?: Role,
-): Player {
-  return {
-    color: rp.color,
-    label: rp.label,
-    loc: loc ?? emptyVector(),
-    role: roleOverride ?? labelToRole(rp.label),
-    side: labelToSide(rp.label),
-    type: "player",
-    vel: emptyVector(),
-    prevVel: emptyVector(),
-
-    // TEMP: Ratings
-    ratings: getSavedRatings(rp.label),
-
-    // Specific properties determined on creation
-    route: route ?? undefined,
-    runAngle: runAngle ?? undefined,
-    path: [],
-    breakFrame: null,
-    routeSideMultiplier: null,
-    improvAngleRad: null,
-    predictedTargets: null,
-    coverage: coverage ?? undefined,
-    playRushSeed: undefined,
-    rushSpeedVariance: undefined,
-
-    // Specific properties determined later
-    assignedTarget: null,
-    decisionTicks: 0,
-    cachedThrowEval: null,
-    perceivedLoc: null,
-    perceivedVel: null,
-    reactionTimer: 0,
-    zone: emptyVector(),
-
-    contactedThisFrame: false,
-    isBursting: false,
-    shedCooldown: 0,
-    shedImmunityFrames: 0,
-
-    // Properties for rendering
-    contextRays: null,
-    chosenRayDir: null,
-  };
-}
-
 export {
   generateBall,
-  generateDefensivePlaycall2,
-  generateOffensePlaycall2,
+  generateDefensivePlaycall,
+  generateOffensePlaycall,
+  generateScoreboard,
   generateSpecialPlaycall,
+  getSavedRatings,
   PLAYBOOK_CONFIG,
   saveRating,
   TEAM_PLAYBOOKS,

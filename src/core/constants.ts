@@ -1,19 +1,6 @@
 /* Global constants */
 export const TRAINING_MODE_ON = false;
 
-/* Sizing constants */
-export const W = 2160;
-export const H = 1200;
-
-export const ENDZONE_W = (W * 1) / 10;
-export const TOTAL_W = W + 2 * ENDZONE_W;
-export const TOTAL_H = H;
-
-export const START_DRIVE = (25 * W) / 100 + ENDZONE_W;
-
-/* Field goal constants */
-export const GOALPOST_CROSSBAR_WIDTH = 138; // distance between uprights
-
 /* Simulation constants */
 export let simSpeed = 1;
 export const LOGIC_TICK_MS = 1000 / 60;
@@ -31,7 +18,6 @@ export const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
 export const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
 
 // Recevier
-export const PIXELS_PER_STEP = 45;
 export const ROUTE_BREAK_ANGLE_JITTER = 3;
 
 // Coverer

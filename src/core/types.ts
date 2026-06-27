@@ -109,8 +109,9 @@ type Ray = {
 };
 
 type Route = {
+  /** 0 = up, 90 = in, 180 = down, -90 = out */
   breakAngle: number;
-  steps: number;
+  yardsBeforeBreak: number;
   stopAfterBreak: boolean;
 };
 type Coverage = "man" | "zone";
@@ -225,19 +226,51 @@ type CurrentPlay = {
   routes: Route[];
 };
 
-const streakRoute: Route = { breakAngle: 0, steps: 0, stopAfterBreak: false };
-const postRoute: Route = { breakAngle: 45, steps: 8, stopAfterBreak: false };
-const cornerRoute: Route = {
-  breakAngle: -55,
-  steps: 10,
+const streakRoute: Route = {
+  breakAngle: 0,
+  yardsBeforeBreak: 0,
   stopAfterBreak: false,
 };
-const inRoute: Route = { breakAngle: 90, steps: 7, stopAfterBreak: false };
-const outRoute: Route = { breakAngle: -90, steps: 7, stopAfterBreak: false };
-const curlRoute: Route = { breakAngle: 180, steps: 7, stopAfterBreak: true };
-const slantRoute: Route = { breakAngle: 65, steps: 3, stopAfterBreak: false };
-const dragRoute: Route = { breakAngle: 90, steps: 2, stopAfterBreak: false };
-const flatRoute: Route = { breakAngle: -90, steps: 0, stopAfterBreak: false };
+const postRoute: Route = {
+  breakAngle: 45,
+  yardsBeforeBreak: 15,
+  stopAfterBreak: false,
+};
+const cornerRoute: Route = {
+  breakAngle: -55,
+  yardsBeforeBreak: 15,
+  stopAfterBreak: false,
+};
+const inRoute: Route = {
+  breakAngle: 90,
+  yardsBeforeBreak: 10,
+  stopAfterBreak: false,
+};
+const outRoute: Route = {
+  breakAngle: -90,
+  yardsBeforeBreak: 10,
+  stopAfterBreak: false,
+};
+const curlRoute: Route = {
+  breakAngle: 180,
+  yardsBeforeBreak: 10,
+  stopAfterBreak: true,
+};
+const slantRoute: Route = {
+  breakAngle: 65,
+  yardsBeforeBreak: 4,
+  stopAfterBreak: false,
+};
+const dragRoute: Route = {
+  breakAngle: 90,
+  yardsBeforeBreak: 3,
+  stopAfterBreak: false,
+};
+const flatRoute: Route = {
+  breakAngle: -90,
+  yardsBeforeBreak: 0,
+  stopAfterBreak: false,
+};
 
 type Team = {
   name: string;

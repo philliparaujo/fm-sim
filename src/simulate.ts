@@ -1,26 +1,13 @@
 import {
-  ENDZONE_W,
   INLINE_NUDGE,
   LOGIC_TICK_MS,
   PAUSE_MS_AFTER_PLAY,
   simSpeed,
-  START_DRIVE,
-  TOTAL_H,
-  TOTAL_W,
   TRAINING_MODE_ON,
-  W,
-} from "./constants";
-import {
-  generateBall,
-  generateDefensivePlaycall2,
-  generateOffensePlaycall2,
-  generateSpecialPlaycall,
-} from "./playbook";
-import { attemptTackle, stepAsPlayer } from "./playerBehavior";
-import { getConstants } from "./ratings";
-import { render } from "./render";
-import { updateScoreboardUI } from "./scoreboard";
-import { createEmptyStats, updateStatsAfterPlay } from "./stats";
+} from "./core/constants";
+import { generateSpecialPlaycall } from "./core/playbook";
+import { getConstants } from "./core/ratings";
+import { recreateState, state } from "./core/state";
 import {
   Ball,
   CachedPlayers,
@@ -30,104 +17,40 @@ import {
   ReplayFrame,
   Scoreboard,
   State,
-  Team,
-} from "./types";
+} from "./core/types";
+import { attemptTackle, stepAsPlayer } from "./playerBehavior";
+import { render } from "./render";
+import { updateScoreboardUI } from "./scoreboard";
+import { createEmptyStats, updateStatsAfterPlay } from "./stats";
 import {
   applyDamping,
-  buildDefaultRoster,
-  closestPointOnSegment,
   computeFirstDownLine,
-  diff,
-  dist,
   distanceAfterFirstDown,
+  getDefenseTeam,
   getLOSAfterPunt,
-  getPossessingTeam,
+  getOffenseTeam,
   isCarryingBall,
   isPassPlay,
   isRunPlay,
-  length,
   numPlays,
-  teamId,
   updateDownAndDistance,
-  vectorToString,
-  yardsFromPixels,
 } from "./util";
+import {
+  ENDZONE_W,
+  pxToYards,
+  START_DRIVE,
+  TOTAL_H,
+  TOTAL_W,
+  W,
+} from "./utils/units";
+import {
+  closestPointOnSegment,
+  diff,
+  dist,
+  length,
+  vectorToString,
+} from "./utils/vector";
 
-const createInitialState = (
-  offenseTeam: Team,
-  defenseTeam: Team,
-  startingLOS?: number,
-): State => {
-  const LOS = startingLOS ?? START_DRIVE;
-  const ball = generateBall(LOS);
-  const offensePlay = generateOffensePlaycall2(LOS, ball, offenseTeam);
-  const defensePlay = generateDefensivePlaycall2(
-    LOS,
-    defenseTeam,
-    offensePlay.players,
-  );
-
-  const scoreboard: Scoreboard = {
-    distance: 10,
-    down: "1st",
-    LOS: LOS,
-    firstDownLine: computeFirstDownLine(LOS, 10),
-    quarter: "1st",
-    teams: [
-      { ...offenseTeam, possessing: true },
-      { ...defenseTeam, possessing: false },
-    ],
-    time: 900,
-  };
-
-  const specialPlay = generateSpecialPlaycall(scoreboard);
-
-  return {
-    steps: 0,
-    pausedUntil: 0,
-    ballGiven: false,
-    ballGivenAtStep: 0,
-    blockingAssignments: new Map<Player, Player>(),
-    scoreboard: scoreboard,
-    stats: {},
-    playAdvanced: {
-      wasOffTarget: false,
-      wasThrowAway: false,
-      wasUnderPressure: false,
-    },
-    currentPlay: {
-      offense: offensePlay.playType,
-      defense: defensePlay.coverage,
-      special: specialPlay,
-      runAngle: offensePlay.runAngle,
-      routes: offensePlay.routes,
-    },
-    ball: ball,
-    ballFlight: null,
-    players: [...offensePlay.players, ...defensePlay.players],
-  };
-};
-
-const teams: Team[] = [
-  {
-    color: "red",
-    name: "RED",
-    score: 0,
-    timeouts: 3,
-    possessing: true,
-    roster: buildDefaultRoster("red"),
-  },
-  {
-    color: "blue",
-    name: "BLU",
-    score: 0,
-    timeouts: 3,
-    possessing: false,
-    roster: buildDefaultRoster("blue"),
-  },
-];
-
-let state: State = createInitialState(teams[0], teams[1]);
 assignCoverageTargets();
 let runCount = 1;
 let onPlayResetCallback: (() => void) | null = null;
@@ -752,7 +675,7 @@ function resetSimulation(reason: PlayEndReason) {
     }
   }
 
-  const yards = yardsFromPixels(
+  const yards = pxToYards(
     (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
   );
 
@@ -767,7 +690,8 @@ function resetSimulation(reason: PlayEndReason) {
   }
 
   // Identify who was on offense during this play step
-  const activeOffenseTeam = getPossessingTeam(state);
+  const activeOffenseTeam = getOffenseTeam(state);
+  const activeDefenseTeam = getDefenseTeam(state);
   const offenseTeamName = activeOffenseTeam.name;
 
   // Grab or initialize this specific team's stat records
@@ -831,18 +755,12 @@ function resetSimulation(reason: PlayEndReason) {
     window.dispatchEvent(new CustomEvent("playRecorded"));
   }
 
-  const globalOffenseTeam = teams.find(
-    (t) => t.name === activeOffenseTeam.name,
-  )!;
-  const globalDefenseTeam =
-    teamId(teams[0]) === teamId(globalOffenseTeam) ? teams[1] : teams[0];
-
   if (isTouchdown) {
-    globalOffenseTeam.score += 7;
+    activeOffenseTeam.score += 7;
   } else if (isFieldGoal) {
-    globalOffenseTeam.score += 3;
+    activeOffenseTeam.score += 3;
   } else if (isSafety) {
-    globalDefenseTeam.score += 2;
+    activeDefenseTeam.score += 2;
   }
 
   const flipPossession =
@@ -857,12 +775,12 @@ function resetSimulation(reason: PlayEndReason) {
   if (flipPossession) {
     Object.assign(
       state,
-      createInitialState(globalDefenseTeam, globalOffenseTeam, nextLOS),
+      recreateState(activeDefenseTeam, activeOffenseTeam, nextLOS),
     );
   } else {
     Object.assign(
       state,
-      createInitialState(globalOffenseTeam, globalDefenseTeam, nextLOS),
+      recreateState(activeOffenseTeam, activeDefenseTeam, nextLOS),
     );
   }
 

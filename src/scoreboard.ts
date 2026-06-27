@@ -1,4 +1,4 @@
-import { Scoreboard } from "./types";
+import { Scoreboard } from "./core/types";
 import { formatTime, LOSToString } from "./util";
 
 export function updateScoreboardUI(data: Scoreboard) {
