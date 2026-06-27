@@ -79,7 +79,7 @@ function getLetterGrade(
   return { grade, color: GRADE_COLORS[grade] ?? "#888" };
 }
 
-export const ATTRIBUTE_CONFIG = {
+const ATTRIBUTE_CONFIG = {
   /* All Positions */
   SPEED: (r: number) => ({
     maxSpeed: lerp(r, 2.82, 4.13),
@@ -334,11 +334,5 @@ function getConstants<K extends Attribute>(
   return transformer(rating);
 }
 
-export {
-  createBaseRatings,
-  DEFAULT_RATINGS_BY_LABEL,
-  getConstants,
-  getDefaultRatingForLabel,
-  getLetterGrade,
-};
+export { getConstants, getDefaultRatingForLabel, getLetterGrade };
 export type { Attribute, Ratings };

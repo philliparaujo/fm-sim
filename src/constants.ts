@@ -30,9 +30,6 @@ export const MIN_BLOCK_DISTANCE = 120;
 export const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
 export const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
 
-// Runner
-export const ANGLE_ENDZONE_INTENT = 1;
-
 // Recevier
 export const PIXELS_PER_STEP = 45;
 export const ROUTE_BREAK_ANGLE_JITTER = 3;
@@ -45,9 +42,7 @@ export const ARRIVAL_RADIUS = 45;
 export const PURSUER_STEER_FACTOR = 0.5;
 
 // Passer
-export const BALL_GIVEN_STEPS = 400;
 export const PASSER_HANDOFF_SEPARATION = 80;
-export const SHORT_THROW_THRESHOLD_PX = 15 * (W / 100); // 15 yards in pixels
 export const PANIC_RUSHER_DIST = 80;
 export const PANIC_THROW_CHANCE = 0.25;
 

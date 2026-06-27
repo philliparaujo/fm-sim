@@ -19,14 +19,7 @@ import {
 } from "./constants";
 import { getConstants } from "./ratings";
 import { resetSimulation, resolveCollision, state } from "./simulate";
-import {
-  cornerRoute,
-  flatRoute,
-  outRoute,
-  Player,
-  State,
-  Vector,
-} from "./types";
+import { Player, State, Vector } from "./types";
 import {
   clampPosInBounds,
   closestPointOnSegment,
@@ -44,7 +37,6 @@ import {
 
 const MAX_PATH_LENGTH = 200; // Cap path arrays to prevent render bloat
 const THROW_EVAL_INTERVAL = 6; // QB evaluates throws every 6 frames (~0.1s)
-const MAX_PREDICTION_FRAMES = 120; // Reduced from 300. 2 seconds is plenty.
 
 function stepAsPlayer(
   player: Player,
@@ -61,10 +53,7 @@ function stepAsPlayer(
   const ballIntendedForMe =
     state.ballFlight && state.ballFlight.receiver === player;
   const { maxSpeed } = getConstants("SPEED", player);
-  const { avoidStrength, steerAvoidStrength, steerDuration } = getConstants(
-    "VISION",
-    player,
-  );
+  const { steerDuration } = getConstants("VISION", player);
 
   switch (player.role) {
     case "blocker": {
@@ -84,15 +73,15 @@ function stepAsPlayer(
       } else if (!isCarryingBall(player, state.ball)) {
         runTowardsBall(player, state.ball.loc);
       } else if (isEarlyInRun) {
-        runTowardsEndzone(player, steerAvoidStrength, player.runAngle);
+        runTowardsEndzone(player, player.runAngle);
       } else {
-        runTowardsEndzone(player, avoidStrength);
+        runTowardsEndzone(player);
       }
       break;
     }
     case "catcher": {
       if (isCarryingBall(player, state.ball)) {
-        runTowardsEndzone(player, avoidStrength);
+        runTowardsEndzone(player);
       } else if (isBlocking || isRunPlay(state)) {
         blockNearestDefender(player);
       } else if (ballInAir && ballIntendedForMe) {
@@ -285,7 +274,6 @@ function stepAsPlayer(
 
   function runTowardsEndzone(
     player: Player,
-    avoidStrength: number, // Intact for signature matching
     targetDir: Vector = { x: 1.0, y: 0 },
   ) {
     const { maxSpeed } = getConstants("SPEED", player);
@@ -304,7 +292,6 @@ function stepAsPlayer(
     // 1. OVERRIDE TARGET DIRECTION VIA CONTEXT STEERING MAP
     const optimizedTargetDir = getContextSteering(
       player,
-      state,
       targetDir,
       cachedPlayers,
     );
@@ -446,7 +433,6 @@ function stepAsPlayer(
   }
 
   function throwingDecision(player: Player) {
-    const coverers = cachedPlayers.coverers;
     const rushers = cachedPlayers.rushers;
     const catchers = cachedPlayers.catchers;
     const { minThrowStep, minOpennessNeeded, panicOpennessNeeded } =
@@ -1052,79 +1038,6 @@ function attemptTackle(defender: Player, carrier: Player) {
   }
 }
 
-function getCovererTargetCatcher(
-  player: Player,
-  players: Player[],
-  state: State,
-): Player | null {
-  // 1. Man Coverage Target Resolution
-  if (player.coverage === "man") {
-    if (!player.assignedTarget) return null;
-    return (
-      players.find(
-        (p) => p.role === "catcher" && p === player.assignedTarget,
-      ) || null
-    );
-  }
-
-  // 2. Zone Coverage Base Setup
-  const catchers = players.filter((p) => p.role === "catcher" && p.route);
-  if (catchers.length === 0) return null;
-
-  const DEEP_ZONE_THRESHOLD = (W * 30) / 100; // 30 yards downfield
-  const isDeepSafety =
-    player.zone && player.zone.x > state.scoreboard.LOS + DEEP_ZONE_THRESHOLD;
-
-  // 3. Deep Zone Specialty Target Acquisition
-  if (isDeepSafety && player.zone) {
-    const isCentered = Math.abs(player.zone.y - H / 2) < 50;
-    const VERTICAL_THREAT_DEPTH = (W * 12) / 100; // 12 yards past line of scrimmage
-
-    // Filter down to catchers who pose a genuine vertical threat to this safety's assignment area
-    const validDeepThreats = catchers.filter((catcher) => {
-      // Field half/third validation for non-center fielders
-      if (!isCentered) {
-        const safetyIsTop = player.zone!.y < H / 2;
-        const catcherStartedTop = catcher.loc.y < H / 2;
-
-        if (safetyIsTop !== catcherStartedTop) {
-          return false;
-        }
-      }
-
-      // The receiver must cross the minimum depth threshold to be treated as an active deep threat
-      return catcher.loc.x > state.scoreboard.LOS + VERTICAL_THREAT_DEPTH;
-    });
-
-    // If no receivers have broken deep into their half of the field, return null.
-    // This safely forces the cover loop to fall back to anchoring perfectly to their zone coordinates.
-    if (validDeepThreats.length === 0) {
-      return null;
-    }
-
-    // Out of all valid vertical threats, lock on to the deepest one
-    return validDeepThreats.reduce((deepest, current) => {
-      return current.loc.x > (deepest?.loc.x ?? -1) ? current : deepest;
-    });
-  }
-
-  // 4. Standard Underneath/Intermediate Zone Target Acquisition
-  // Finds the closest eligible catcher relative to the center of the assigned zone marker
-  let closestCatcher: Player | null = null;
-  let minDistance = Infinity;
-  const anchorPoint = player.zone ?? player.loc;
-
-  for (const catcher of catchers) {
-    const d = dist(anchorPoint, catcher.loc);
-    if (d < minDistance) {
-      minDistance = d;
-      closestCatcher = catcher;
-    }
-  }
-
-  return closestCatcher;
-}
-
 function updateCovererPerception(player: Player, targetCatcher: Player | null) {
   if (targetCatcher) {
     player.perceivedVel = { ...targetCatcher.vel };
@@ -1137,7 +1050,6 @@ function updateCovererPerception(player: Player, targetCatcher: Player | null) {
 
 function getContextSteering(
   player: Player,
-  state: State,
   baseIntent: Vector,
   cachedPlayers: {
     rushers: Player[];
@@ -1262,16 +1174,9 @@ function calculatePerfectThrowTarget(
 
   const MAX_PREDICTION_FRAMES = 180;
   const { timeline: receiverTimeline, framesUntilBreak } = predictReceiverRoute(
-    passer,
     receiver,
     state,
   );
-
-  const BOUNDARY_MARGIN = PIXELS_PER_YARD;
-  const MIN_PLAYABLE_X = BOUNDARY_MARGIN;
-  const MAX_PLAYABLE_X = TOTAL_W - BOUNDARY_MARGIN;
-  const MIN_PLAYABLE_Y = BOUNDARY_MARGIN;
-  const MAX_PLAYABLE_Y = TOTAL_H - BOUNDARY_MARGIN;
 
   // Fetch the receiver's catch radius so we know what "catchable" means
   const { completionRadius } = getConstants("CATCHRADIUS", receiver);
@@ -1524,7 +1429,6 @@ function getImprovisedVelocity(
 }
 
 function predictReceiverRoute(
-  passer: Player,
   receiver: Player,
   state: State,
 ): { timeline: Vector[]; framesUntilBreak: number } {
@@ -1593,7 +1497,7 @@ function evaluateThrowWindow(
   const throwTargetRes = calculatePerfectThrowTarget(passer, catcher, state);
   if (throwTargetRes === null) return null;
 
-  const { framesUntilLand, target, framesUntilBreak } = throwTargetRes;
+  const { framesUntilLand, target } = throwTargetRes;
 
   // Project every relevant defender forward by flightFrames using simple linear extrapolation
   const defenders = [...cachedPlayers.rushers, ...cachedPlayers.coverers];
@@ -1721,7 +1625,7 @@ function resolveBallInAir(
     // --- FINAL EVALUATION & METRIC TRACKING ---
     state.playAdvanced.wasOffTarget = false;
     if (isComplete) {
-      completePass(state, receiver, endLoc, cachedPlayers);
+      completePass(state, receiver, cachedPlayers);
     } else if (isInterception) {
       if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
@@ -1742,7 +1646,6 @@ function resolveBallInAir(
 function completePass(
   state: State,
   receiver: Player,
-  endLoc: Vector,
   cachedPlayers: {
     rushers: Player[];
     coverers: Player[];
@@ -1778,9 +1681,4 @@ function completePass(
   }
 }
 
-export {
-  attemptTackle,
-  calculatePerfectThrowTarget,
-  predictReceiverRoute,
-  stepAsPlayer,
-};
+export { attemptTackle, predictReceiverRoute, stepAsPlayer };

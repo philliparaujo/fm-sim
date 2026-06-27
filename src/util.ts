@@ -1,9 +1,8 @@
 import { ENDZONE_W, H, TOTAL_H, TOTAL_W, W } from "./constants";
-import { getConstants, getDefaultRatingForLabel } from "./ratings";
+import { getDefaultRatingForLabel } from "./ratings";
 import {
   Ball,
   cornerRoute,
-  Coverage,
   curlRoute,
   dragRoute,
   flatRoute,
@@ -92,11 +91,6 @@ export function randomRoute(): Route {
     flatRoute,
   ];
   return routes[Math.floor(Math.random() * routes.length)];
-}
-
-export function randomCoverage(): Coverage {
-  const coverages: Coverage[] = ["man", "zone"];
-  return coverages[Math.floor(Math.random() * coverages.length)];
 }
 
 export function vectorToString(vector: Vector): string {

@@ -389,16 +389,8 @@ function drawThrowTarget(location: Vector) {
   ctx.restore();
 }
 
-function drawReceiverPredictedRoute(
-  passer: Player,
-  receiver: Player,
-  state: State,
-) {
-  const { timeline: predictedRoute, framesUntilBreak } = predictReceiverRoute(
-    passer,
-    receiver,
-    state,
-  );
+function drawReceiverPredictedRoute(receiver: Player, state: State) {
+  const { timeline: predictedRoute } = predictReceiverRoute(receiver, state);
 
   if (predictedRoute.length < 2) return;
 
@@ -474,7 +466,7 @@ function render(state: State) {
   if (passer && isPassPlay(state)) {
     for (const catcher of catchers) {
       if (ALL_PREDICTED_ROUTE_ON) {
-        drawReceiverPredictedRoute(passer, catcher, state);
+        drawReceiverPredictedRoute(catcher, state);
       }
       if (ALL_PREDICTED_TARGET_ON && catcher.predictedTargets != null) {
         for (const target of catcher.predictedTargets) {
@@ -490,8 +482,8 @@ function render(state: State) {
     if (PREDICTED_TARGET_ON) {
       drawThrowTarget(state.ballFlight.endLoc);
     }
-    if (PREDICTED_ROUTE_ON && passer && receiver) {
-      drawReceiverPredictedRoute(passer, receiver, state);
+    if (PREDICTED_ROUTE_ON && receiver) {
+      drawReceiverPredictedRoute(receiver, state);
     }
   }
 

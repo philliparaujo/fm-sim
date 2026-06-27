@@ -47,7 +47,6 @@
 }
 
 .scoreboard-item {
-  /* background: #444; */
   min-width: 60px;
   display: flex;
   gap: 10px;

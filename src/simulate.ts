@@ -27,7 +27,6 @@ import {
   PlayEndReason,
   Player,
   ReplayFrame,
-  Roster,
   Scoreboard,
   State,
   Team,
@@ -129,13 +128,12 @@ const teams: Team[] = [
 
 let state: State = createInitialState(teams[0], teams[1]);
 assignCoverageTargets();
-let simStartTime = performance.now();
 let runCount = 1;
 let onPlayResetCallback: (() => void) | null = null;
 
 let currentPlayFrames: ReplayFrame[] = [];
 let completedPlays: ReplayFrame[][] = []; // Stores up to 3 plays. [0] = 1 play ago, [1] = 2 ago, [2] = 3 ago
-export let replayMode: "live" | 0 | 1 | 2 = "live";
+let replayMode: "live" | 0 | 1 | 2 = "live";
 let replayFrameIndex = 0;
 
 function setReplayMode(mode: "live" | 0 | 1 | 2) {
@@ -898,7 +896,6 @@ function resetSimulation(reason: PlayEndReason) {
   state.blockingAssignments = new Map();
   assignCoverageTargets();
 
-  simStartTime = state.pausedUntil;
   timeAccumulator = 0;
   runCount++;
 

@@ -96,10 +96,6 @@ const PLAYER_RATINGS_CACHE: Record<
   blue: {},
 };
 
-function ratingToPercent(r: number): string {
-  return Math.round(r * 100) + "";
-}
-
 // Move this to the top level so it persists
 let dashboardInitialized = false;
 

@@ -101,7 +101,7 @@ function emptyAdvancedStats(): AdvancedStats {
   };
 }
 
-export function playcallCoverageKey(
+function playcallCoverageKey(
   offense: OffensivePlayType,
   defense: DefensiveCoverageType,
 ): PlaycallCoverageKey {
@@ -136,7 +136,7 @@ export function createEmptyStats(): Stats {
   };
 }
 
-export function routeKey(route: Route): string {
+function routeKey(route: Route): string {
   for (const [name, known] of ROUTE_NAMES) {
     if (
       known.breakAngle === route.breakAngle &&
@@ -149,7 +149,7 @@ export function routeKey(route: Route): string {
   return `custom_${route.breakAngle}_${route.steps}`;
 }
 
-export function runAngleKey(runAngle: Vector): string {
+function runAngleKey(runAngle: Vector): string {
   const degrees = Math.round(
     (Math.atan2(runAngle.y, runAngle.x) * 180) / Math.PI,
   );

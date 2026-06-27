@@ -3,7 +3,6 @@ import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
 import {
   Ball,
   Coverage,
-  Label,
   Player,
   Role,
   RosterPlayer,
@@ -62,29 +61,6 @@ function generateBall(LOS: number): Ball {
     strokeWidth: STROKE_WIDTH,
     laceWidth: LACE_WIDTH,
   };
-}
-
-let offenseLabelIndex = 0;
-let defenseLabelIndex = 0;
-// --- Build Dynamic Offensive Labels ---
-const OFFENSIVE_LABELS: Label[] = [
-  ...(BLOCKERS_INCLUDED ? ["LT", "C", "RT"] : []),
-  ...(PASSER_INCLUDED ? ["QB"] : []),
-  ...(CATCHERS_INCLUDED ? ["XR", "ZR", "TE"] : []),
-  ...(RUNNER_INCLUDED ? ["RB"] : []),
-] as Label[];
-
-// --- Build Dynamic Defensive Labels ---
-const DEFENSIVE_LABELS: Label[] = [
-  ...(RUSHERS_INCLUDED ? ["LE", "DT", "RE"] : []),
-  ...(COVERERS_INCLUDED ? ["CB", "NB", "LB"] : []),
-  ...(SAFETIES_INCLUDED ? ["SS", "FS"] : []),
-] as Label[];
-function nextOffenseLabel(): Label {
-  return OFFENSIVE_LABELS[offenseLabelIndex++ % OFFENSIVE_LABELS.length];
-}
-function nextDefenseLabel(): Label {
-  return DEFENSIVE_LABELS[defenseLabelIndex++ % DEFENSIVE_LABELS.length];
 }
 
 const savedRatings: Record<string, Partial<Ratings>> = {};
@@ -408,16 +384,6 @@ function fillOutRosterPlayer(
     contactedThisFrame: false,
     isBursting: false,
   };
-}
-
-function fillOutRosterPlayers(rps: RosterPlayer[]): Player[] {
-  const players: Player[] = [];
-
-  for (const rp of rps) {
-    players.push(fillOutRosterPlayer(rp));
-  }
-
-  return players;
 }
 
 export {
