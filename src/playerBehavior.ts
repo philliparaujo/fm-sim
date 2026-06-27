@@ -713,8 +713,8 @@ function stepAsPlayer(
   }
 
   function pursueBallCarrier(player: Player) {
-    const { manStartDelay } = getConstants("manCoverage", player);
-    const { zoneStartDelay } = getConstants("zoneCoverage", player);
+    const { manStartDelay } = getConstants("MANCOVERAGE", player);
+    const { zoneStartDelay } = getConstants("ZONECOVERAGE", player);
     const startDelay =
       player.coverage === "man" ? manStartDelay : zoneStartDelay;
 
@@ -792,10 +792,10 @@ function stepAsPlayer(
   function cover(player: Player) {
     const { maxSpeed } = getConstants("SPEED", player);
     const { manStartDelay, reactionDelay, manCushion } = getConstants(
-      "manCoverage",
+      "MANCOVERAGE",
       player,
     );
-    const { zonePull, zoneStartDelay } = getConstants("zoneCoverage", player);
+    const { zonePull, zoneStartDelay } = getConstants("ZONECOVERAGE", player);
 
     const startDelay =
       player.coverage === "man" ? manStartDelay : zoneStartDelay;
@@ -1664,8 +1664,20 @@ function resolveBallInAir(
       ? minDefenderDist <= defenderRadius
       : false;
 
-    if (!receiverInRadius) {
-      // Pass is completely uncatchable by the receiver
+    if (!receiverInRadius && defenderInRadius) {
+      // Uncontested interception attempt
+      const INTERCEPT_CHANCE = 0.35;
+      if (Math.random() < INTERCEPT_CHANCE) {
+        isInterception = true;
+      } else {
+        isIncomplete = true;
+      }
+
+      if (receiverDist > receiverRadius) {
+        state.playAdvanced.wasOffTarget = true;
+      }
+    } else if (!receiverInRadius && !defenderInRadius) {
+      // Pass is uncatchable
       isIncomplete = true;
       if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
@@ -1687,7 +1699,7 @@ function resolveBallInAir(
         // Defender won the spot. But is it an INT or just a PBU?
         // In the NFL, defenders drop or break up far more passes than they intercept.
         // We add a probability roll to simulate this.
-        const INTERCEPT_CHANCE_ON_CONTEST = 0.3; // Tune this: 20% of "lost" contests become INTs
+        const INTERCEPT_CHANCE_ON_CONTEST = 0.1; // Tune this: 20% of "lost" contests become INTs
 
         if (Math.random() < INTERCEPT_CHANCE_ON_CONTEST) {
           isInterception = true;

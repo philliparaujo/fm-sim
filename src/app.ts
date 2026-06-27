@@ -55,8 +55,8 @@ const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
   coverer: [
     "SPEED",
     "SIZE",
-    "manCoverage",
-    "zoneCoverage",
+    "MANCOVERAGE",
+    "ZONECOVERAGE",
     "PURSUIT",
     "TACKLING",
   ],
@@ -80,8 +80,8 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   RUNBLOCK: "Run Block",
   BLOCKSHEDDING: "Block Shed",
   BEND: "Bend",
-  manCoverage: "Man Cov.",
-  zoneCoverage: "Zone Cov.",
+  MANCOVERAGE: "Man Cov.",
+  ZONECOVERAGE: "Zone Cov.",
   PURSUIT: "Pursuit",
   TACKLING: "Tackling",
 };

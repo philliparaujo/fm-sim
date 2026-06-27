@@ -22,8 +22,8 @@ const ATTR_GRADE_THRESHOLDS: Record<Attribute, GradeThreshold> = {
   RUNBLOCK: { peak: 100, spread: 100 },
   BLOCKSHEDDING: { peak: 100, spread: 100 },
   BEND: { peak: 100, spread: 100 },
-  manCoverage: { peak: 100, spread: 100 },
-  zoneCoverage: { peak: 100, spread: 100 },
+  MANCOVERAGE: { peak: 100, spread: 100 },
+  ZONECOVERAGE: { peak: 100, spread: 100 },
   TACKLING: { peak: 100, spread: 100 },
   POWER: { peak: 100, spread: 100 },
 
@@ -95,9 +95,9 @@ export const ATTRIBUTE_CONFIG = {
     pressureSensitivity: lerp(r, 1, 1),
   }),
   DECISIONMAKING: (r: number) => ({
-    minThrowStep: lerp(r, 140, 80),
-    minOpennessNeeded: lerp(r, 130, 110),
-    panicOpennessNeeded: lerp(r, 90, 70),
+    minThrowStep: lerp(r, 120, 40),
+    minOpennessNeeded: lerp(r, 170, 230),
+    panicOpennessNeeded: lerp(r, 110, 90),
   }),
   SHORTACCURACY: (r: number) => ({
     shortError: lerp(r, 0.6, 0),
@@ -161,14 +161,14 @@ export const ATTRIBUTE_CONFIG = {
   }),
 
   /* Coverers */
-  manCoverage: (r: number) => ({
+  MANCOVERAGE: (r: number) => ({
     manStartDelay: lerp(r, 20, 0),
-    reactionDelay: lerp(r, 49, 13),
+    reactionDelay: lerp(r, 59, 18),
     manCushion: lerp(r, 0, 0),
   }),
-  zoneCoverage: (r: number) => ({
-    zonePull: lerp(r, 0, 0.5),
-    zoneStartDelay: lerp(r, 35, 15),
+  ZONECOVERAGE: (r: number) => ({
+    zonePull: lerp(r, 0, 0.4),
+    zoneStartDelay: lerp(r, 45, 25),
   }),
   // Best = ~0.5
   PURSUIT: (r: number) => ({
@@ -205,8 +205,8 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   RUNBLOCK: 0.25,
   BLOCKSHEDDING: 0.3,
   BEND: 0.3,
-  manCoverage: 0.5,
-  zoneCoverage: 0.5,
+  MANCOVERAGE: 0.5,
+  ZONECOVERAGE: 0.5,
   PURSUIT: 0.3,
   TACKLING: 0.6,
   ...overrides,
@@ -254,20 +254,20 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   LT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.93,
-    RUNBLOCK: 0.45,
-    PASSBLOCK: 0.55,
+    RUNBLOCK: 0.43,
+    PASSBLOCK: 0.5,
   }),
   C: createBaseRatings({
     SPEED: 0.43,
     SIZE: 0.87,
-    RUNBLOCK: 0.5,
-    PASSBLOCK: 0.45,
+    RUNBLOCK: 0.48,
+    PASSBLOCK: 0.4,
   }),
   RT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.96,
-    RUNBLOCK: 0.5,
-    PASSBLOCK: 0.5,
+    RUNBLOCK: 0.48,
+    PASSBLOCK: 0.45,
   }),
 
   // Rushers
@@ -281,24 +281,24 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     SIZE: 0.08,
     TACKLING: 0.4,
     CATCHRADIUS: 0.6,
-    manCoverage: 0.7,
-    zoneCoverage: 0.6,
+    MANCOVERAGE: 0.6,
+    ZONECOVERAGE: 0.5,
   }),
   NB: createBaseRatings({
     SPEED: 0.87,
     SIZE: 0.07,
     TACKLING: 0.45,
     CATCHRADIUS: 0.6,
-    manCoverage: 0.65,
-    zoneCoverage: 0.6,
+    MANCOVERAGE: 0.55,
+    ZONECOVERAGE: 0.5,
   }),
   LB: createBaseRatings({
     SPEED: 0.7,
     SIZE: 0.4,
     TACKLING: 0.75,
     CATCHRADIUS: 0.4,
-    manCoverage: 0.5,
-    zoneCoverage: 0.6,
+    MANCOVERAGE: 0.4,
+    ZONECOVERAGE: 0.5,
   }),
   SS: createBaseRatings({
     SPEED: 0.77,
@@ -308,8 +308,8 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     BLOCKSHEDDING: 0.45,
     BEND: 0.4,
     CATCHRADIUS: 0.65,
-    manCoverage: 0.5,
-    zoneCoverage: 0.5,
+    MANCOVERAGE: 0.4,
+    ZONECOVERAGE: 0.4,
   }),
   FS: createBaseRatings({
     SPEED: 0.83,
@@ -317,8 +317,8 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     TACKLING: 0.6,
     PURSUIT: 0.6,
     CATCHRADIUS: 0.7,
-    manCoverage: 0.6,
-    zoneCoverage: 0.75,
+    MANCOVERAGE: 0.5,
+    ZONECOVERAGE: 0.65,
   }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {
