@@ -24,6 +24,7 @@ import {
   isPassPlay,
   isRunPlay,
   nearSideline,
+  snapBallToPlayer,
 } from "./utils/field";
 import { lerp } from "./utils/math";
 import {
@@ -341,8 +342,7 @@ function stepAsPlayer(
 
     // 5. SYNC BALL POSITION TO CARRIER
     if (isCarryingBall(player, state.ball)) {
-      state.ball.vel.x = player.vel.x;
-      state.ball.vel.y = player.vel.y;
+      snapBallToPlayer(player, state.ball);
     }
   }
 
@@ -1626,7 +1626,7 @@ function completePass(
   cachedPlayers: CachedPlayers,
 ) {
   state.ballFlight!.isInFlight = false;
-  state.ball.loc = { ...receiver.loc };
+  snapBallToPlayer(receiver, state.ball);
   state.ballGiven = true;
   state.ballGivenAtStep = state.steps;
   state.playAdvanced.catchX = state.ball.loc.x;

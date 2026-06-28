@@ -1,5 +1,4 @@
 import {
-  INLINE_NUDGE,
   PAUSE_MS_AFTER_PLAY,
   simSpeed,
   TRAINING_MODE_ON,
@@ -7,24 +6,29 @@ import {
 import { generateSpecialPlaycall } from "./core/playbook";
 import { getConstants } from "./core/ratings";
 import { recreateState, state } from "./core/state";
-import {
-  Ball,
-  CachedPlayers,
-  Entity,
-  PlayEndReason,
-  Player,
-  ReplayFrame,
-  State,
-} from "./core/types";
-import { attemptTackle, stepAsPlayer } from "./playerBehavior";
+import { Ball, PlayEndReason, Player } from "./core/types";
+import { stepAsPlayer } from "./playerBehavior";
 import { render } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
+import {
+  assignBlockingTargets,
+  assignCoverageTargets,
+} from "./sim/assignments";
+import { resolveCollision } from "./sim/collision";
+import {
+  captureReplayFrame,
+  getReplayFrame,
+  getReplayMockState,
+  incrementReplay,
+  isLive,
+  saveReplay,
+} from "./sim/replay";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
 import {
+  clampPosInBounds,
   getLOSAfterPunt,
   isCarryingBall,
-  isPassPlay,
-  isRunPlay,
+  snapBallToPlayer,
   updateDownAndDistance,
 } from "./utils/field";
 import { getDefenseTeam, getOffenseTeam } from "./utils/roster";
@@ -34,467 +38,43 @@ import {
   LOGIC_TICK_MS,
   pxToYards,
   START_DRIVE,
-  TOTAL_H,
   TOTAL_W,
   W,
 } from "./utils/units";
-import {
-  closestPointOnSegment,
-  diff,
-  dist,
-  length,
-  vectorToString,
-} from "./utils/vector";
-
-assignCoverageTargets();
-let runCount = 1;
-let onPlayResetCallback: (() => void) | null = null;
-
-let currentPlayFrames: ReplayFrame[] = [];
-let completedPlays: ReplayFrame[][] = []; // Stores up to 3 plays. [0] = 1 play ago, [1] = 2 ago, [2] = 3 ago
-let replayMode: "live" | 0 | 1 | 2 = "live";
-let replayFrameIndex = 0;
-
-function setReplayMode(mode: "live" | 0 | 1 | 2) {
-  replayMode = mode;
-  replayFrameIndex = 0; // Reset animation playhead on switch
-}
-
-function getCompletedPlaysCount(): number {
-  return completedPlays.length;
-}
-
-function captureReplayFrame() {
-  currentPlayFrames.push({
-    ballLoc: { x: state.ball.loc.x, y: state.ball.loc.y },
-    ballVel: { x: state.ball.vel.x, y: state.ball.vel.y },
-    players: state.players.map((p) => ({
-      ...p,
-      loc: { x: p.loc.x, y: p.loc.y },
-      vel: { x: p.vel.x, y: p.vel.y },
-      prevVel: { x: p.prevVel.x, y: p.prevVel.y },
-      assignedTarget: null,
-    })),
-    // Create a deep value copy of the scoreboard state
-    scoreboard: JSON.parse(JSON.stringify(state.scoreboard)),
-  });
-}
-
-function assignCoverageTargets() {
-  const catchers = [...state.players].filter((p) => p.role === "catcher");
-  // Only deal with defenders assigned to "man"
-  const manCoverers = state.players.filter(
-    (p) => p.role === "coverer" && p.coverage === "man",
-  );
-  const zoneCoverers = state.players.filter(
-    (p) => p.role === "coverer" && p.coverage === "zone",
-  );
-
-  // 1. Sort both by Y-coordinate so assignments are "parallel" (top-to-bottom)
-  manCoverers.sort((a, b) => a.loc.y - b.loc.y);
-  // We don't sort the main catchers array to keep IDs consistent, but we sort a reference list
-  const catchersByY = [...catchers].sort((a, b) => a.loc.y - b.loc.y);
-
-  const assignedCatcherIds = new Set<string>(); // Use a unique ID or reference
-
-  // 2. Assign primary man coverage
-  manCoverers.forEach((coverer) => {
-    // Find the closest catcher that hasn't been claimed yet
-    const available = catchersByY.filter(
-      (c) => !assignedCatcherIds.has(vectorToString(c.loc)),
-    );
-
-    if (available.length > 0) {
-      // Find the one closest to the coverer's current Y-level
-      available.sort(
-        (a, b) =>
-          Math.abs(a.loc.y - coverer.loc.y) - Math.abs(b.loc.y - coverer.loc.y),
-      );
-
-      const target = available[0];
-      coverer.assignedTarget = target;
-      assignedCatcherIds.add(vectorToString(target.loc));
-    } else {
-      // 3. DOUBLE UP: If no unassigned catchers left, find the closest catcher overall
-      // This creates "Double Coverage" on the most dangerous/closest threat
-      const closestOverall = [...catchers].sort(
-        (a, b) => dist(coverer.loc, a.loc) - dist(coverer.loc, b.loc),
-      )[0];
-
-      coverer.assignedTarget = closestOverall || null;
-    }
-  });
-
-  // 4. Initialize Zone Centers
-  zoneCoverers.forEach((coverer) => {
-    coverer.assignedTarget = null;
-    coverer.zone = { ...coverer.loc };
-  });
-}
-
-function assignBlockingTargets(cachedPlayers: CachedPlayers) {
-  // --- Step 1: Assign OL blockers to rushers (1-on-1, no double teams) ---
-  const olBlockers = cachedPlayers.blockers;
-  const rushers = cachedPlayers.rushers;
-
-  // Release stale OL assignments
-  for (const [blocker, defender] of state.blockingAssignments) {
-    if (blocker.role === "blocker" && dist(blocker.loc, defender.loc) > 80) {
-      state.blockingAssignments.delete(blocker);
-    }
-  }
-
-  const assignedRushers = new Set(
-    [...state.blockingAssignments.entries()]
-      .filter(([blocker]) => blocker.role !== "runner")
-      .map(([, defender]) => defender),
-  );
-  const freeRushers = rushers.filter((r) => !assignedRushers.has(r));
-  const freeOL = olBlockers.filter((b) => !state.blockingAssignments.has(b));
-
-  freeRushers.sort(
-    (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
-  );
-
-  for (const rusher of freeRushers) {
-    if (freeOL.length === 0) break;
-    freeOL.sort(
-      (a, b) =>
-        dist(a.loc, closestPointOnSegment(a.loc, rusher.loc, state.ball.loc)) -
-        dist(b.loc, closestPointOnSegment(b.loc, rusher.loc, state.ball.loc)),
-    );
-    const assigned = freeOL.shift()!;
-    state.blockingAssignments.set(assigned, rusher);
-  }
-
-  // --- Step 2: Assign runner ---
-  const runner = state.players.find((p) => p.role === "runner");
-  if (runner && !isCarryingBall(runner, state.ball)) {
-    const runnerAssignment = state.blockingAssignments.get(runner);
-    if (runnerAssignment && dist(runner.loc, runnerAssignment.loc) > 200) {
-      state.blockingAssignments.delete(runner);
-    }
-    if (!state.blockingAssignments.has(runner)) {
-      if (!isRunPlay(state)) {
-        // First, check for any free rusher not already covered by OL
-        const allAssignedRushers = new Set(state.blockingAssignments.values());
-        const freeRusher = rushers
-          .filter((r) => !allAssignedRushers.has(r))
-          .sort(
-            (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
-          )[0];
-
-        // Fall back to double-teaming the most dangerous rusher
-        const target =
-          freeRusher ??
-          rushers.sort(
-            (a, b) => dist(a.loc, state.ball.loc) - dist(b.loc, state.ball.loc),
-          )[0];
-
-        if (target) {
-          state.blockingAssignments.set(runner, target);
-        }
-      }
-    }
-  }
-
-  // --- Step 3: On run plays, assign catchers to their man coverer ---
-  if (isRunPlay(state)) {
-    const catchers = cachedPlayers.catchers.filter(
-      (p) => !isCarryingBall(p, state.ball),
-    );
-
-    // Release stale catcher assignments
-    for (const catcher of catchers) {
-      const assignment = state.blockingAssignments.get(catcher);
-      if (assignment && dist(catcher.loc, assignment.loc) > 120) {
-        state.blockingAssignments.delete(catcher);
-      }
-    }
-
-    for (const coverer of state.players) {
-      if (coverer.role !== "coverer" || !coverer.assignedTarget) continue;
-      const catcher = catchers.find((c) => c === coverer.assignedTarget);
-      if (catcher && !state.blockingAssignments.has(catcher)) {
-        state.blockingAssignments.set(catcher, coverer);
-      }
-    }
-  }
-}
 
 // Applies velocity and field constraints
 function triggerMove(entity: Ball | Player) {
   entity.loc.x += entity.vel.x;
   entity.loc.y += entity.vel.y;
 
-  const radius =
-    entity.type === "ball"
-      ? entity.radius
-      : getConstants("SIZE", entity).radius;
-  const margin = radius / 2;
-  const leftBound = margin;
   const rightEndzone = W + ENDZONE_W;
-  const rightBound = TOTAL_W - margin;
-  const topBound = margin;
-  const bottomBound = TOTAL_H - margin;
-
   if (
     entity.type === "player" &&
     isCarryingBall(entity, state.ball) &&
     entity.loc.x > rightEndzone
   ) {
-    // console.log("TOUCHDOWN!", entity);
     resetSimulation("touchdown");
   }
 
-  // CLAMP POSITION: If they go past the wall, snap them back to the edge
-  if (entity.loc.x < leftBound) {
-    entity.loc.x = leftBound;
-    entity.vel.x = Math.abs(entity.vel.x) / 2; // Force velocity away from wall
-  } else if (entity.loc.x > rightBound) {
-    entity.loc.x = rightBound;
-    entity.vel.x = -Math.abs(entity.vel.x) / 2;
-  }
-
-  if (entity.loc.y < topBound) {
-    entity.loc.y = topBound;
-    entity.vel.y = 0;
-  } else if (entity.loc.y > bottomBound) {
-    entity.loc.y = bottomBound;
-    entity.vel.y = 0;
-  }
-}
-
-// Slow down player's velocity (when in contact with blocker)
-export function applyDamping(player: Player, factor: number, jitter: number) {
-  // 1. Damping (Multiplicative): Slows the existing movement
-  player.vel.x *= factor + (Math.random() * 2 - 1) * jitter;
-  player.vel.y *= factor + (Math.random() * 2 - 1) * jitter;
-
-  // 2. Jitter (Additive): Forces movement even if the axis was 0
-  // This allows players to "slip" sideways during a head-on engagement
-  player.vel.x += (Math.random() * 2 - 1) * jitter;
-  player.vel.y += (Math.random() * 2 - 1) * jitter;
-}
-
-function resolveCollision(a: Player, b: Entity) {
-  const toB = diff(b.loc, a.loc);
-  const distance = length(toB);
-  const aRadius = getConstants("SIZE", a).radius;
-  const bRadius =
-    b.type === "ball"
-      ? (b as Ball).radius
-      : getConstants("SIZE", b as Player).radius;
-  const minDistance = aRadius + bRadius;
-
-  if (distance < minDistance) {
-    if (b.type === "ball") {
-      if (isCarryingBall(a, b as Ball)) {
-        ballCollideBehavior(a);
-      }
-    } else if (b.type === "player") {
-      const playerB = b as Player;
-
-      const blocker =
-        a.role === "blocker" ? a : playerB.role === "blocker" ? playerB : null;
-      const passer =
-        a.role === "passer" ? a : playerB.role === "passer" ? playerB : null;
-      const runner =
-        a.role === "runner" ? a : playerB.role === "runner" ? playerB : null;
-
-      const defender =
-        a.role === "rusher" || a.role === "coverer"
-          ? a
-          : playerB.role === "rusher" || playerB.role === "coverer"
-            ? playerB
-            : null;
-
-      const carrier = isCarryingBall(a, state.ball)
-        ? a
-        : isCarryingBall(playerB, state.ball)
-          ? playerB
-          : null;
-
-      // ==========================================
-      // NEW: RUN DEFENSE BLOCK-SHEDDING ENGINE
-      // ==========================================
-      if (blocker && defender) {
-        // If the defender is currently in a successful shed burst, bypass block penalties entirely
-        if (defender.shedImmunityTicks > 0) {
-          defender.shedImmunityTicks--;
-          return; // Skip standard collision/damping so they can run free
-        }
-
-        if (defender.shedCooldown > 0) {
-          defender.shedCooldown--;
-        }
-
-        // Only roll for a shed if they are actively colliding and not on cooldown
-        if (defender.shedCooldown === 0) {
-          // Fetch raw ratings from 0.0 to 1.0
-          // const shedderRating = defender.ratings?.blockShedding ?? 0.5;
-          // const blockerRating = blocker.ratings?.RUNBLOCK ?? 0.5;
-          const shedderRating = getConstants(
-            "BLOCKSHEDDING",
-            defender,
-          ).blockShed;
-          const blockerRating = isPassPlay(state)
-            ? getConstants("PASSBLOCK", blocker).antiBlockShed
-            : getConstants("RUNBLOCK", blocker).antiBlockShed;
-
-          // Per-tick base probability (~2% chance per tick baseline at 60 FPS)
-          const BASE_SHED_CHANCE = 0.006;
-          // Scale chance: high block-shedding vs low run-blocking increases the odds drastically
-          const shedChance =
-            BASE_SHED_CHANCE * (shedderRating / Math.max(0.1, blockerRating));
-
-          if (Math.random() < shedChance) {
-            // SUCCESSFUL SHED!
-            defender.shedImmunityTicks = 10; // 20 ticks (~0.33s) of block immunity
-            defender.shedCooldown = 90; // Cooldown before getting locked in another block
-
-            // PHYSICAL BYPASS NUDGE: Teleport the defender slightly past the blocker toward the ball
-            const toBall = diff(state.ball.loc, defender.loc);
-            const ballDist = length(toBall);
-            if (ballDist > 0) {
-              // Nudge them 25 pixels toward the ball to clear the blocker's bounding circle immediately
-              defender.loc.x += (toBall.x / ballDist) * 25;
-              defender.loc.y += (toBall.y / ballDist) * 25;
-            }
-            return; // Exit early to avoid damping this frame
-          }
-        }
-      }
-
-      // Initiate blocking (Standard fallback if block isn't shed)
-      if (blocker && defender) {
-        const { rusherDampingFactor } = getConstants("PASSBLOCK", blocker);
-        const {
-          runBlockDampingFactor,
-          covererDampingFactor,
-          runBlockPushStrength,
-        } = getConstants("RUNBLOCK", blocker);
-        const { randomJitter } = getConstants("BLOCKSHEDDING", defender);
-
-        const damping =
-          defender.role === "rusher"
-            ? isRunPlay(state)
-              ? runBlockDampingFactor
-              : rusherDampingFactor
-            : covererDampingFactor;
-
-        applyDamping(defender, damping, randomJitter);
-
-        // On run plays, good blockers drive defenders forward
-        if (isRunPlay(state) && defender.role === "rusher") {
-          const pushStrength =
-            (1 - runBlockDampingFactor) * runBlockPushStrength;
-          const blockerSpeed = length(blocker.vel);
-          if (blockerSpeed > 0.1) {
-            defender.vel.x += (blocker.vel.x / blockerSpeed) * pushStrength;
-            defender.vel.y += (blocker.vel.y / blockerSpeed) * pushStrength;
-          }
-        }
-      }
-
-      // Initiate tackle attempt
-      if (defender && carrier) {
-        if (
-          carrier.role !== "passer" &&
-          state.playAdvanced.firstContactX === undefined
-        ) {
-          state.playAdvanced.firstContactX = carrier.loc.x;
-        }
-        attemptTackle(defender, carrier);
-      }
-
-      // Initiate handoff
-      if (passer && runner && isRunPlay(state) && !state.ballGiven) {
-        state.ball.loc.x = runner.loc.x;
-        state.ball.loc.y = runner.loc.y;
-        state.ballGiven = true;
-      }
-
-      // Resolve regular collision
-      const overlap = minDistance - distance;
-      const nx = toB.x / distance;
-      const ny =
-        toB.y / distance + (Math.random() * INLINE_NUDGE - INLINE_NUDGE / 2);
-
-      const moveX = nx * (overlap / 2);
-      const moveY = ny * (overlap / 2);
-
-      a.loc.x -= moveX;
-      a.loc.y -= moveY;
-      if (isCarryingBall(a, state.ball)) {
-        state.ball.loc.x -= moveX;
-        state.ball.loc.y -= moveY;
-      }
-
-      playerB.loc.x += moveX;
-      playerB.loc.y += moveY;
-      if (isCarryingBall(playerB, state.ball)) {
-        state.ball.loc.x += moveX;
-        state.ball.loc.y += moveY;
-      }
-    }
-  }
-}
-
-function ballCollideBehavior(player: Player) {
-  switch (player.role) {
-    case "blocker": {
-      // If blocker collides with ball, simulation ends
-      // resetSimulation("sack");
-      break;
-    }
-    case "rusher": {
-      // If rusher collides with ball, simulation ends
-      if (!state.ballFlight?.isInFlight) {
-        resetSimulation("sack");
-      }
-      break;
-    }
-    case "runner": {
-      // If runner collides with ball on running play, runner carries ball
-      if (isPassPlay(state) && !state.ballGiven) return;
-
-      state.ball.loc.x = player.loc.x;
-      state.ball.loc.y = player.loc.y;
-      break;
-    }
-    case "catcher": {
-      // If catcher collides with ball, catcher carries ball
-      state.ball.loc.x = player.loc.x;
-      state.ball.loc.y = player.loc.y;
-      break;
-    }
-    case "coverer": {
-      // If coverer collides with ball, simulation ends (turnover)
-      resetSimulation("interception");
-      break;
-    }
-    case "passer": {
-      // If passer collides with ball, passer holds it
-      if (!state.ballGiven) {
-        state.ball.loc.x = player.loc.x;
-        state.ball.loc.y = player.loc.y;
-      }
-      break;
-    }
-  }
+  // If they go out of bounds, snap them back to the edge
+  entity.loc = clampPosInBounds(entity.loc);
 }
 
 function stepSimulation() {
+  // Handle special teams differently
   if (state.currentPlay.special === "fieldgoal") {
     resetSimulation("fieldgoal");
     return;
   } else if (state.currentPlay.special === "punt") {
     resetSimulation("punt");
+    return;
   }
 
-  // Player behavior
+  // Increment tick count on current play
   state.steps++;
+
+  // Player behavior
+  // TODO: Can I compute cachedPlayers just once on start of each play?
   const cachedPlayers = {
     rushers: state.players.filter((p) => p.role === "rusher"),
     coverers: state.players.filter((p) => p.role === "coverer"),
@@ -529,23 +109,13 @@ function stepSimulation() {
   }
 
   for (const player of state.players) {
-    if (isCarryingBall(player, state.ball) && !player.contactedThisTick) {
-      player.tacklePressure = 0; // reset fully — they're in the clear
+    if (isCarryingBall(player, state.ball)) {
+      if (!player.contactedThisTick) {
+        player.tacklePressure = 0;
+      }
+
+      snapBallToPlayer(player, state.ball);
     }
-  }
-
-  const activeCarrier = state.players.find((p) =>
-    isCarryingBall(p, state.ball),
-  );
-
-  if (activeCarrier) {
-    // Hard-set the ball's incoming velocity to perfectly match the player's vector
-    state.ball.vel.x = activeCarrier.vel.x;
-    state.ball.vel.y = activeCarrier.vel.y;
-
-    // Hard-align the coordinates so there is 0% positional drift during heavy cuts
-    state.ball.loc.x = activeCarrier.loc.x;
-    state.ball.loc.y = activeCarrier.loc.y;
   }
 
   // Move entities
@@ -559,79 +129,36 @@ let lastTime = 0;
 let timeAccumulator = 0;
 
 async function tick(timestamp: number = performance.now()) {
-  // 1. Initialize or compute frame delta time
-  let dt = timestamp - lastTime;
+  const dt = Math.min(timestamp - lastTime, 100); // cap tab-switch spikes
   lastTime = timestamp;
 
-  // Cap extreme delta spikes (e.g., when switching browser tabs) to prevent physics explosions
-  if (dt > 100) dt = 16.666;
-
-  // 2. Process simulation timing based on the current mode
-  if (replayMode === "live") {
-    // If the live game is in a post-play pause window, skip simulation updates but keep animating
-    if (timestamp < state.pausedUntil) {
-      render(state);
-      updateScoreboardUI(state.scoreboard);
-      requestAnimationFrame(tick);
-      return;
-    }
-
-    // Apply the speed slider multiplier to the live delta time accumulation
-    timeAccumulator += dt * simSpeed;
-
-    // Fixed-timestep execution loop for live gameplay
-    while (timeAccumulator >= LOGIC_TICK_MS) {
-      // --- START OF YOUR EXISTING LIVE GAMESTEP LOGIC ---
-      // (This updates player movements, pathing, checks collisions, fumbles, etc.)
-      stepSimulation();
-      timeAccumulator -= LOGIC_TICK_MS;
-
-      // --- END OF YOUR EXISTING LIVE GAMESTEP LOGIC ---
-
-      // Record a perfect frame snapshot immediately following the step resolution
-      captureReplayFrame();
-    }
-  } else {
-    // Replay Mode: The live simulation completely pauses.
-    // We pass dt through the identical slider scale to control history playback speed!
-    timeAccumulator += dt * simSpeed;
-
-    const activePlay = completedPlays[replayMode];
-    if (activePlay && activePlay.length > 0) {
-      while (timeAccumulator >= LOGIC_TICK_MS) {
-        // Step the replay animation forward frame-by-frame, looping seamlessly
-        replayFrameIndex = (replayFrameIndex + 1) % activePlay.length;
-        timeAccumulator -= LOGIC_TICK_MS;
-      }
-    }
-  }
-
-  // 3. Frame Routing & Render Pass
-  if (replayMode === "live") {
-    // Render standard ongoing game state
+  // 1. Render last completed state
+  if (isLive()) {
     render(state);
     updateScoreboardUI(state.scoreboard);
   } else {
-    // Render historical frames from the replay buffer
-    const activePlay = completedPlays[replayMode];
-    if (activePlay && activePlay[replayFrameIndex]) {
-      const frame = activePlay[replayFrameIndex];
-
-      // Map the frame values into a temporary mock state structure for the renderer
-      const mockState: State = {
-        ...state,
-        ball: { ...state.ball, loc: frame.ballLoc, vel: frame.ballVel },
-        players: frame.players,
-        scoreboard: frame.scoreboard,
-      };
-
-      // Feed the visual blueprint into your canvas engine & UI layer
-      render(mockState);
+    const frame = getReplayFrame();
+    if (frame) {
+      render(getReplayMockState(frame));
       updateScoreboardUI(frame.scoreboard);
     }
   }
 
-  // Continuously pump the main animation loop
+  // 2. Advance simulation or replay playhead (skip during post-play pause)
+  const paused = isLive() && timestamp < state.pausedUntil;
+  if (!paused) {
+    timeAccumulator += dt * simSpeed;
+    while (timeAccumulator >= LOGIC_TICK_MS) {
+      if (isLive()) {
+        stepSimulation();
+        captureReplayFrame();
+      } else {
+        incrementReplay();
+      }
+      timeAccumulator -= LOGIC_TICK_MS;
+    }
+  }
+
   requestAnimationFrame(tick);
 }
 
@@ -747,14 +274,7 @@ function resetSimulation(reason: PlayEndReason) {
     forceFirstDown,
   );
 
-  if (currentPlayFrames.length > 0) {
-    completedPlays.unshift([...currentPlayFrames]);
-    if (completedPlays.length > 3) {
-      completedPlays.pop();
-    }
-    currentPlayFrames = [];
-    window.dispatchEvent(new CustomEvent("playRecorded"));
-  }
+  saveReplay();
 
   if (isTouchdown) {
     activeOffenseTeam.score += 7;
@@ -801,22 +321,14 @@ function resetSimulation(reason: PlayEndReason) {
   assignCoverageTargets();
 
   timeAccumulator = 0;
-  runCount++;
 
   updateScoreboardUI(state.scoreboard);
   onPlayResetCallback?.();
 }
 
+let onPlayResetCallback: (() => void) | null = null;
 function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
 }
 
-export {
-  getCompletedPlaysCount,
-  onPlayReset,
-  resetSimulation,
-  resolveCollision,
-  setReplayMode,
-  state,
-  tick,
-};
+export { onPlayReset, resetSimulation, resolveCollision, state, tick };

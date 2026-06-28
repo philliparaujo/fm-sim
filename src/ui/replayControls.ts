@@ -1,4 +1,4 @@
-import { getCompletedPlaysCount, setReplayMode } from "../simulate";
+import { getCompletedPlaysCount, setReplayMode } from "../sim/replay";
 
 /** Wires the live/replay buttons and unlocks them as plays are recorded. */
 export function setupReplayControls() {
@@ -18,7 +18,7 @@ export function setupReplayControls() {
       } else {
         // Map button selections directly to 0, 1, or 2 array entries
         const playIndex = parseInt(target.id.replace("btn-replay-", "")) - 1;
-        setReplayMode(playIndex as 0 | 1 | 2);
+        setReplayMode(playIndex);
       }
     });
   });
@@ -27,7 +27,9 @@ export function setupReplayControls() {
   window.addEventListener("playRecorded", () => {
     const totalHistory = getCompletedPlaysCount();
     for (let i = 1; i <= 3; i++) {
-      const btn = document.getElementById(`btn-replay-${i}`) as HTMLButtonElement;
+      const btn = document.getElementById(
+        `btn-replay-${i}`,
+      ) as HTMLButtonElement;
       if (btn && i <= totalHistory) {
         btn.removeAttribute("disabled");
       }

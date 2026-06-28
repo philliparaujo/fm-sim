@@ -19,7 +19,7 @@ const ONLY_SIMULATE = false;
 
 /* Trace rendering constants */
 const CATCHER_TRACE_ON = false;
-const COVERER_ZONE_ON = false;
+const COVERER_ZONE_ON = true;
 const RUNNER_PATH_ON = false;
 const PASSER_POCKET_ON = false;
 const RUNNER_LOOK_AHEAD_ON = false;

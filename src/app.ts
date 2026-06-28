@@ -1,3 +1,4 @@
+import { assignCoverageTargets } from "./sim/assignments";
 import { onPlayReset, tick } from "./simulate";
 import { initDashboard, updateDashboardValues } from "./ui/dashboard";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
@@ -14,6 +15,7 @@ async function init() {
   setupReplayControls();
   setupPlaybookSliders();
 
+  assignCoverageTargets();
   requestAnimationFrame(tick);
 }
 

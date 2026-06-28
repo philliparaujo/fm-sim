@@ -121,6 +121,13 @@ export function isCarryingBall(player: Player, ball: Ball): boolean {
   return dist(player.loc, ball.loc) < BALL_SNAP_DIST;
 }
 
+export function snapBallToPlayer(player: Player, ball: Ball): void {
+  ball.vel.x = player.vel.x;
+  ball.vel.y = player.vel.y;
+  ball.loc.x = player.loc.x;
+  ball.loc.y = player.loc.y;
+}
+
 export function isRunPlay(state: State): boolean {
   return (
     state.currentPlay.special === null && state.currentPlay.offense === "run"
