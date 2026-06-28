@@ -24,7 +24,7 @@ import {
   streakRoute,
   Vector,
 } from "./core/types";
-import { round2 } from "./util";
+import { round2 } from "./utils/math";
 import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "./utils/units";
 
 const ROUTE_NAMES: [string, Route][] = [

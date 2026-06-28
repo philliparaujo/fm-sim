@@ -9,7 +9,7 @@ import {
   tick,
 } from "./simulate";
 import { PLAYER_LABELS } from "./core/types";
-import { labelToRole, labelToSide } from "./util";
+import { labelToRole, labelToSide } from "./utils/roster";
 
 // Which attributes are relevant per role
 const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {

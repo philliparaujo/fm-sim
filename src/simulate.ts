@@ -14,7 +14,6 @@ import {
   PlayEndReason,
   Player,
   ReplayFrame,
-  Scoreboard,
   State,
 } from "./core/types";
 import { attemptTackle, stepAsPlayer } from "./playerBehavior";
@@ -22,18 +21,14 @@ import { render } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
 import { createEmptyStats, updateStatsAfterPlay } from "./stats";
 import {
-  applyDamping,
-  computeFirstDownLine,
-  distanceAfterFirstDown,
-  getDefenseTeam,
   getLOSAfterPunt,
-  getOffenseTeam,
   isCarryingBall,
   isPassPlay,
   isRunPlay,
-  numPlays,
   updateDownAndDistance,
-} from "./util";
+} from "./utils/field";
+import { getDefenseTeam, getOffenseTeam } from "./utils/roster";
+import { numPlays } from "./utils/stats";
 import {
   ENDZONE_W,
   LOGIC_TICK_MS,
@@ -268,6 +263,18 @@ function triggerMove(entity: Ball | Player) {
     entity.loc.y = bottomBound;
     entity.vel.y = 0;
   }
+}
+
+// Slow down player's velocity (when in contact with blocker)
+export function applyDamping(player: Player, factor: number, jitter: number) {
+  // 1. Damping (Multiplicative): Slows the existing movement
+  player.vel.x *= factor + (Math.random() * 2 - 1) * jitter;
+  player.vel.y *= factor + (Math.random() * 2 - 1) * jitter;
+
+  // 2. Jitter (Additive): Forces movement even if the axis was 0
+  // This allows players to "slip" sideways during a head-on engagement
+  player.vel.x += (Math.random() * 2 - 1) * jitter;
+  player.vel.y += (Math.random() * 2 - 1) * jitter;
 }
 
 function resolveCollision(a: Player, b: Entity) {
@@ -727,24 +734,18 @@ function resetSimulation(reason: PlayEndReason) {
   }
   // ─────────────────────────────────────
 
-  let downDistance: Pick<Scoreboard, "down" | "distance" | "firstDownLine">;
-  if (
+  const forceFirstDown =
     isTouchdown ||
     isInterception ||
     isSafety ||
     isFieldGoal ||
     isPunt ||
-    isTurnoverOnDowns
-  ) {
-    const distance = distanceAfterFirstDown(nextLOS);
-    downDistance = {
-      down: "1st",
-      distance,
-      firstDownLine: computeFirstDownLine(nextLOS, distance),
-    };
-  } else {
-    downDistance = updateDownAndDistance(prevScoreboard, nextLOS);
-  }
+    isTurnoverOnDowns;
+  const downDistance = updateDownAndDistance(
+    prevScoreboard,
+    nextLOS,
+    forceFirstDown,
+  );
 
   if (currentPlayFrames.length > 0) {
     completedPlays.unshift([...currentPlayFrames]);

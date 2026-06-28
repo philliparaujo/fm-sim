@@ -1,11 +1,11 @@
+import { computeFirstDownLine } from "../utils/field";
 import {
-  computeFirstDownLine,
   fillOutRosterPlayer,
   labelToRole,
   labelToSide,
   randomRoute,
   randomRunVector,
-} from "../util";
+} from "../utils/roster";
 import { ENDZONE_W, H, pxToYards, W, yardsToPx } from "../utils/units";
 import { nullVector } from "../utils/vector";
 import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";

@@ -20,14 +20,14 @@ import { resetSimulation, resolveCollision, state } from "./simulate";
 import {
   clampPosInBounds,
   getFieldBounds,
-  getPocket,
   isCarryingBall,
   isPassPlay,
   isRunPlay,
-  lerp,
   nearSideline,
-} from "./util";
+} from "./utils/field";
+import { lerp } from "./utils/math";
 import {
+  getPocket,
   H,
   metersToPx,
   perSecondToPerTick,

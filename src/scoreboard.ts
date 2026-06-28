@@ -1,6 +1,5 @@
 import { Scoreboard } from "./core/types";
-import { LOSToString } from "./util";
-import { secondsToTimeString } from "./utils/units";
+import { LOSToString, secondsToTimeString } from "./utils/units";
 
 export function updateScoreboardUI(data: Scoreboard) {
   const redTeam = data.teams[0].color === "red" ? data.teams[0] : data.teams[1];

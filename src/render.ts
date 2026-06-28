@@ -1,9 +1,10 @@
 import { getConstants } from "./core/ratings";
-import { Ball, Player, Scoreboard, State, Vector } from "./core/types";
+import { Ball, Ellipse, Player, Scoreboard, State, Vector } from "./core/types";
 import { predictReceiverRoute } from "./playerBehavior";
-import { getPocket, isCarryingBall, isPassPlay } from "./util";
+import { isCarryingBall, isPassPlay } from "./utils/field";
 import {
   ENDZONE_W,
+  getPocket,
   GOALPOST_CROSSBAR_WIDTH,
   H,
   TOTAL_H,
@@ -256,10 +257,7 @@ function drawRunnerPath(player: Player, ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-function drawPasserPocket(
-  player: Player,
-  pocket: { cx: number; cy: number; rx: number; ry: number },
-) {
+function drawPasserPocket(player: Player, pocket: Ellipse) {
   if (player.role !== "passer") return;
 
   const { cx, cy, rx, ry } = pocket;

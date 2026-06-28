@@ -1,9 +1,21 @@
+import { Ellipse } from "../core/types";
+
 /* Sizing constants */
 /** Goal line to goal line length (px) */
 export const W = 2160;
 
 /** Sideline-to-sideline (px)  */
 export const H = 1200;
+
+/** Get the dimensions of the pocket ellipse (px) */
+export function getPocket(LOS: number): Ellipse {
+  return {
+    cx: LOS - yardsToPx(5),
+    cy: H / 2,
+    rx: 90,
+    ry: 360,
+  };
+}
 
 const PIXELS_PER_YARD = W / 100;
 const YARDS_PER_METER = 1.09361;
@@ -53,8 +65,26 @@ export function perSecondToPerTick(unitsPerSecond: number): number {
   return unitsPerSecond / TICKS_PER_SECOND;
 }
 
+/** Turns a number of seconds (e.g. 400) into a scoreboard time (e.g. '06:40') */
 export function secondsToTimeString(seconds: number): string {
   const mins = Math.floor(seconds / SECONDS_PER_MINUTE);
   const secs = seconds % SECONDS_PER_MINUTE;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+/** Turns a LOS (px) into a yardage string (e.g. '< 35') */
+export function LOSToString(LOS: number) {
+  if (LOS <= ENDZONE_W) return "Safety";
+  if (LOS >= W + ENDZONE_W) return "Touchdown";
+
+  const adjLOS = LOS - ENDZONE_W;
+  const yardsNumber = Math.round(pxToYards(adjLOS));
+
+  if (yardsNumber < 50) {
+    return `< ${yardsNumber}`;
+  } else if (yardsNumber === 50) {
+    return `${yardsNumber}`;
+  } else {
+    return `${100 - yardsNumber} >`;
+  }
 }

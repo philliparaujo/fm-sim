@@ -1,5 +1,5 @@
+import { lerp } from "../utils/math";
 import { Player } from "./types";
-import { lerp } from "../util";
 
 type GradeThreshold = {
   peak: number; // Optimal rating value

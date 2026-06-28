@@ -114,6 +114,13 @@ type Ray = {
   score: number;
 };
 
+type Ellipse = {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+};
+
 type Route = {
   /** 0 = up, 90 = in, 180 = down, -90 = out */
   breakAngle: number;
@@ -189,11 +196,11 @@ type PlayAdvancedData = {
   sackTick?: number; // state.steps when sack occurred
   airYards?: number; // pixels from LOS to catcher at throw time
   wasOffTarget: boolean; // throw was uncatchable
-  wasUnderPressure: boolean; // at least one frame under pressure this play
+  wasUnderPressure: boolean; // at least one tick under pressure this play
   wasThrowAway: boolean;
   separationAtCatch?: number; // nearest defender dist in pixels at catch
   catchX?: number; // ball.loc.x when catcher caught the ball
-  firstContactX?: number; // ball.loc.x on first tackle pressure frame
+  firstContactX?: number; // ball.loc.x on first tackle pressure tick
 };
 
 // Averaged advanced stats
@@ -350,6 +357,7 @@ export type {
   Coverage,
   CurrentPlay,
   DefensiveCoverageType,
+  Ellipse,
   Entity,
   Label,
   OffensivePlayType,
