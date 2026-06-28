@@ -203,7 +203,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   CATCHRADIUS: 0.4,
   PASSBLOCK: 0.25,
   RUNBLOCK: 0.25,
-  BLOCKSHEDDING: 0.3,
+  BLOCKSHEDDING: 0.15,
   BEND: 0.3,
   MANCOVERAGE: 0.5,
   ZONECOVERAGE: 0.5,
@@ -271,9 +271,19 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   }),
 
   // Rushers
-  LE: createBaseRatings({ SPEED: 0.56, SIZE: 0.6, BEND: 0.55 }),
+  LE: createBaseRatings({
+    SPEED: 0.56,
+    SIZE: 0.6,
+    BEND: 0.55,
+    BLOCKSHEDDING: 0.3,
+  }),
   DT: createBaseRatings({ SPEED: 0.43, SIZE: 0.83, BLOCKSHEDDING: 0.55 }),
-  RE: createBaseRatings({ SPEED: 0.56, SIZE: 0.57, BEND: 0.55 }),
+  RE: createBaseRatings({
+    SPEED: 0.56,
+    SIZE: 0.57,
+    BEND: 0.55,
+    BLOCKSHEDDING: 0.3,
+  }),
 
   // Coverers/Defenders
   CB: createBaseRatings({
@@ -299,6 +309,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     CATCHRADIUS: 0.4,
     MANCOVERAGE: 0.4,
     ZONECOVERAGE: 0.5,
+    BLOCKSHEDDING: 0.3,
   }),
   SS: createBaseRatings({
     SPEED: 0.77,
