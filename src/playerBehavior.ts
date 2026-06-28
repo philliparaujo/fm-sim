@@ -272,6 +272,12 @@ function stepAsPlayer(
     const d = length(toBall);
     player.vel.x = (toBall.x / d) * maxSpeed;
     player.vel.y = (toBall.y / d) * maxSpeed;
+
+    if (!state.ballGiven && player.role === "catcher") {
+      if (!player.path) player.path = [];
+      player.path.push({ x: player.loc.x, y: player.loc.y });
+      if (player.path.length > MAX_PATH_LENGTH) player.path.shift();
+    }
   }
 
   function runTowardsEndzone(

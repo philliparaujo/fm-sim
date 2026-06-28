@@ -1,58 +1,20 @@
 import { getSavedRatings } from "../core/playbook";
 import { getDefaultRatingForLabel } from "../core/ratings";
 import {
-  cornerRoute,
   Coverage,
-  curlRoute,
-  dragRoute,
-  flatRoute,
-  inRoute,
   Label,
-  outRoute,
   Player,
   PLAYER_LABELS,
-  postRoute,
   Role,
   Roster,
   RosterPlayer,
   Route,
   Side,
-  slantRoute,
   State,
-  streakRoute,
   Team,
   Vector,
 } from "../core/types";
 import { nullVector } from "../utils/vector";
-
-/** Returns a random route used to assign to a catcher */
-export function randomRoute(): Route {
-  const routes = [
-    streakRoute,
-    postRoute,
-    cornerRoute,
-    inRoute,
-    outRoute,
-    curlRoute,
-    slantRoute,
-    dragRoute,
-    flatRoute,
-  ];
-  return routes[Math.floor(Math.random() * routes.length)];
-}
-
-/** Returns a random unit vector that designates a runner's angle */
-export function randomRunVector(): Vector {
-  // 1. Generate a random angle between +80 and -80
-  const MAX_ANGLE_DEGREES = 60;
-  const maxAngleRad = (MAX_ANGLE_DEGREES * Math.PI) / 180;
-  const angle = (Math.random() * 2 - 1) * maxAngleRad;
-
-  return {
-    x: Math.cos(angle),
-    y: Math.sin(angle),
-  };
-}
 
 /** Returns "offense" or "defense" based on player label */
 export function labelToSide(label: Label): Side {

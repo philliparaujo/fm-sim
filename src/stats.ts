@@ -1,43 +1,22 @@
 import {
   AdvancedStats,
-  cornerRoute,
-  curlRoute,
   CurrentPlay,
   DefensiveCoverageType,
-  dragRoute,
-  flatRoute,
-  inRoute,
   OffensivePlayType,
-  outRoute,
   PlayAdvancedData,
   PlaycallCoverageKey,
   PlayCallCoverageStats,
   PlaycallCoverageYards,
   PlayEndReason,
-  postRoute,
   QBStats,
   RBStats,
   Role,
   Route,
-  slantRoute,
   Stats,
-  streakRoute,
-  Vector,
 } from "./core/types";
 import { round2 } from "./utils/math";
+import { routeKey, runAngleKey } from "./utils/route";
 import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "./utils/units";
-
-const ROUTE_NAMES: [string, Route][] = [
-  ["streak", streakRoute],
-  ["post", postRoute],
-  ["corner", cornerRoute],
-  ["in", inRoute],
-  ["out", outRoute],
-  ["curl", curlRoute],
-  ["slant", slantRoute],
-  ["drag", dragRoute],
-  ["flat", flatRoute],
-];
 
 const EMPTY_COUNT_YARDS = { count: 0, yards: 0, avg: 0 };
 
@@ -171,26 +150,6 @@ export function createEmptyStats(): Stats {
     routes: {},
     advanced: { ...emptyAdvancedStats() },
   };
-}
-
-function routeKey(route: Route): string {
-  for (const [name, known] of ROUTE_NAMES) {
-    if (
-      known.breakAngle === route.breakAngle &&
-      known.yardsBeforeBreak === route.yardsBeforeBreak &&
-      known.stopAfterBreak === route.stopAfterBreak
-    ) {
-      return name;
-    }
-  }
-  return `custom_${route.breakAngle}_${route.yardsBeforeBreak}`;
-}
-
-function runAngleKey(runAngle: Vector): string {
-  const degrees = Math.round(
-    (Math.atan2(runAngle.y, runAngle.x) * 180) / Math.PI,
-  );
-  return `${degrees}°`;
 }
 
 function bumpCountYards(
