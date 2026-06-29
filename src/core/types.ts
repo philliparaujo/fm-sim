@@ -132,6 +132,16 @@ type Coverage = "man" | "zone";
 type OffensivePlayType = "run" | "pass";
 type DefensiveCoverageType = "man" | "manBlitz" | "zone" | "zoneBlitz";
 type SpecialPlayType = "punt" | "fieldgoal" | null;
+type PlaycallCoverageKey =
+  | "runMan"
+  | "runManBlitz"
+  | "runZone"
+  | "runZoneBlitz"
+  | "passMan"
+  | "passManBlitz"
+  | "passZone"
+  | "passZoneBlitz";
+
 type PlayEndReason =
   | "tackle"
   | "touchdown"
@@ -147,30 +157,11 @@ type CountYards = {
   avg: number;
 };
 
-type PlaycallStats = {
-  run: CountYards;
-  pass: CountYards;
-};
-
-type PlaycallCoverageKey =
-  | "runMan"
-  | "runManBlitz"
-  | "runZone"
-  | "runZoneBlitz"
-  | "passMan"
-  | "passManBlitz"
-  | "passZone"
-  | "passZoneBlitz";
-
+type PlaycallStats = Record<OffensivePlayType, CountYards>;
 type PlaycallCoverageYards = Record<PlaycallCoverageKey, CountYards>;
-type PlayCallCoverageStats = Record<PlaycallCoverageKey, QBStats | RBStats>;
+type CoverageStats = Record<DefensiveCoverageType, CountYards>;
 
-type CoverageStats = {
-  man: CountYards;
-  manBlitz: CountYards;
-  zone: CountYards;
-  zoneBlitz: CountYards;
-};
+type PlayCallCoverageStats = Record<PlaycallCoverageKey, QBStats | RBStats>;
 
 type QBStats = {
   attempts: number;
@@ -193,7 +184,6 @@ type RBStats = {
 
 type PlayAdvancedData = {
   throwTick?: number; // state.steps when throw occurred
-  sackTick?: number; // state.steps when sack occurred
   airYards?: number; // pixels from LOS to catcher at throw time
   wasOffTarget: boolean; // throw was uncatchable
   wasUnderPressure: boolean; // at least one tick under pressure this play
@@ -226,7 +216,6 @@ type Stats = {
   playcallCoverageStats: PlayCallCoverageStats;
   qb: QBStats;
   rb: RBStats;
-  runAngles: Record<string, CountYards>;
   routes: Record<string, CountYards>;
   advanced: AdvancedStats;
 };
@@ -297,6 +286,7 @@ export type {
   AdvancedStats,
   Ball,
   CachedPlayers,
+  CountYards,
   Coverage,
   CurrentPlay,
   DefensiveCoverageType,

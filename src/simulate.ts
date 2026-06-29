@@ -23,7 +23,7 @@ import {
   isLive,
   saveReplay,
 } from "./sim/replay";
-import { createEmptyStats, updateStatsAfterPlay } from "./stats";
+import { updateStatsAfterPlay } from "./stats";
 import {
   clampPosInBounds,
   getLOSAfterPunt,
@@ -32,11 +32,19 @@ import {
   updateDownAndDistance,
 } from "./utils/field";
 import { getDefenseTeam, getOffenseTeam } from "./utils/roster";
-import { numPlays } from "./utils/stats";
+import {
+  checkIfFieldGoal,
+  checkIfInterception,
+  checkIfPunt,
+  checkIfSafety,
+  checkIfTouchdown,
+  checkIfTurnoverOnDowns,
+  getFinalBallX,
+  numPlays,
+} from "./utils/stats";
 import {
   ENDZONE_W,
   LOGIC_TICK_MS,
-  pxToYards,
   START_DRIVE,
   TOTAL_W,
   W,
@@ -164,29 +172,16 @@ async function tick(timestamp: number = performance.now()) {
 
 function resetSimulation(reason: PlayEndReason) {
   const prevScoreboard = state.scoreboard;
-  const prevStats = state.stats;
-  const currentPlay = state.currentPlay;
-  const ballGiven = state.ballGiven;
-  const ballCarrier = state.players.find((p) => isCarryingBall(p, state.ball));
 
-  const endBallX = state.ball.loc.x;
-  const isTouchdown = endBallX >= W + ENDZONE_W;
-  const isSafety = endBallX <= ENDZONE_W;
-  const isInterception = reason === "interception";
-  const isIncomplete = reason === "incomplete";
-  const isFieldGoal = reason === "fieldgoal";
-  const isPunt = reason == "punt";
+  const isTouchdown = checkIfTouchdown(state, reason);
+  const isSafety = checkIfSafety(state, reason);
+  const isInterception = checkIfInterception(state, reason);
+  const isFieldGoal = checkIfFieldGoal(state, reason);
+  const isPunt = checkIfPunt(state, reason);
 
-  const finalLOSBeforeFlip = isIncomplete ? prevScoreboard.LOS : endBallX;
-
-  const isTurnoverOnDowns =
-    prevScoreboard.down === "4th" &&
-    !isTouchdown &&
-    !isSafety &&
-    !isInterception &&
-    !isFieldGoal &&
-    !isPunt &&
-    finalLOSBeforeFlip < (prevScoreboard.firstDownLine ?? Infinity);
+  // 1) Calculate new LOS
+  const finalLOSBeforeFlip = getFinalBallX(state, reason, prevScoreboard);
+  const isTurnoverOnDowns = checkIfTurnoverOnDowns(state, reason);
 
   let nextLOS = START_DRIVE;
   if (TRAINING_MODE_ON) {
@@ -209,57 +204,22 @@ function resetSimulation(reason: PlayEndReason) {
     }
   }
 
-  const yards = pxToYards(
-    (isTouchdown ? W + ENDZONE_W : endBallX) - prevScoreboard.LOS,
-  );
-
-  if (reason === "sack") {
-    state.playAdvanced.sackTick = state.steps;
-  }
-
-  // ─── NEW PER-TEAM STAT CALCULATION ───
-  // Ensure state.stats is initialized as a record dictionary
-  if (!prevStats) {
-    state.stats = {};
-  }
-
-  // Identify who was on offense during this play step
   const activeOffenseTeam = getOffenseTeam(state);
   const activeDefenseTeam = getDefenseTeam(state);
   const offenseTeamName = activeOffenseTeam.name;
-
-  // Grab or initialize this specific team's stat records
-  const currentTeamStats = state.stats[offenseTeamName] || createEmptyStats();
-
-  // Run the original calculation engine only for the active offense
-  const updatedTeamStats = updateStatsAfterPlay(
-    currentTeamStats,
-    currentPlay,
-    yards,
-    isTouchdown,
-    reason,
-    ballGiven,
-    ballCarrier?.role,
-    ballCarrier?.route,
-    state.playAdvanced,
-    state.scoreboard.LOS,
-    endBallX,
-  );
-
-  // Merge back into our global record store
+  const updatedTeamStats = updateStatsAfterPlay(state, reason);
   const updatedGlobalStats = {
     ...state.stats,
     [offenseTeamName]: updatedTeamStats,
   };
 
-  if (numPlays(updatedTeamStats) % 100 == 0) {
+  if (numPlays(updatedTeamStats) % 100 === 0) {
     console.log(
       `${offenseTeamName} Offense Milestone:`,
       numPlays(updatedTeamStats),
       updatedTeamStats,
     );
   }
-  // ─────────────────────────────────────
 
   const forceFirstDown =
     isTouchdown ||
@@ -331,4 +291,4 @@ function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
 }
 
-export { onPlayReset, resetSimulation, resolveCollision, state, tick };
+export { onPlayReset, resetSimulation, state, tick };

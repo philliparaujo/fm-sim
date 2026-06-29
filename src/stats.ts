@@ -1,404 +1,201 @@
+import { PlayEndReason, QBStats, RBStats, State, Stats } from "./core/types";
+import { isCarryingBall } from "./utils/field";
+import { getOffenseTeam } from "./utils/roster";
 import {
-  AdvancedStats,
-  CurrentPlay,
-  DefensiveCoverageType,
-  OffensivePlayType,
-  PlayAdvancedData,
-  PlaycallCoverageKey,
-  PlayCallCoverageStats,
-  PlaycallCoverageYards,
-  PlayEndReason,
-  QBStats,
-  RBStats,
-  Role,
-  Route,
-  Stats,
-} from "./core/types";
-import { round2 } from "./utils/math";
-import { routeKey, runAngleKey } from "./utils/route";
+  applyQBStats,
+  applyRBStats,
+  checkIfFieldGoal,
+  checkIfInterception,
+  checkIfPassAttempt,
+  checkIfTouchdown,
+  checkIfPassComplete,
+  checkIfPunt,
+  checkIfRush,
+  checkIfSack,
+  createEmptyStats,
+  getFinalBallX,
+  playcallCoverageKey,
+  routeKey,
+  updateAverage,
+  updateCountYards,
+} from "./utils/stats";
 import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "./utils/units";
 
-const EMPTY_COUNT_YARDS = { count: 0, yards: 0, avg: 0 };
+/** Updates state.stats with information from the play that just ended */
+function updateStatsAfterPlay(state: State, reason: PlayEndReason): Stats {
+  const activeOffenseTeam = getOffenseTeam(state);
+  const offenseTeamName = activeOffenseTeam.name;
+  const _stats = state.stats[offenseTeamName] || createEmptyStats();
+  const next: Stats = structuredClone(_stats);
 
-function emptyPlaycallCoverageYards(): PlaycallCoverageYards {
-  return {
-    runMan: { ...EMPTY_COUNT_YARDS },
-    runManBlitz: { ...EMPTY_COUNT_YARDS },
-    runZone: { ...EMPTY_COUNT_YARDS },
-    runZoneBlitz: { ...EMPTY_COUNT_YARDS },
-    passMan: { ...EMPTY_COUNT_YARDS },
-    passManBlitz: { ...EMPTY_COUNT_YARDS },
-    passZone: { ...EMPTY_COUNT_YARDS },
-    passZoneBlitz: { ...EMPTY_COUNT_YARDS },
-  };
-}
+  // 1) No stat tracking for special teams plays
+  if (checkIfFieldGoal(state, reason) || checkIfPunt(state, reason))
+    return next;
 
-function emptyPlaycallCoverageStats(): PlayCallCoverageStats {
-  return {
-    runMan: { ...emptyRBStats() },
-    runManBlitz: { ...emptyRBStats() },
-    runZone: { ...emptyRBStats() },
-    runZoneBlitz: { ...emptyRBStats() },
-    passMan: { ...emptyQBStats() },
-    passManBlitz: { ...emptyQBStats() },
-    passZone: { ...emptyQBStats() },
-    passZoneBlitz: { ...emptyQBStats() },
-  };
-}
-
-function emptyQBStats(): QBStats {
-  return {
-    attempts: 0,
-    completions: 0,
-    yards: 0,
-    ypa: 0,
-    cmp: 0,
-    tds: 0,
-    ints: 0,
-    sacks: 0,
-  };
-}
-
-function emptyRBStats(): RBStats {
-  return { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 };
-}
-
-function emptyAdvancedStats(): AdvancedStats {
-  return {
-    completedAirYards: 0,
-    intendedAirYards: 0,
-    offTargetThrowRate: 0,
-    pressureRate: 0,
-    receiverSeparation: 0,
-    receiverYardsAfterCatch: 0,
-    rushYardsAfterContact: 0,
-    rushYardsBeforeContact: 0,
-    sackRate: 0,
-    throwAwayRate: 0,
-    timeToThrow: 0,
-    timeToSack: 0,
-  };
-}
-
-function applyQBStats(
-  s: QBStats,
-  isPassAttempt: boolean,
-  isSack: boolean,
-  completion: boolean,
-  isInterception: boolean,
-  isTouchdown: boolean,
-  yards: number,
-) {
-  if (isPassAttempt) s.attempts++;
-  if (isSack) {
-    s.sacks++;
-  } else if (completion) {
-    s.completions++;
-    s.yards += yards;
-    if (isTouchdown) s.tds++;
-  } else if (isInterception) {
-    s.ints++;
-  }
-  s.cmp = s.attempts > 0 ? round2(s.completions / s.attempts) : 0;
-  s.ypa = s.attempts > 0 ? round2(s.yards / s.attempts) : 0;
-}
-
-function applyRBStats(
-  s: RBStats,
-  isRush: boolean,
-  isTouchdown: boolean,
-  yards: number,
-) {
-  if (!isRush) return;
-  s.rushes++;
-  s.yards += yards;
-  if (yards < 0) s.tfls++;
-  if (isTouchdown) s.tds++;
-  s.ypc = s.rushes > 0 ? round2(s.yards / s.rushes) : 0;
-}
-
-function playcallCoverageKey(
-  offense: OffensivePlayType,
-  defense: DefensiveCoverageType,
-): PlaycallCoverageKey {
-  const suffix: Record<DefensiveCoverageType, string> = {
-    man: "Man",
-    manBlitz: "ManBlitz",
-    zone: "Zone",
-    zoneBlitz: "ZoneBlitz",
-  };
-  return `${offense}${suffix[defense]}` as PlaycallCoverageKey;
-}
-
-export function createEmptyStats(): Stats {
-  return {
-    playcalls: {
-      run: { ...EMPTY_COUNT_YARDS },
-      pass: { ...EMPTY_COUNT_YARDS },
-    },
-    coverage: {
-      man: { ...EMPTY_COUNT_YARDS },
-      manBlitz: { ...EMPTY_COUNT_YARDS },
-      zone: { ...EMPTY_COUNT_YARDS },
-      zoneBlitz: { ...EMPTY_COUNT_YARDS },
-    },
-    playcallCoverage: emptyPlaycallCoverageYards(),
-    playcallCoverageStats: emptyPlaycallCoverageStats(),
-    qb: { ...emptyQBStats() },
-    rb: { ...emptyRBStats() },
-    runAngles: {},
-    routes: {},
-    advanced: { ...emptyAdvancedStats() },
-  };
-}
-
-function bumpCountYards(
-  map: Record<string, { count: number; yards: number }>,
-  key: string,
-  yards = 0,
-) {
-  if (!map[key]) {
-    map[key] = { count: 0, yards: 0 };
-  }
-  map[key].count++;
-  map[key].yards += yards;
-}
-
-function isPassCompletion(
-  reason: PlayEndReason,
-  ballGiven: boolean,
-  ballCarrierRole?: Role,
-): boolean {
-  return (
-    ballGiven &&
-    ballCarrierRole === "catcher" &&
-    (reason === "tackle" || reason === "touchdown")
-  );
-}
-
-export function updateStatsAfterPlay(
-  stats: Stats,
-  play: CurrentPlay,
-  yards: number,
-  isTouchdown: boolean,
-  reason: PlayEndReason,
-  ballGiven: boolean,
-  ballCarrierRole?: Role,
-  ballCarrierRoute?: Route,
-  playAdvanced?: PlayAdvancedData,
-  los?: number,
-  finalBallX?: number,
-): Stats {
-  if (reason === "fieldgoal" || reason === "punt") return stats;
-
-  const next: Stats = structuredClone(stats);
+  const play = state.currentPlay;
+  const los = state.scoreboard.LOS;
+  const finalBallX = getFinalBallX(state, reason, state.scoreboard);
   const matchupKey = playcallCoverageKey(play.offense, play.defense);
-  const completion = isPassCompletion(reason, ballGiven, ballCarrierRole);
-  const isRush = ballGiven && ballCarrierRole === "runner";
-  const isSack = reason === "sack";
-  const isInterception = reason === "interception";
 
-  const isPassAttempt =
-    play.offense === "pass" &&
-    !isSack &&
-    (reason === "incomplete" || isInterception || completion);
-  const isScramble =
-    play.offense === "pass" &&
-    !isSack &&
-    !isPassAttempt &&
-    (reason === "tackle" || reason === "touchdown");
+  const isRush = checkIfRush(state, reason);
+  const isPassAttempt = checkIfPassAttempt(state, reason);
+  const isComplete = checkIfPassComplete(state, reason);
+  const isSack = checkIfSack(state, reason);
+  const isTouchdown = checkIfTouchdown(state, reason);
+  const isInterception = checkIfInterception(state, reason);
 
-  let netYardsGained = yards;
-  if (play.offense === "pass" && !completion && !isSack && !isScramble) {
-    netYardsGained = 0;
-  }
+  const _yards = pxToYards((isTouchdown ? W + ENDZONE_W : finalBallX) - los);
+  const netYards = isInterception ? 0 : _yards;
 
-  // --- Playcall / coverage summary counts ---
-  next.playcalls[play.offense].count++;
-  next.playcalls[play.offense].yards += netYardsGained;
-  next.playcalls[play.offense].avg = round2(
-    next.playcalls[play.offense].yards / next.playcalls[play.offense].count,
-  );
+  // 2) Playcall/coverage yard stats
+  updateCountYards(next.playcalls[play.offense], netYards);
+  updateCountYards(next.coverage[play.defense], netYards);
+  updateCountYards(next.playcallCoverage[matchupKey], netYards);
 
-  next.coverage[play.defense].count++;
-  next.coverage[play.defense].yards += netYardsGained;
-  next.coverage[play.defense].avg = round2(
-    next.coverage[play.defense].yards / next.coverage[play.defense].count,
-  );
-
-  next.playcallCoverage[matchupKey].count++;
-  next.playcallCoverage[matchupKey].yards += netYardsGained;
-  next.playcallCoverage[matchupKey].avg = round2(
-    next.playcallCoverage[matchupKey].yards /
-      next.playcallCoverage[matchupKey].count,
-  );
-
-  // --- Per-matchup + aggregate stats ---
+  // 3) QB/RB stats, playcallCoverage stats, route yard stats
   if (play.offense === "pass") {
-    applyQBStats(
-      next.playcallCoverageStats[matchupKey] as QBStats,
-      isPassAttempt,
-      isSack,
-      completion,
-      isInterception,
-      isTouchdown,
-      yards,
-    );
-    applyQBStats(
-      next.qb,
-      isPassAttempt,
-      isSack,
-      completion,
-      isInterception,
-      isTouchdown,
-      yards,
-    );
+    const qbStats = next.playcallCoverageStats[matchupKey] as QBStats;
+    applyQBStats(qbStats, netYards, state, reason);
+    applyQBStats(next.qb, netYards, state, reason);
 
+    const ballCarrier = state.players.find((p) =>
+      isCarryingBall(p, state.ball),
+    );
+    const ballCarrierRoute = ballCarrier?.route;
     if (isPassAttempt || isSack) {
-      for (const route of play.routes) {
-        bumpCountYards(next.routes, routeKey(route));
-      }
-      if (completion && ballCarrierRoute) {
-        next.routes[routeKey(ballCarrierRoute)].yards += yards;
+      // Update yards once for the route, and then update counts for all routes
+      if (isComplete && ballCarrierRoute) {
+        next.routes[routeKey(ballCarrierRoute)].yards += netYards;
       }
       for (const route of play.routes) {
-        const key = routeKey(route);
-        next.routes[key].avg = round2(
-          next.routes[key].yards / next.routes[key].count,
-        );
+        updateCountYards(next.routes[routeKey(route)], 0);
       }
     }
   } else {
-    applyRBStats(
-      next.playcallCoverageStats[matchupKey] as RBStats,
-      isRush,
-      isTouchdown,
-      yards,
-    );
-    applyRBStats(next.rb, isRush, isTouchdown, yards);
+    const rbStats = next.playcallCoverageStats[matchupKey] as RBStats;
+    applyRBStats(rbStats, netYards, state, reason);
+    applyRBStats(next.rb, netYards, state, reason);
+  }
 
-    if (play.runAngle && isRush) {
-      const key = runAngleKey(play.runAngle);
-      bumpCountYards(next.runAngles, key, yards);
-      next.runAngles[key].avg = round2(
-        next.runAngles[key].yards / next.runAngles[key].count,
+  // 4) Advanced stats
+  const playAdvData = state.playAdvanced; // Stores play-specific data
+  const adv = next.advanced; // Stores accumulated stats
+
+  // NOTE: These counts (must) include the current play to comply with updateAverage()
+  // These counts were updated during step 3
+  const rushCount = next.rb.rushes;
+  const passCount = next.qb.attempts;
+  const completionCount = next.qb.completions;
+  const sackCount = next.qb.sacks;
+  const dropbackCount = passCount + sackCount;
+
+  // Time to throw (TTT)
+  if (isPassAttempt && playAdvData.throwTick !== undefined) {
+    const playTtt = ticksToSeconds(playAdvData.throwTick);
+    adv.timeToThrow = updateAverage(adv.timeToThrow, passCount, playTtt);
+  }
+
+  // Time to sack (TTS)
+  if (isSack) {
+    const playTts = ticksToSeconds(state.steps);
+    adv.timeToSack = updateAverage(adv.timeToSack, sackCount, playTts);
+  }
+
+  // Intended/completed air yards
+  if (isPassAttempt && playAdvData.airYards !== undefined) {
+    const playAirYards = pxToYards(Math.max(0, playAdvData.airYards));
+    adv.intendedAirYards = updateAverage(
+      adv.intendedAirYards,
+      passCount,
+      playAirYards,
+    );
+
+    if (isComplete) {
+      adv.completedAirYards = updateAverage(
+        adv.completedAirYards,
+        completionCount,
+        playAirYards,
       );
     }
   }
 
-  // --- Advanced stats ---
-  if (playAdvanced) {
-    const adv = next.advanced;
-    const passCount = next.qb.attempts;
-    const completionCount = next.qb.completions;
-    const sackCount = next.qb.sacks;
-    const dropbackCount = passCount + sackCount;
+  // Off-target throw %
+  if (isPassAttempt) {
+    const playOffTarget = playAdvData.wasOffTarget ? 1 : 0;
+    adv.offTargetThrowRate = updateAverage(
+      adv.offTargetThrowRate,
+      passCount,
+      playOffTarget,
+    );
+  }
 
-    // FIX 1: Weight Time to Throw against Pass Attempts only, NOT global dropbacks
-    if (
-      isPassAttempt &&
-      playAdvanced.throwTick !== undefined &&
-      passCount > 0
-    ) {
-      const ttt = ticksToSeconds(playAdvanced.throwTick);
-      adv.timeToThrow = (adv.timeToThrow * (passCount - 1) + ttt) / passCount;
-    }
+  // Throw-away rate
+  if (isPassAttempt) {
+    const playThrowAway = playAdvData.wasThrowAway ? 1 : 0;
+    adv.throwAwayRate = updateAverage(
+      adv.throwAwayRate,
+      passCount,
+      playThrowAway,
+    );
+  }
 
-    // FIX 2: Weight Time to Sack against Sack Count only
-    if (isSack && playAdvanced.sackTick !== undefined && sackCount > 0) {
-      const ttt = ticksToSeconds(playAdvanced.sackTick);
-      adv.timeToSack = (adv.timeToSack * (sackCount - 1) + ttt) / sackCount;
-    }
+  // Pressure rate, sack rate
+  if (play.offense === "pass") {
+    const playUnderPressure = playAdvData.wasUnderPressure ? 1 : 0;
+    const playSackCount = isSack ? 1 : 0;
 
-    // Air Yards
-    if (isPassAttempt && playAdvanced.airYards !== undefined && passCount > 0) {
-      const airYardsYds = pxToYards(Math.max(0, playAdvanced.airYards));
-      adv.intendedAirYards =
-        (adv.intendedAirYards * (passCount - 1) + airYardsYds) / passCount;
+    adv.pressureRate = updateAverage(
+      adv.pressureRate,
+      dropbackCount,
+      playUnderPressure,
+    );
+    adv.sackRate = updateAverage(adv.sackRate, dropbackCount, playSackCount);
+  }
 
-      // FIX 3: Weight Completed Air Yards against completionCount, NOT passCount
-      if (completion && completionCount > 0) {
-        adv.completedAirYards =
-          (adv.completedAirYards * (completionCount - 1) + airYardsYds) /
-          completionCount;
-      }
-    }
+  // Separation at catch (requires at least one defender on field)
+  if (
+    isComplete &&
+    playAdvData.separationAtCatch !== undefined &&
+    isFinite(playAdvData.separationAtCatch)
+  ) {
+    const playSepYds = pxToYards(playAdvData.separationAtCatch);
+    adv.receiverSeparation = updateAverage(
+      adv.receiverSeparation,
+      completionCount,
+      playSepYds,
+    );
+  }
 
-    // Off-target throw %
-    if (isPassAttempt && passCount > 0) {
-      adv.offTargetThrowRate =
-        (adv.offTargetThrowRate * (passCount - 1) +
-          (playAdvanced.wasOffTarget ? 1 : 0)) /
-        passCount;
-    }
+  // YBC / YAC
+  if (isRush && los) {
+    const playYbc =
+      playAdvData.firstContactX === undefined
+        ? netYards
+        : pxToYards(playAdvData.firstContactX - los);
+    const playYac = netYards - playYbc;
+    adv.rushYardsBeforeContact = updateAverage(
+      adv.rushYardsBeforeContact,
+      rushCount,
+      playYbc,
+    );
+    adv.rushYardsAfterContact = updateAverage(
+      adv.rushYardsAfterContact,
+      rushCount,
+      playYac,
+    );
+  }
 
-    // Throw-away rate — safeguard: cannot exceed total incompletion rate
-    if (isPassAttempt && passCount > 0) {
-      adv.throwAwayRate =
-        (adv.throwAwayRate * (passCount - 1) +
-          (playAdvanced.wasThrowAway ? 1 : 0)) /
-        passCount;
-      const maxPossibleRate = (passCount - completionCount) / passCount;
-      if (adv.throwAwayRate > maxPossibleRate)
-        adv.throwAwayRate = round2(maxPossibleRate);
-    }
-
-    // Pressure rate
-    if (play.offense === "pass" && dropbackCount > 0) {
-      const prevPressured = adv.pressureRate * (dropbackCount - 1);
-      adv.pressureRate =
-        (prevPressured + (playAdvanced.wasUnderPressure ? 1 : 0)) /
-        dropbackCount;
-    }
-
-    // Separation at catch
-    if (
-      completion &&
-      playAdvanced.separationAtCatch !== undefined &&
-      isFinite(playAdvanced.separationAtCatch) &&
-      completionCount > 0
-    ) {
-      const sepYds = pxToYards(playAdvanced.separationAtCatch);
-      adv.receiverSeparation =
-        (adv.receiverSeparation * (completionCount - 1) + sepYds) /
-        completionCount;
-    }
-
-    // YBC / YAC
-    if (isRush && los) {
-      let ybc;
-      if (playAdvanced.firstContactX === undefined) {
-        ybc = yards;
-      } else {
-        ybc = pxToYards(playAdvanced.firstContactX - los);
-      }
-      const yac = yards - ybc;
-      const n = next.rb.rushes;
-      if (n > 0) {
-        adv.rushYardsBeforeContact =
-          (adv.rushYardsBeforeContact * (n - 1) + ybc) / n;
-        adv.rushYardsAfterContact =
-          (adv.rushYardsAfterContact * (n - 1) + yac) / n;
-      }
-    }
-
-    // Receiver YAC
-    if (
-      completion &&
-      finalBallX &&
-      playAdvanced.catchX !== undefined &&
-      completionCount > 0
-    ) {
-      const endX = isTouchdown ? W + ENDZONE_W : finalBallX;
-      const yac = Math.max(0, pxToYards(endX - playAdvanced.catchX));
-      adv.receiverYardsAfterCatch =
-        (adv.receiverYardsAfterCatch * (completionCount - 1) + yac) /
-        completionCount;
-    }
-
-    const totalPassPlays = next.playcalls.pass.count;
-    adv.sackRate = totalPassPlays > 0 ? round2(sackCount / totalPassPlays) : 0;
+  // Receiver YAC
+  if (isComplete && finalBallX && playAdvData.catchX !== undefined) {
+    const yac = Math.max(0, pxToYards(finalBallX - playAdvData.catchX));
+    adv.receiverYardsAfterCatch = updateAverage(
+      adv.receiverYardsAfterCatch,
+      completionCount,
+      yac,
+    );
   }
 
   return next;
 }
+
+export { updateStatsAfterPlay };

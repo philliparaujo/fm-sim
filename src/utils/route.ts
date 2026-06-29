@@ -75,32 +75,6 @@ export function randomRunVector(): Vector {
   };
 }
 
-const ROUTE_NAMES: [string, Route][] = [
-  ["streak", streakRoute],
-  ["post", postRoute],
-  ["corner", cornerRoute],
-  ["in", inRoute],
-  ["out", outRoute],
-  ["curl", curlRoute],
-  ["slant", slantRoute],
-  ["drag", dragRoute],
-  ["flat", flatRoute],
-];
-
-/** Converts a route to a string key */
-export function routeKey(route: Route): string {
-  for (const [name, known] of ROUTE_NAMES) {
-    if (
-      known.breakAngle === route.breakAngle &&
-      known.yardsBeforeBreak === route.yardsBeforeBreak &&
-      known.stopAfterBreak === route.stopAfterBreak
-    ) {
-      return name;
-    }
-  }
-  return `custom_${route.breakAngle}_${route.yardsBeforeBreak}`;
-}
-
 /** Converts a run angle Vector to a string key */
 export function runAngleKey(runAngle: Vector): string {
   const degrees = Math.round(

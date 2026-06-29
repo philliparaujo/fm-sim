@@ -16,7 +16,8 @@ import {
 } from "./core/constants";
 import { getConstants } from "./core/ratings";
 import { CachedPlayers, Player, Ray, State, Vector } from "./core/types";
-import { resetSimulation, resolveCollision, state } from "./simulate";
+import { resolveCollision } from "./sim/collision";
+import { resetSimulation, state } from "./simulate";
 import {
   clampPosInBounds,
   getFieldBounds,
