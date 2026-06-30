@@ -46,6 +46,7 @@ import {
   TOTAL_W,
   W,
 } from "../utils/units";
+import { resolveBallInAir } from "../behavior/passing";
 
 // Applies velocity and field constraints
 function triggerMove(entity: Ball | Player) {
@@ -129,6 +130,9 @@ function stepSimulation() {
   for (const player of state.players) {
     triggerMove(player);
   }
+
+  // Advance any in-flight pass and resolve the catch/INT/incompletion
+  resolveBallInAir(state, cachedPlayers);
 }
 
 let lastTime = 0;

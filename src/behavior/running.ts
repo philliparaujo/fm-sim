@@ -177,6 +177,17 @@ function runTowardsBall(
   _cachedPlayers: CachedPlayers,
   ball: Vector,
 ) {
+  // Defenders need a reaction window before breaking on a thrown ball. Until
+  // their coverage-based delay elapses, they hold their current heading rather
+  // than converging on the landing spot.
+  if (player.role === "coverer" && state.ballFlight?.isInFlight) {
+    const { reactionDelay } = getConstants("MANCOVERAGE", player);
+    const { zoneReactionDelay } = getConstants("ZONECOVERAGE", player);
+    const ballReactionDelay =
+      player.coverage === "man" ? reactionDelay : zoneReactionDelay;
+    if (state.ballFlight.ticksElapsed < ballReactionDelay) return;
+  }
+
   const { maxSpeed } = getConstants("SPEED", player);
   const toBall = diff(ball, player.loc);
   const d = length(toBall);

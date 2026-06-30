@@ -105,8 +105,6 @@ function throwingDecision(
       : Infinity;
   const underPressure = nearestRusherDist < PANIC_RUSHER_DIST;
 
-  resolveBallInAir(state, cachedPlayers);
-
   const thinkInterval = underPressure ? 3 : THROW_EVAL_INTERVAL;
   if (!player.cachedThrowEval || state.steps % thinkInterval === 0) {
     const evaluatedOptions = catchers.map((catcher: Player) => {
@@ -370,7 +368,7 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
 
     if (!receiverInRadius && defenderInRadius) {
       // Uncontested interception attempt
-      const INTERCEPT_CHANCE = 0.35;
+      const INTERCEPT_CHANCE = 0.25;
       if (Math.random() < INTERCEPT_CHANCE) {
         isInterception = true;
       } else {
@@ -403,7 +401,7 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
         // Defender won the spot. But is it an INT or just a PBU?
         // In the NFL, defenders drop or break up far more passes than they intercept.
         // We add a probability roll to simulate this.
-        const INTERCEPT_CHANCE_ON_CONTEST = 0.1; // Tune this: 20% of "lost" contests become INTs
+        const INTERCEPT_CHANCE_ON_CONTEST = 0.05; // Tune this: 20% of "lost" contests become INTs
 
         if (Math.random() < INTERCEPT_CHANCE_ON_CONTEST) {
           isInterception = true;
@@ -550,4 +548,4 @@ function completePass(
   }
 }
 
-export { avoidBallCarrier, navigatePocket, throwingDecision };
+export { avoidBallCarrier, navigatePocket, resolveBallInAir, throwingDecision };

@@ -59,9 +59,10 @@ function stepAsPlayer(
       break;
     }
     case "coverer": {
-      if (ballInAir && state.ballFlight!.ticksElapsed > 20) {
+      if (ballInAir) {
+        // runTowardsBall holds the defender until their reaction delay elapses
         runTowardsBall(player, state, cachedPlayers, state.ballFlight!.endLoc);
-      } else if (!state.ballGiven && !ballInAir) {
+      } else if (!state.ballGiven) {
         cover(player, state, cachedPlayers);
       } else {
         pursueBallCarrier(player, state, cachedPlayers);

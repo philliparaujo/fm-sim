@@ -163,11 +163,12 @@ const ATTRIBUTE_CONFIG = {
   /* Coverers */
   MANCOVERAGE: (r: number) => ({
     manStartDelay: lerp(r, 20, 0),
-    reactionDelay: lerp(r, 59, 18),
+    reactionDelay: lerp(r, 37, 10),
     manCushion: lerp(r, 0, 0),
   }),
   ZONECOVERAGE: (r: number) => ({
     zonePull: lerp(r, 0, 0.4),
+    zoneReactionDelay: lerp(r, 25, 5),
     zoneStartDelay: lerp(r, 45, 25),
   }),
   // Best = ~0.5
