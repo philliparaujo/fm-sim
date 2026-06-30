@@ -1,8 +1,8 @@
+import { attemptTackle } from "../behavior/tackle";
 import { INLINE_NUDGE } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { state } from "../core/state";
 import { Ball, Entity, Player } from "../core/types";
-import { attemptTackle } from "../playerBehavior";
 import { resetSimulation } from "../simulate";
 import {
   isCarryingBall,

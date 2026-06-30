@@ -101,6 +101,7 @@ interface Player extends Entity, RosterPlayer {
 }
 
 type CachedPlayers = {
+  passer: Player | undefined;
   rushers: Player[];
   coverers: Player[];
   catchers: Player[];

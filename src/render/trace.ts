@@ -1,5 +1,5 @@
 import { Ellipse, Player, State } from "../core/types";
-import { predictReceiverRoute } from "../playerBehavior";
+import { predictReceiverRoute } from "../utils/behavior";
 import { ctx } from "./canvas";
 
 const PREDICTED_ROUTE_STROKE = "rgba(255, 160, 0, 1)";

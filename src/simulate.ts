@@ -7,7 +7,7 @@ import { generateSpecialPlaycall } from "./core/playbook";
 import { getConstants } from "./core/ratings";
 import { recreateState, state } from "./core/state";
 import { Ball, PlayEndReason, Player } from "./core/types";
-import { stepAsPlayer } from "./playerBehavior";
+import { stepAsPlayer } from "./behavior";
 import { render } from "./render";
 import { updateScoreboardUI } from "./scoreboard";
 import {
@@ -84,6 +84,7 @@ function stepSimulation() {
   // Player behavior
   // TODO: Can I compute cachedPlayers just once on start of each play?
   const cachedPlayers = {
+    passer: state.players.find((p) => p.role === "passer"),
     rushers: state.players.filter((p) => p.role === "rusher"),
     coverers: state.players.filter((p) => p.role === "coverer"),
     catchers: state.players.filter((p) => p.role === "catcher"),
