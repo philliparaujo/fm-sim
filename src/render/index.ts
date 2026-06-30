@@ -1,8 +1,8 @@
-import { State } from "./core/types";
-import drawBall, { drawThrowTarget } from "./render/ball";
-import { ctx } from "./render/canvas";
-import drawField from "./render/field";
-import drawPlayer from "./render/player";
+import { State } from "../core/types";
+import drawBall, { drawThrowTarget } from "./ball";
+import { ctx } from "./canvas";
+import drawField from "./field";
+import drawPlayer from "./player";
 import {
   drawCatcherTrace,
   drawContextSteeringRays,
@@ -10,9 +10,9 @@ import {
   drawPasserPocket,
   drawReceiverPredictedRoute,
   drawRunnerPath,
-} from "./render/trace";
-import { isCarryingBall, isPassPlay } from "./utils/field";
-import { getPocket, TOTAL_W } from "./utils/units";
+} from "./trace";
+import { isCarryingBall, isPassPlay } from "../utils/field";
+import { getPocket, TOTAL_W } from "../utils/units";
 
 /* Determines whether to render anything at all */
 const ONLY_SIMULATE = false;

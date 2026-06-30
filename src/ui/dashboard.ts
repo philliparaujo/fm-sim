@@ -1,7 +1,7 @@
 import { PLAYBOOK_CONFIG, saveRating, TEAM_PLAYBOOKS } from "../core/playbook";
 import { Attribute, getLetterGrade } from "../core/ratings";
 import { PLAYER_LABELS } from "../core/types";
-import { state } from "../simulate";
+import { state } from "../sim";
 import { labelToRole, labelToSide } from "../utils/roster";
 
 // Which attributes are relevant per role

@@ -2,19 +2,16 @@ import {
   PAUSE_MS_AFTER_PLAY,
   simSpeed,
   TRAINING_MODE_ON,
-} from "./core/constants";
-import { generateSpecialPlaycall } from "./core/playbook";
-import { getConstants } from "./core/ratings";
-import { recreateState, state } from "./core/state";
-import { Ball, PlayEndReason, Player } from "./core/types";
-import { stepAsPlayer } from "./behavior";
-import { render } from "./render";
-import { updateScoreboardUI } from "./scoreboard";
-import {
-  assignBlockingTargets,
-  assignCoverageTargets,
-} from "./sim/assignments";
-import { resolveCollision } from "./sim/collision";
+} from "../core/constants";
+import { generateSpecialPlaycall } from "../core/playbook";
+import { getConstants } from "../core/ratings";
+import { recreateState, state } from "../core/state";
+import { Ball, PlayEndReason, Player } from "../core/types";
+import { stepAsPlayer } from "../behavior";
+import { render } from "../render";
+import { updateScoreboardUI } from "../scoreboard";
+import { assignBlockingTargets, assignCoverageTargets } from "./assignments";
+import { resolveCollision } from "./collision";
 import {
   captureReplayFrame,
   getReplayFrame,
@@ -22,16 +19,16 @@ import {
   incrementReplay,
   isLive,
   saveReplay,
-} from "./sim/replay";
-import { updateStatsAfterPlay } from "./stats";
+} from "./replay";
+import { updateStatsAfterPlay } from "../stats";
 import {
   clampPosInBounds,
   getLOSAfterPunt,
   isCarryingBall,
   snapBallToPlayer,
   updateDownAndDistance,
-} from "./utils/field";
-import { getDefenseTeam, getOffenseTeam } from "./utils/roster";
+} from "../utils/field";
+import { getDefenseTeam, getOffenseTeam } from "../utils/roster";
 import {
   checkIfFieldGoal,
   checkIfInterception,
@@ -41,14 +38,14 @@ import {
   checkIfTurnoverOnDowns,
   getFinalBallX,
   numPlays,
-} from "./utils/stats";
+} from "../utils/stats";
 import {
   ENDZONE_W,
   LOGIC_TICK_MS,
   START_DRIVE,
   TOTAL_W,
   W,
-} from "./utils/units";
+} from "../utils/units";
 
 // Applies velocity and field constraints
 function triggerMove(entity: Ball | Player) {

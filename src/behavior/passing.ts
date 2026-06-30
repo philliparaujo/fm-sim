@@ -7,7 +7,7 @@ import {
 } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { CachedPlayers, Player, State, Vector } from "../core/types";
-import { resetSimulation } from "../simulate";
+import { resetSimulation } from "../sim";
 import { predictReceiverRoute } from "../utils/behavior";
 import {
   clampPosInBounds,

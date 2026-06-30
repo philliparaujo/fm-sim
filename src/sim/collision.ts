@@ -3,7 +3,7 @@ import { INLINE_NUDGE } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { state } from "../core/state";
 import { Ball, Entity, Player } from "../core/types";
-import { resetSimulation } from "../simulate";
+import { resetSimulation } from ".";
 import {
   isCarryingBall,
   isPassPlay,

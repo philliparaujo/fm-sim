@@ -1,5 +1,5 @@
 import { assignCoverageTargets } from "./sim/assignments";
-import { onPlayReset, tick } from "./simulate";
+import { onPlayReset, tick } from "./sim";
 import { initDashboard, updateDashboardValues } from "./ui/dashboard";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
 import { setupReplayControls } from "./ui/replayControls";

@@ -5,7 +5,7 @@ import {
 } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { Player } from "../core/types";
-import { resetSimulation, state } from "../simulate";
+import { resetSimulation, state } from "../sim";
 import { secondsToTicks } from "../utils/units";
 
 function attemptTackle(defender: Player, carrier: Player) {

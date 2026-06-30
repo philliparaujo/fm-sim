@@ -1,5 +1,5 @@
 import { ReplayFrame, State } from "../core/types";
-import { state } from "../simulate";
+import { state } from ".";
 
 let currentPlayFrames: ReplayFrame[] = [];
 let completedPlays: ReplayFrame[][] = []; // Stores up to 3 plays. [0] = 1 play ago, [1] = 2 ago, [2] = 3 ago

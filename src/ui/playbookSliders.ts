@@ -1,5 +1,5 @@
 import { PLAYBOOK_CONFIG, TEAM_PLAYBOOKS } from "../core/playbook";
-import { state } from "../simulate";
+import { state } from "../sim";
 
 /** Wires the pass/man/blitz tendency sliders to the live engine and team playbooks. */
 export function setupPlaybookSliders() {

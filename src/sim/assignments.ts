@@ -1,5 +1,5 @@
 import { CachedPlayers } from "../core/types";
-import { state } from "../simulate";
+import { state } from ".";
 import { isCarryingBall, isRunPlay } from "../utils/field";
 import { closestPointOnSegment, dist, vectorToString } from "../utils/vector";
 
