@@ -243,6 +243,7 @@ type Scoreboard = {
   firstDownLine: number | null;
   time: number;
   quarter: "1st" | "2nd" | "3rd" | "4th";
+  twoMinuteWarning: boolean;
   down: "1st" | "2nd" | "3rd" | "4th";
   distance: "goal" | number;
   teams: Team[];

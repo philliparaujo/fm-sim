@@ -32,6 +32,7 @@ import { getDefenseTeam, getOffenseTeam } from "../utils/roster";
 import {
   checkIfFieldGoal,
   checkIfInterception,
+  checkIfPassIncomplete,
   checkIfPunt,
   checkIfSafety,
   checkIfTouchdown,
@@ -42,7 +43,11 @@ import {
 import {
   ENDZONE_W,
   LOGIC_TICK_MS,
+  PLAY_CLOCK_RUNOFF,
+  QUARTER_SECONDS,
   START_DRIVE,
+  ticksToSeconds,
+  TWO_MINUTE_WARNING_SECONDS,
   TOTAL_W,
   W,
 } from "../utils/units";
@@ -78,6 +83,14 @@ function stepSimulation() {
 
   // Increment tick count on current play
   state.steps++;
+
+  // Run the game clock down during live play (real game only)
+  if (!TRAINING_MODE_ON) {
+    state.scoreboard.time = Math.max(
+      0,
+      state.scoreboard.time - ticksToSeconds(1),
+    );
+  }
 
   // Player behavior
   // TODO: Can I compute cachedPlayers just once on start of each play?
@@ -135,6 +148,9 @@ function stepSimulation() {
   resolveBallInAir(state, cachedPlayers);
 }
 
+const QUARTERS = ["1st", "2nd", "3rd", "4th"] as const;
+let gameOver = false;
+
 let lastTime = 0;
 let timeAccumulator = 0;
 
@@ -156,7 +172,7 @@ async function tick(timestamp: number = performance.now()) {
 
   // 2. Advance simulation or replay playhead (skip during post-play pause)
   const paused = isLive() && timestamp < state.pausedUntil;
-  if (!paused) {
+  if (!paused && !gameOver) {
     timeAccumulator += dt * simSpeed;
     while (timeAccumulator >= LOGIC_TICK_MS) {
       if (isLive()) {
@@ -178,6 +194,7 @@ function resetSimulation(reason: PlayEndReason) {
   const isTouchdown = checkIfTouchdown(state, reason);
   const isSafety = checkIfSafety(state, reason);
   const isInterception = checkIfInterception(state, reason);
+  const isIncomplete = checkIfPassIncomplete(state, reason);
   const isFieldGoal = checkIfFieldGoal(state, reason);
   const isPunt = checkIfPunt(state, reason);
 
@@ -230,7 +247,7 @@ function resetSimulation(reason: PlayEndReason) {
     isFieldGoal ||
     isPunt ||
     isTurnoverOnDowns;
-  const downDistance = updateDownAndDistance(
+  const nextDownDistance = updateDownAndDistance(
     prevScoreboard,
     nextLOS,
     forceFirstDown,
@@ -270,11 +287,63 @@ function resetSimulation(reason: PlayEndReason) {
   // Persist the entire dictionary block across the active session boundaries
   state.stats = updatedGlobalStats;
 
+  // Advance the game clock between plays, rolling into the next quarter or
+  // ending the game when it expires (real game only)
+  let nextTime = prevScoreboard.time;
+  let nextQuarter = prevScoreboard.quarter;
+  let nextTwoMinuteWarning = prevScoreboard.twoMinuteWarning;
+  if (!TRAINING_MODE_ON) {
+    // Two-minute warning: a one-time clock stoppage the first time the clock
+    // reaches 2:00 in Q2/Q4. The crossing play pins the clock to exactly 2:00
+    // (or keeps a lower time it already ran to in-play) and latches the flag so
+    // it never fires again; afterward the clock follows normal running/stopping
+    // rules for the rest of the quarter.
+    const inWarningQuarter = nextQuarter === "2nd" || nextQuarter === "4th";
+    const warningFires =
+      inWarningQuarter &&
+      !nextTwoMinuteWarning &&
+      nextTime - PLAY_CLOCK_RUNOFF <= TWO_MINUTE_WARNING_SECONDS;
+    if (warningFires) {
+      nextTwoMinuteWarning = true;
+      nextTime = Math.min(nextTime, TWO_MINUTE_WARNING_SECONDS);
+      console.log("Two-minute warning");
+    }
+
+    // The clock only runs off between plays when it kept moving — not on
+    // incompletions, changes of possession, scoring plays, or the single play
+    // the two-minute warning stops it
+    const clockStops =
+      warningFires ||
+      isIncomplete ||
+      isInterception ||
+      isPunt ||
+      isSafety ||
+      isFieldGoal ||
+      isTurnoverOnDowns ||
+      isTouchdown;
+    if (!clockStops) {
+      nextTime -= PLAY_CLOCK_RUNOFF;
+    }
+
+    if (nextTime <= 0) {
+      if (nextQuarter === "4th") {
+        nextTime = 0;
+        gameOver = true;
+        console.log("Game over");
+      } else {
+        nextQuarter = QUARTERS[QUARTERS.indexOf(nextQuarter) + 1];
+        nextTime = QUARTER_SECONDS;
+        nextTwoMinuteWarning = false; // reset for the new quarter
+      }
+    }
+  }
+
   state.scoreboard = {
     ...state.scoreboard,
-    quarter: prevScoreboard.quarter,
-    time: prevScoreboard.time,
-    ...downDistance,
+    quarter: nextQuarter,
+    time: nextTime,
+    twoMinuteWarning: nextTwoMinuteWarning,
+    ...nextDownDistance,
   };
   state.currentPlay.special = generateSpecialPlaycall(state.scoreboard);
 

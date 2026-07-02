@@ -20,8 +20,7 @@ export const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
 export const ROUTE_BREAK_ANGLE_JITTER = 3;
 
 // Coverer
-/** Number of ticks ahead the coverer wants to be */
-export const LEAD_TICKS = 20;
+export const LEAD_TICKS = 20; // # of ticks ahead the coverer wants to be
 export const ARRIVAL_RADIUS = 45;
 
 // Pursuer
@@ -31,13 +30,10 @@ export const PURSUER_STEER_FACTOR = 0.5;
 export const PASSER_HANDOFF_SEPARATION = 80;
 export const PANIC_RUSHER_DIST = 80;
 export const PANIC_THROW_CHANCE = 0.25;
-/** Number of ticks ahead the passer scans for */
-export const MAX_PREDICTION_TICKS = 300;
-/** Passer evaluates throws every X ticks */
-export const THROW_EVAL_INTERVAL = 6;
+export const MAX_PREDICTION_TICKS = 300; // # of ticks ahead passer scans for
+export const THROW_EVAL_INTERVAL = 6; // Passer evaluates throws every X ticks
 
 // Tackling
-/** How fast pressure builds each tick while in contact */
-export const TACKLE_PRESSURE_PER_TICK = 0.05;
+export const TACKLE_PRESSURE_PER_TICK = 0.05; // How fast pressure builds each tick while in contact
 export const BROKEN_TACKLE_SPEED_BURST = 0.7; // Speed multiplier when carrier breaks a tackle
 export const BROKEN_TACKLE_BURST_DURATION = 15;

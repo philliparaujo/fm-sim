@@ -65,10 +65,18 @@ export function perSecondToPerTick(unitsPerSecond: number): number {
   return unitsPerSecond / TICKS_PER_SECOND;
 }
 
+/** Length of one quarter, in game-clock seconds */
+export const QUARTER_SECONDS = 900;
+/** Game-clock seconds that run off between plays (real game only) */
+export const PLAY_CLOCK_RUNOFF = 32;
+/** Clock threshold (s) that triggers the two-minute warning in Q2/Q4 */
+export const TWO_MINUTE_WARNING_SECONDS = 120;
+
 /** Turns a number of seconds (e.g. 400) into a scoreboard time (e.g. '06:40') */
 export function secondsToTimeString(seconds: number): string {
-  const mins = Math.floor(seconds / SECONDS_PER_MINUTE);
-  const secs = seconds % SECONDS_PER_MINUTE;
+  const clamped = Math.max(0, seconds);
+  const mins = Math.floor(clamped / SECONDS_PER_MINUTE);
+  const secs = Math.floor(clamped % SECONDS_PER_MINUTE);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 

@@ -1,7 +1,14 @@
 import { computeFirstDownLine } from "../utils/field";
 import { fillOutRosterPlayer, labelToRole, labelToSide } from "../utils/roster";
 import { randomRoute, randomRunVector } from "../utils/route";
-import { ENDZONE_W, H, pxToYards, W, yardsToPx } from "../utils/units";
+import {
+  ENDZONE_W,
+  H,
+  pxToYards,
+  QUARTER_SECONDS,
+  W,
+  yardsToPx,
+} from "../utils/units";
 import { nullVector } from "../utils/vector";
 import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
 import {
@@ -78,11 +85,12 @@ function generateScoreboard(
     LOS: LOS,
     firstDownLine: computeFirstDownLine(LOS, 10),
     quarter: "1st",
+    twoMinuteWarning: false,
     teams: [
       { ...offenseTeam, possessing: true },
       { ...defenseTeam, possessing: false },
     ],
-    time: 900,
+    time: QUARTER_SECONDS,
   };
 }
 
