@@ -48,6 +48,7 @@ import {
   QUARTER_SECONDS,
   START_DRIVE,
   ticksToSeconds,
+  TOUCHBACK_LOS,
   TWO_MINUTE_WARNING_SECONDS,
   TOTAL_W,
   W,
@@ -219,6 +220,10 @@ function resetSimulation(reason: PlayEndReason) {
       nextLOS = getLOSAfterPunt(prevScoreboard.LOS);
     } else if (isTurnoverOnDowns || isInterception) {
       nextLOS = TOTAL_W - finalLOSBeforeFlip;
+      // Interception fielded in the intercepting team's own endzone -> touchback
+      if (isInterception && nextLOS <= ENDZONE_W) {
+        nextLOS = TOUCHBACK_LOS;
+      }
     } else {
       nextLOS = finalLOSBeforeFlip;
     }
@@ -293,6 +298,7 @@ function resetSimulation(reason: PlayEndReason) {
   let nextTime = prevScoreboard.time;
   let nextQuarter = prevScoreboard.quarter;
   let nextTwoMinuteWarning = prevScoreboard.twoMinuteWarning;
+  let startSecondHalf = false;
   if (!TRAINING_MODE_ON) {
     // Two-minute warning: a one-time clock stoppage the first time the clock
     // reaches 2:00 in Q2/Q4. The crossing play pins the clock to exactly 2:00
@@ -344,10 +350,9 @@ function resetSimulation(reason: PlayEndReason) {
         nextQuarter = QUARTERS[QUARTERS.indexOf(nextQuarter) + 1];
         nextTime = QUARTER_SECONDS;
         nextTwoMinuteWarning = false; // reset for the new quarter
-        // Halftime: each team gets a fresh set of 3 timeouts for the 2nd half
-        if (nextQuarter === "3rd") {
-          for (const team of state.scoreboard.teams) team.timeouts = 3;
-        }
+        // Halftime: blue receives the 2nd-half kickoff — handled below once the
+        // scoreboard is rebuilt
+        if (nextQuarter === "3rd") startSecondHalf = true;
       }
     }
   }
@@ -359,6 +364,19 @@ function resetSimulation(reason: PlayEndReason) {
     twoMinuteWarning: nextTwoMinuteWarning,
     ...nextDownDistance,
   };
+
+  // Second-half kickoff: blue receives at its own 25 with a fresh 1st & 10 and
+  // refilled timeouts, regardless of how the 2nd quarter ended
+  if (startSecondHalf) {
+    const blueTeam = state.scoreboard.teams.find((t) => t.color === "blue")!;
+    const redTeam = state.scoreboard.teams.find((t) => t.color === "red")!;
+    blueTeam.timeouts = 3;
+    redTeam.timeouts = 3;
+    Object.assign(state, recreateState(blueTeam, redTeam, START_DRIVE));
+    state.stats = updatedGlobalStats;
+    state.scoreboard = { ...state.scoreboard, quarter: "3rd" };
+  }
+
   state.currentPlay.special = generateSpecialPlaycall(state.scoreboard);
 
   state.pausedUntil = performance.now() + PAUSE_MS_AFTER_PLAY;

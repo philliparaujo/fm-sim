@@ -46,6 +46,9 @@ export const TOTAL_H = H;
 /** Default starting field position distance from back of own endzone (px) */
 export const START_DRIVE = ENDZONE_W + yardsToPx(25);
 
+/** Field position (px) after a touchback: the receiving team's own 20 */
+export const TOUCHBACK_LOS = ENDZONE_W + yardsToPx(20);
+
 /** Distance between uprights (px) */
 export const GOALPOST_CROSSBAR_WIDTH = yardsToPx(6.17);
 

@@ -428,6 +428,9 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
       if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
       }
+      // Spot the ball where the defender picked it off so the field position
+      // flips correctly for the intercepting team
+      snapBallToPlayer(closestDefender!, state.ball);
       resetSimulation("interception");
     } else if (isIncomplete) {
       // If the simulation is ending in an incompletion, check if the distance

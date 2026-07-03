@@ -1,5 +1,13 @@
 import { Ball, Player, Scoreboard, State, Vector } from "../core/types";
-import { ENDZONE_W, pxToYards, TOTAL_H, TOTAL_W, W, yardsToPx } from "./units";
+import {
+  ENDZONE_W,
+  pxToYards,
+  TOTAL_H,
+  TOTAL_W,
+  TOUCHBACK_LOS,
+  W,
+  yardsToPx,
+} from "./units";
 import { dist } from "./vector";
 
 /** Returns the rectangular in-play field bounds */
@@ -38,7 +46,6 @@ export function clampPosInBounds(pos: Vector): Vector {
 export function getLOSAfterPunt(prevLOS: number): number {
   // Convert yard scales cleanly to pixel measurements using field width
   const AVERAGE_NET_PUNT = yardsToPx(45);
-  const TOUCHBACK_POSITION = ENDZONE_W + yardsToPx(20); // Left goal line + 20 yards
   const OPPONENT_GOAL_LINE = TOTAL_W - ENDZONE_W; // Right goal line
 
   // 1. Where does the ball physically land on the screen? (Moving right)
@@ -47,7 +54,7 @@ export function getLOSAfterPunt(prevLOS: number): number {
   // 2. If it touches or crosses the opponent's goal line, it's a touchback.
   // The new offense comes out to their own 20-yard line on the left.
   if (landingSpotX >= OPPONENT_GOAL_LINE) {
-    return TOUCHBACK_POSITION;
+    return TOUCHBACK_LOS;
   }
 
   // 3. Flip perspective: The distance remaining to the opponent's right goal line

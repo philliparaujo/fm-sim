@@ -269,14 +269,18 @@ export function checkIfFieldGoal(
   return reason === "fieldgoal";
 }
 
-export function checkIfSafety(state: State, _reason: PlayEndReason): boolean {
+export function checkIfSafety(state: State, reason: PlayEndReason): boolean {
+  // Incompletions (ball dead at the LOS) and interceptions (defense's ball)
+  // never score a safety, regardless of where the ball froze
+  if (reason === "incomplete" || reason === "interception") return false;
   return state.ball.loc.x <= ENDZONE_W;
 }
 
 export function checkIfTouchdown(
   state: State,
-  _reason: PlayEndReason,
+  reason: PlayEndReason,
 ): boolean {
+  if (reason === "incomplete" || reason === "interception") return false;
   return state.ball.loc.x >= W + ENDZONE_W;
 }
 
