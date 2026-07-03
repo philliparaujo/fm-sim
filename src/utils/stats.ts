@@ -27,7 +27,7 @@ import {
   slantRoute,
   streakRoute,
 } from "./route";
-import { ENDZONE_W, W } from "./units";
+import { ENDZONE_W } from "./units";
 
 /** Returns the count of non-special teams plays */
 export function numPlays(stats: Stats): number {
@@ -269,19 +269,26 @@ export function checkIfFieldGoal(
   return reason === "fieldgoal";
 }
 
+// Play endings where the ball is downed live at its spot, so ball position
+// decides the outcome. Every other ending (incomplete, interception, punt,
+// fieldgoal, touchdown) is a dead-ball / special-teams result and can never be
+// a safety no matter where the ball froze.
+const BALL_DOWNED_REASONS: PlayEndReason[] = ["tackle", "sack"];
+
+/** A safety: the offense is tackled or sacked with the ball in its own endzone. */
 export function checkIfSafety(state: State, reason: PlayEndReason): boolean {
-  // Incompletions (ball dead at the LOS) and interceptions (defense's ball)
-  // never score a safety, regardless of where the ball froze
-  if (reason === "incomplete" || reason === "interception") return false;
-  return state.ball.loc.x <= ENDZONE_W;
+  return (
+    BALL_DOWNED_REASONS.includes(reason) && state.ball.loc.x <= ENDZONE_W
+  );
 }
 
+/** A touchdown is signalled explicitly when a ball carrier crosses the goal
+ * line (see triggerMove), so it's keyed on the reason, not ball position. */
 export function checkIfTouchdown(
-  state: State,
+  _state: State,
   reason: PlayEndReason,
 ): boolean {
-  if (reason === "incomplete" || reason === "interception") return false;
-  return state.ball.loc.x >= W + ENDZONE_W;
+  return reason === "touchdown";
 }
 
 // 2) Rush play

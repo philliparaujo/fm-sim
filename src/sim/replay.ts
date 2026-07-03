@@ -1,12 +1,15 @@
 import { ReplayFrame, State } from "../core/types";
 import { state } from ".";
 
+// Stores up to NUM_REPLAYS plays. [0] = 1 play ago, [1] = 2 ago, ...
 let currentPlayFrames: ReplayFrame[] = [];
-let completedPlays: ReplayFrame[][] = []; // Stores up to 3 plays. [0] = 1 play ago, [1] = 2 ago, [2] = 3 ago
+let completedPlays: ReplayFrame[][] = [];
 let replayMode: "live" | number = "live";
 let replayFrameIndex = 0;
 
-const NUM_REPLAYS = 3; // Can't change due to replayControls.ts logic, btn-replay-{#} buttons
+/** How many past plays to keep for replay. The replay buttons are generated
+ * from this, so changing it is all that's needed. */
+export const NUM_REPLAYS = 10;
 
 /** Selects a specific replay index or to watch live */
 function setReplayMode(mode: "live" | number) {

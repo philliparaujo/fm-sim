@@ -22,6 +22,23 @@ header {
   background: #e74c3c;
 }
 
+.replay-btn {
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  background: #ddd;
+  color: #222;
+}
+.replay-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.replay-btn.active-mode {
+  background: #22c55e;
+  color: white;
+}
+
 .scoreboard {
   visibility: hidden;
   display: flex;
