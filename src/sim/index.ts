@@ -371,9 +371,32 @@ function resetSimulation(reason: PlayEndReason) {
   onPlayResetCallback?.();
 }
 
+/** Restarts the game from scratch: 0-0, 3 timeouts, red kicking off from its
+ * own 25, 1st quarter 15:00, 1st & 10. Keeps the current rosters/ratings. */
+function resetGame() {
+  const redTeam = state.scoreboard.teams.find((t) => t.color === "red")!;
+  const blueTeam = state.scoreboard.teams.find((t) => t.color === "blue")!;
+  redTeam.score = 0;
+  blueTeam.score = 0;
+  redTeam.timeouts = 3;
+  blueTeam.timeouts = 3;
+
+  // Red starts on offense at its own 25 (a fresh scoreboard is 1st & 10, Q1 15:00)
+  Object.assign(state, recreateState(redTeam, blueTeam, START_DRIVE));
+  state.stats = {};
+
+  gameOver = false;
+  timeAccumulator = 0;
+
+  assignCoverageTargets();
+
+  updateScoreboardUI(state.scoreboard);
+  onPlayResetCallback?.();
+}
+
 let onPlayResetCallback: (() => void) | null = null;
 function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
 }
 
-export { onPlayReset, resetSimulation, state, tick };
+export { onPlayReset, resetGame, resetSimulation, state, tick };

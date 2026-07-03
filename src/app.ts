@@ -3,6 +3,7 @@ import { onPlayReset, tick } from "./sim";
 import { initDashboard, updateDashboardValues } from "./ui/dashboard";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
 import { setupReplayControls } from "./ui/replayControls";
+import { setupResetButton } from "./ui/resetButton";
 import { setupSpeedControl } from "./ui/speedControl";
 
 async function init() {
@@ -14,6 +15,7 @@ async function init() {
 
   setupReplayControls();
   setupPlaybookSliders();
+  setupResetButton();
 
   assignCoverageTargets();
   requestAnimationFrame(tick);

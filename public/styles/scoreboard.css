@@ -2,6 +2,26 @@
   box-sizing: border-box;
 }
 
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.reset-btn {
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-family: "Arial", sans-serif;
+  font-weight: bold;
+  cursor: pointer;
+}
+.reset-btn:hover {
+  background: #e74c3c;
+}
+
 .scoreboard {
   visibility: hidden;
   display: flex;
