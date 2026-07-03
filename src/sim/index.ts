@@ -28,6 +28,7 @@ import {
   snapBallToPlayer,
   updateDownAndDistance,
 } from "../utils/field";
+import { tryUseTimeout } from "../utils/clock";
 import { getDefenseTeam, getOffenseTeam } from "../utils/roster";
 import {
   checkIfFieldGoal,
@@ -172,7 +173,7 @@ async function tick(timestamp: number = performance.now()) {
 
   // 2. Advance simulation or replay playhead (skip during post-play pause)
   const paused = isLive() && timestamp < state.pausedUntil;
-  if (!paused && !gameOver) {
+  if (!paused && !(gameOver && isLive())) {
     timeAccumulator += dt * simSpeed;
     while (timeAccumulator >= LOGIC_TICK_MS) {
       if (isLive()) {
@@ -306,13 +307,13 @@ function resetSimulation(reason: PlayEndReason) {
     if (warningFires) {
       nextTwoMinuteWarning = true;
       nextTime = Math.min(nextTime, TWO_MINUTE_WARNING_SECONDS);
-      console.log("Two-minute warning");
+      // console.log("Two-minute warning");
     }
 
     // The clock only runs off between plays when it kept moving — not on
     // incompletions, changes of possession, scoring plays, or the single play
     // the two-minute warning stops it
-    const clockStops =
+    const clockAlreadyStopped =
       warningFires ||
       isIncomplete ||
       isInterception ||
@@ -321,7 +322,13 @@ function resetSimulation(reason: PlayEndReason) {
       isFieldGoal ||
       isTurnoverOnDowns ||
       isTouchdown;
-    if (!clockStops) {
+
+    // A team may burn a timeout to stop an otherwise-running clock
+    const timeoutUsed =
+      !clockAlreadyStopped &&
+      tryUseTimeout(state.scoreboard.teams, nextQuarter, nextTime);
+
+    if (!clockAlreadyStopped && !timeoutUsed) {
       nextTime -= PLAY_CLOCK_RUNOFF;
     }
 
@@ -329,11 +336,18 @@ function resetSimulation(reason: PlayEndReason) {
       if (nextQuarter === "4th") {
         nextTime = 0;
         gameOver = true;
-        console.log("Game over");
+        console.log("Game over — final stats:");
+        for (const [teamName, teamStats] of Object.entries(state.stats)) {
+          console.log(`${teamName}:`, numPlays(teamStats), teamStats);
+        }
       } else {
         nextQuarter = QUARTERS[QUARTERS.indexOf(nextQuarter) + 1];
         nextTime = QUARTER_SECONDS;
         nextTwoMinuteWarning = false; // reset for the new quarter
+        // Halftime: each team gets a fresh set of 3 timeouts for the 2nd half
+        if (nextQuarter === "3rd") {
+          for (const team of state.scoreboard.teams) team.timeouts = 3;
+        }
       }
     }
   }

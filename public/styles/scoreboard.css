@@ -14,13 +14,35 @@
   border-bottom: 3px solid #444;
   gap: 16px;
   align-items: center;
-  height: 60px;
+  min-height: 60px;
 }
 
 .team-container {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+}
+
+.team-column {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.timeouts {
+  display: flex;
+  gap: 8px;
+}
+
+.timeout-dash {
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: #555; /* faded gray = used */
+}
+
+.timeout-dash.available {
+  background: #ffd700; /* bright yellow = remaining */
 }
 
 .team-box {

@@ -16,6 +16,10 @@ export function updateScoreboardUI(data: Scoreboard) {
   document.getElementById("name-red")!.textContent = redTeam.name;
   document.getElementById("name-blue")!.textContent = blueTeam.name;
 
+  // 2b. Update timeout dashes
+  updateTimeouts("timeouts-red", redTeam.timeouts);
+  updateTimeouts("timeouts-blue", blueTeam.timeouts);
+
   // 3. Update Possession Dots
   const redDot = document.getElementById("dot-red")!;
   const blueDot = document.getElementById("dot-blue")!;
@@ -44,4 +48,12 @@ export function updateScoreboardUI(data: Scoreboard) {
     data.time,
   );
   document.getElementById("quarter")!.textContent = data.quarter;
+}
+
+/** Lights the first `count` timeout dashes yellow, the rest faded gray */
+function updateTimeouts(containerId: string, count: number) {
+  const dashes = document
+    .getElementById(containerId)!
+    .querySelectorAll(".timeout-dash");
+  dashes.forEach((dash, i) => dash.classList.toggle("available", i < count));
 }
