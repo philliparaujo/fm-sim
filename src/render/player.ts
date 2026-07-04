@@ -16,6 +16,10 @@ function drawPlayer(player: Player) {
   ctx.fillStyle = player.color;
   ctx.fill();
 
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 0.5; // 1 pixel thick
+  ctx.stroke();
+
   if (player.label) {
     ctx.fillStyle = LABEL_COLOR;
 

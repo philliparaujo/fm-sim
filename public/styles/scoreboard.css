@@ -91,12 +91,6 @@ header {
   border-radius: 4px;
 }
 
-#team-red {
-  background: #522;
-}
-#team-blue {
-  background: #33a;
-}
 
 .game-info {
   display: flex;

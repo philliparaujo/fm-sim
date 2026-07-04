@@ -11,6 +11,7 @@ import {
 } from "../utils/units";
 import { nullVector } from "../utils/vector";
 import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
+import { LEAGUE_TEAMS } from "./teams";
 import {
   Ball,
   Coverage,
@@ -37,18 +38,17 @@ const PLAYBOOK_CONFIG = {
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
 
-const TEAM_PLAYBOOKS: Record<string, Record<string, number>> = {
-  red: {
-    passPercent: PLAYBOOK_CONFIG.passPercent,
-    manPercent: PLAYBOOK_CONFIG.manPercent,
-    blitzPercent: PLAYBOOK_CONFIG.blitzPercent,
-  },
-  blue: {
-    passPercent: PLAYBOOK_CONFIG.passPercent,
-    manPercent: PLAYBOOK_CONFIG.manPercent,
-    blitzPercent: PLAYBOOK_CONFIG.blitzPercent,
-  },
-};
+// One tendency profile per league team, keyed by color, seeded from the defaults
+const TEAM_PLAYBOOKS: Record<string, Record<string, number>> = Object.fromEntries(
+  LEAGUE_TEAMS.map((t) => [
+    t.color,
+    {
+      passPercent: PLAYBOOK_CONFIG.passPercent,
+      manPercent: PLAYBOOK_CONFIG.manPercent,
+      blitzPercent: PLAYBOOK_CONFIG.blitzPercent,
+    },
+  ]),
+);
 
 const savedRatings: Record<string, Partial<Ratings>> = {};
 function saveRating(label: string, attr: Attribute, value: number) {

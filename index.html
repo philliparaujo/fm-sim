@@ -35,6 +35,17 @@
           </div>
         </div>
 
+        <div class="control-row">
+          <div class="slider-group">
+            <label for="team-select-0">Team 1</label>
+            <select id="team-select-0" class="team-select"></select>
+          </div>
+          <div class="slider-group">
+            <label for="team-select-1">Team 2</label>
+            <select id="team-select-1" class="team-select"></select>
+          </div>
+        </div>
+
         <div class="control-row playbook-row" id="playbook-controls">
           <div class="slider-group">
             <label for="pass-slider"
@@ -89,26 +100,27 @@
       </div>
 
       <div id="scoreboard" class="scoreboard">
+        <!-- Two generic team slots filled by updateScoreboardUI from the game's teams -->
         <div class="team-container">
           <div class="team-column">
-            <div id="team-red" class="team-box">
-              <span id="dot-red" class="possession-dot">•</span>
-              <span id="name-red" class="team-name">RED</span>
-              <span id="score-red" class="score">0</span>
+            <div id="team-0" class="team-box">
+              <span id="dot-0" class="possession-dot">•</span>
+              <span id="name-0" class="team-name"></span>
+              <span id="score-0" class="score">0</span>
             </div>
-            <div id="timeouts-red" class="timeouts">
+            <div id="timeouts-0" class="timeouts">
               <span class="timeout-dash"></span>
               <span class="timeout-dash"></span>
               <span class="timeout-dash"></span>
             </div>
           </div>
           <div class="team-column">
-            <div id="team-blue" class="team-box">
-              <span id="dot-blue" class="possession-dot">•</span>
-              <span id="name-blue" class="team-name">BLUE</span>
-              <span id="score-blue" class="score">0</span>
+            <div id="team-1" class="team-box">
+              <span id="dot-1" class="possession-dot">•</span>
+              <span id="name-1" class="team-name"></span>
+              <span id="score-1" class="score">0</span>
             </div>
-            <div id="timeouts-blue" class="timeouts">
+            <div id="timeouts-1" class="timeouts">
               <span class="timeout-dash"></span>
               <span class="timeout-dash"></span>
               <span class="timeout-dash"></span>

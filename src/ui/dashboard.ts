@@ -63,13 +63,11 @@ const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   TACKLING: "Tackling",
 };
 
+// Ratings cache keyed by team color; entries are created lazily per team
 const PLAYER_RATINGS_CACHE: Record<
   string,
   Record<string, Record<string, number>>
-> = {
-  red: {},
-  blue: {},
-};
+> = {};
 
 let dashboardInitialized = false;
 
@@ -85,12 +83,14 @@ export function initDashboard() {
   );
 
   for (const team of sortedTeams) {
+    PLAYER_RATINGS_CACHE[team.color] ??= {};
+
     const section = document.createElement("div");
     section.className = "dash-team-section";
 
     const header = document.createElement("div");
     header.className = "dash-team-header";
-    header.innerHTML = `<span class="dash-team-name" style="color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${team.name}</span><span class="dash-possession-badge" data-team-badge="${team.color}"></span>`;
+    header.innerHTML = `<span class="dash-team-name" style="color:${team.color}">${team.name}</span><span class="dash-possession-badge" data-team-badge="${team.color}"></span>`;
     section.appendChild(header);
 
     const sortedRoster = [...team.roster].sort(
@@ -147,7 +147,7 @@ export function initDashboard() {
         const labelCell = document.createElement("td");
         labelCell.className = "dash-td-label";
         // We'll update the bench tag dynamically later
-        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color === "red" ? "#f87171" : "#60a5fa"}">${rp.label}</span><span class="dash-bench-tag" data-bench="${team.color}-${rp.label}" style="display:none;">bench</span>`;
+        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color}">${rp.label}</span><span class="dash-bench-tag" data-bench="${team.color}-${rp.label}" style="display:none;">bench</span>`;
         row.appendChild(labelCell);
 
         for (const attr of allAttrs) {

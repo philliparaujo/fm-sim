@@ -5,6 +5,7 @@ import { setupPlaybookSliders } from "./ui/playbookSliders";
 import { setupReplayControls } from "./ui/replayControls";
 import { setupResetButton } from "./ui/resetButton";
 import { setupSpeedControl } from "./ui/speedControl";
+import { setupTeamPicker } from "./ui/teamPicker";
 
 async function init() {
   setupSpeedControl();
@@ -16,6 +17,7 @@ async function init() {
   setupReplayControls();
   setupPlaybookSliders();
   setupResetButton();
+  setupTeamPicker();
 
   assignCoverageTargets();
   requestAnimationFrame(tick);

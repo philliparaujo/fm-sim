@@ -1,53 +1,40 @@
-import { Scoreboard } from "./core/types";
+import { Scoreboard, Team } from "./core/types";
 import { LOSToString, secondsToTimeString } from "./utils/units";
 
 /** Fills in HTML elements using pre-existing scoreboard data */
 export function updateScoreboardUI(data: Scoreboard) {
-  const redTeam = data.teams[0].color === "red" ? data.teams[0] : data.teams[1];
-  const blueTeam =
-    data.teams[0].color === "blue" ? data.teams[0] : data.teams[1];
+  // Sort by name so the two teams keep stable left/right slots even as
+  // possession (and the underlying array order) flips between plays
+  const teams = [...data.teams].sort((a, b) => a.name.localeCompare(b.name));
+  teams.forEach((team, slot) => updateTeamSlot(slot, team));
 
-  // 1. Update Scores
-  document.getElementById("score-red")!.textContent = redTeam.score.toString();
-  document.getElementById("score-blue")!.textContent =
-    blueTeam.score.toString();
-
-  // 2. Update Team names
-  document.getElementById("name-red")!.textContent = redTeam.name;
-  document.getElementById("name-blue")!.textContent = blueTeam.name;
-
-  // 2b. Update timeout dashes
-  updateTimeouts("timeouts-red", redTeam.timeouts);
-  updateTimeouts("timeouts-blue", blueTeam.timeouts);
-
-  // 3. Update Possession Dots
-  const redDot = document.getElementById("dot-red")!;
-  const blueDot = document.getElementById("dot-blue")!;
-
-  if (redTeam.possessing) {
-    redDot.classList.add("active");
-    blueDot.classList.remove("active");
-  } else if (blueTeam.possessing) {
-    blueDot.classList.add("active");
-    redDot.classList.remove("active");
-  } else {
-    // Safety fallback if neither has possession (e.g., between quarters/halftime)
-    redDot.classList.remove("active");
-    blueDot.classList.remove("active");
-  }
-
-  // 4. Update Down & Distance
+  // Down & Distance
   document.getElementById("down-dist")!.textContent =
     `${data.down} & ${data.distance === "goal" ? "goal" : Math.round(data.distance)}`;
 
-  // 5. Update Yard Line
+  // Yard Line
   document.getElementById("yard-line")!.textContent = LOSToString(data.LOS);
 
-  // 6. Update Clock and Quarter
+  // Clock and Quarter
   document.getElementById("game-clock")!.textContent = secondsToTimeString(
     data.time,
   );
   document.getElementById("quarter")!.textContent = data.quarter;
+}
+
+/** Fills one team slot (0 = left, 1 = right) with a team's live info */
+function updateTeamSlot(slot: number, team: Team) {
+  document.getElementById(`score-${slot}`)!.textContent = team.score.toString();
+  document.getElementById(`name-${slot}`)!.textContent = team.name;
+
+  // Fill the box with the team's color (colors are tuned for white text)
+  document.getElementById(`team-${slot}`)!.style.background = team.color;
+
+  updateTimeouts(`timeouts-${slot}`, team.timeouts);
+
+  document
+    .getElementById(`dot-${slot}`)!
+    .classList.toggle("active", !!team.possessing);
 }
 
 /** Lights the first `count` timeout dashes yellow, the rest faded gray */

@@ -5,8 +5,8 @@ import {
 } from "../core/constants";
 import { generateSpecialPlaycall } from "../core/playbook";
 import { getConstants } from "../core/ratings";
-import { recreateState, state } from "../core/state";
-import { Ball, PlayEndReason, Player } from "../core/types";
+import { LEAGUE, recreateState, state } from "../core/state";
+import { Ball, PlayEndReason, Player, Team } from "../core/types";
 import { stepAsPlayer } from "../behavior";
 import { render } from "../render";
 import { updateScoreboardUI } from "../scoreboard";
@@ -365,14 +365,19 @@ function resetSimulation(reason: PlayEndReason) {
     ...nextDownDistance,
   };
 
-  // Second-half kickoff: blue receives at its own 25 with a fresh 1st & 10 and
-  // refilled timeouts, regardless of how the 2nd quarter ended
+  // Second-half kickoff: whoever started the game on defense now receives, at
+  // its own 25 with a fresh 1st & 10 and refilled timeouts, regardless of how
+  // the 2nd quarter ended
   if (startSecondHalf) {
-    const blueTeam = state.scoreboard.teams.find((t) => t.color === "blue")!;
-    const redTeam = state.scoreboard.teams.find((t) => t.color === "red")!;
-    blueTeam.timeouts = 3;
-    redTeam.timeouts = 3;
-    Object.assign(state, recreateState(blueTeam, redTeam, START_DRIVE));
+    const receiver = state.scoreboard.teams.find(
+      (t) => t.color !== openingOffenseColor,
+    )!;
+    const kicker = state.scoreboard.teams.find(
+      (t) => t.color === openingOffenseColor,
+    )!;
+    receiver.timeouts = 3;
+    kicker.timeouts = 3;
+    Object.assign(state, recreateState(receiver, kicker, START_DRIVE));
     state.stats = updatedGlobalStats;
     state.scoreboard = { ...state.scoreboard, quarter: "3rd" };
   }
@@ -389,27 +394,47 @@ function resetSimulation(reason: PlayEndReason) {
   onPlayResetCallback?.();
 }
 
-/** Restarts the game from scratch: 0-0, 3 timeouts, red kicking off from its
- * own 25, 1st quarter 15:00, 1st & 10. Keeps the current rosters/ratings. */
-function resetGame() {
-  const redTeam = state.scoreboard.teams.find((t) => t.color === "red")!;
-  const blueTeam = state.scoreboard.teams.find((t) => t.color === "blue")!;
-  redTeam.score = 0;
-  blueTeam.score = 0;
-  redTeam.timeouts = 3;
-  blueTeam.timeouts = 3;
+// Color of the team that opened the game on offense; the other team receives
+// the second-half kickoff.
+let openingOffenseColor = LEAGUE[0].color;
 
-  // Red starts on offense at its own 25 (a fresh scoreboard is 1st & 10, Q1 15:00)
-  Object.assign(state, recreateState(redTeam, blueTeam, START_DRIVE));
+/** Starts a fresh game between two teams: 0-0, 3 timeouts each, `offense`
+ * kicking off from its own 25, 1st quarter 15:00, 1st & 10. */
+function startGame(offense: Team, defense: Team) {
+  offense.score = 0;
+  defense.score = 0;
+  offense.timeouts = 3;
+  defense.timeouts = 3;
+  openingOffenseColor = offense.color;
+
+  // A fresh scoreboard is already 1st & 10, Q1 15:00, offense at its own 25
+  Object.assign(state, recreateState(offense, defense, START_DRIVE));
   state.stats = {};
 
   gameOver = false;
   timeAccumulator = 0;
 
   assignCoverageTargets();
-
   updateScoreboardUI(state.scoreboard);
   onPlayResetCallback?.();
+}
+
+/** Restarts the current matchup from scratch, keeping rosters/ratings and the
+ * original opening offense. */
+function resetGame() {
+  const teams = state.scoreboard.teams;
+  const offense =
+    teams.find((t) => t.color === openingOffenseColor) ?? teams[0];
+  const defense = teams.find((t) => t !== offense)!;
+  startGame(offense, defense);
+}
+
+/** Loads a new matchup between two league teams and starts it from scratch.
+ * Callers in the UI layer should rebuild team-specific views afterward. */
+function loadGame(offenseColor: string, defenseColor: string) {
+  const offense = LEAGUE.find((t) => t.color === offenseColor)!;
+  const defense = LEAGUE.find((t) => t.color === defenseColor)!;
+  startGame(offense, defense);
 }
 
 let onPlayResetCallback: (() => void) | null = null;
@@ -417,4 +442,4 @@ function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
 }
 
-export { onPlayReset, resetGame, resetSimulation, state, tick };
+export { loadGame, onPlayReset, resetGame, resetSimulation, state, tick };

@@ -7,6 +7,7 @@ import {
   generateScoreboard,
   generateSpecialPlaycall,
 } from "./playbook";
+import { LEAGUE_TEAMS } from "./teams";
 import { Player, State, Team } from "./types";
 
 const recreateState = (
@@ -51,25 +52,18 @@ const recreateState = (
   };
 };
 
-const teams: Team[] = [
-  {
-    color: "red",
-    name: "RED",
-    score: 0,
-    timeouts: 3,
-    possessing: true,
-    roster: buildDefaultRoster("red"),
-  },
-  {
-    color: "blue",
-    name: "BLU",
-    score: 0,
-    timeouts: 3,
-    possessing: false,
-    roster: buildDefaultRoster("blue"),
-  },
-];
+/** Every league team, each with its own full roster. Score/timeouts/possession
+ * are per-game and get reset whenever a game is loaded. */
+const LEAGUE: Team[] = LEAGUE_TEAMS.map((def) => ({
+  color: def.color,
+  name: def.name,
+  score: 0,
+  timeouts: 3,
+  possessing: false,
+  roster: buildDefaultRoster(def.color),
+}));
 
-const state: State = recreateState(teams[0], teams[1]);
+// Open on the first matchup in the league
+const state: State = recreateState(LEAGUE[0], LEAGUE[1]);
 
-export { recreateState, state };
+export { LEAGUE, recreateState, state };
