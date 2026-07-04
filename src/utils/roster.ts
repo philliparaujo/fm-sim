@@ -1,3 +1,4 @@
+import { generatePlayerName } from "../core/names";
 import { getSavedRatings } from "../core/playbook";
 import { getDefaultRatingForLabel } from "../core/ratings";
 import {
@@ -55,12 +56,13 @@ export function getDefenseTeam(state: State): Team {
   return teams[0];
 }
 
-/** Initializes a team's full roster using default ratings */
+/** Initializes a team's full roster using default ratings and generated names */
 export function buildDefaultRoster(teamColor: string): Roster {
   const labels: Label[] = [...PLAYER_LABELS];
   return labels.map((label) => ({
     color: teamColor,
     label,
+    name: generatePlayerName(label),
     ratings: getDefaultRatingForLabel(label),
   }));
 }
@@ -77,6 +79,7 @@ export function fillOutRosterPlayer(
   return {
     color: rp.color,
     label: rp.label,
+    name: rp.name,
     loc: loc ?? nullVector(),
     role: roleOverride ?? labelToRole(rp.label),
     side: labelToSide(rp.label),

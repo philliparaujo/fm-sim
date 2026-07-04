@@ -147,7 +147,7 @@ export function initDashboard() {
         const labelCell = document.createElement("td");
         labelCell.className = "dash-td-label";
         // We'll update the bench tag dynamically later
-        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color}">${rp.label}</span><span class="dash-bench-tag" data-bench="${team.color}-${rp.label}" style="display:none;">bench</span>`;
+        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color}">${rp.label}</span><span class="dash-player-name">${rp.name}</span>`;
         row.appendChild(labelCell);
 
         for (const attr of allAttrs) {
@@ -285,17 +285,7 @@ export function updateDashboardValues() {
     el.textContent = isPoss ? "🏈 Offense" : "🛡 Defense";
   });
 
-  // 4. Update Bench Tags
-  document.querySelectorAll("[data-bench]").forEach((el) => {
-    const id = el.getAttribute("data-bench"); // format: "red-QB"
-    const [color, label] = id!.split("-");
-    const isOnField = state.players.some(
-      (p) => p.label === label && p.color === color,
-    );
-    (el as HTMLElement).style.display = isOnField ? "none" : "inline";
-  });
-
-  // 5. Update Grades & Sliders (Only if values changed)
+  // 4. Update Grades & Sliders (Only if values changed)
   for (const team of state.scoreboard.teams) {
     for (const rp of team.roster) {
       const role = labelToRole(rp.label);

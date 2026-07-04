@@ -207,12 +207,10 @@
   letter-spacing: 0.05em;
 }
 
-.dash-bench-tag {
-  font-size: 9px;
-  color: #444;
-  margin-left: 5px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.dash-player-name {
+  margin-left: 8px;
+  font-size: 13px;
+  color: #cbd5e1;
 }
 
 /* ── Rating cell contents ── */

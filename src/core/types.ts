@@ -44,6 +44,7 @@ type Role = "blocker" | "runner" | "catcher" | "passer" | "rusher" | "coverer";
 interface RosterPlayer {
   color: string;
   label: Label;
+  name: string;
   ratings: Ratings;
 }
 type Roster = RosterPlayer[];
