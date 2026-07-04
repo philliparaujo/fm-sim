@@ -14,21 +14,33 @@ export type DraftProspect = {
 // One prospect per team, per label -> the pool exactly fills every roster
 const PROSPECTS_PER_LABEL = 8;
 
+const RATING_SPREAD = 0.2;
+
+function randomizeRatings(base: Ratings): Ratings {
+  const result = { ...base };
+  for (const key of Object.keys(result) as Array<keyof Ratings>) {
+    const delta = (Math.random() * 2 - 1) * RATING_SPREAD;
+    result[key] = Math.max(0, Math.min(1, base[key] + delta));
+  }
+  return result;
+}
+
 /** Builds the full draft pool: PROSPECTS_PER_LABEL players for each label, with
- * distinct names within a label. */
+ * distinct names within a label. Each prospect gets randomized ratings centered
+ * on the position default. */
 function generatePool(): DraftProspect[] {
   const pool: DraftProspect[] = [];
   let id = 0;
 
   for (const label of PLAYER_LABELS) {
     const usedNames = new Set<string>();
-    const ratings = getDefaultRatingForLabel(label);
+    const baseRatings = getDefaultRatingForLabel(label);
 
     for (let i = 0; i < PROSPECTS_PER_LABEL; i++) {
       let name = generatePlayerName(label);
       while (usedNames.has(name)) name = generatePlayerName(label);
       usedNames.add(name);
-      pool.push({ id: id++, label, name, ratings });
+      pool.push({ id: id++, label, name, ratings: randomizeRatings(baseRatings) });
     }
   }
 
