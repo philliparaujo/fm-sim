@@ -1,4 +1,3 @@
-import { buildDefaultRoster } from "../utils/roster";
 import { START_DRIVE } from "../utils/units";
 import {
   generateBall,
@@ -52,15 +51,15 @@ const recreateState = (
   };
 };
 
-/** Every league team, each with its own full roster. Score/timeouts/possession
- * are per-game and get reset whenever a game is loaded. */
+/** Every league team. Rosters start empty and are filled via the draft.
+ * Score/timeouts/possession are per-game and reset whenever a game is loaded. */
 const LEAGUE: Team[] = LEAGUE_TEAMS.map((def) => ({
   color: def.color,
   name: def.name,
   score: 0,
   timeouts: 3,
   possessing: false,
-  roster: buildDefaultRoster(def.color),
+  roster: [],
 }));
 
 // Open on the first matchup in the league

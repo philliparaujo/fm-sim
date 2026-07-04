@@ -8,6 +8,7 @@
 
     <link rel="stylesheet" href="./styles/dashboard.css" />
     <link rel="stylesheet" href="./styles/scoreboard.css" />
+    <link rel="stylesheet" href="./styles/draft.css" />
     <script type="module" src="./src/app.ts"></script>
   </head>
 
@@ -18,133 +19,153 @@
     </header>
 
     <main id="root">
-      <div class="controls-container">
-        <div class="control-row">
-          <div class="slider-group">
-            <label for="sim-speed-slider"
-              >Speed: <span id="speed-label">1×</span></label
-            >
-            <input
-              type="range"
-              id="sim-speed-slider"
-              min="0"
-              max="13"
-              step="1"
-              value="2"
-            />
-          </div>
-        </div>
-
-        <div class="control-row">
-          <div class="slider-group">
-            <label for="team-select-0">Team 1</label>
-            <select id="team-select-0" class="team-select"></select>
-          </div>
-          <div class="slider-group">
-            <label for="team-select-1">Team 2</label>
-            <select id="team-select-1" class="team-select"></select>
-          </div>
-        </div>
-
-        <div class="control-row playbook-row" id="playbook-controls">
-          <div class="slider-group">
-            <label for="pass-slider"
-              >Pass Mix: <span id="pass-label">50%</span></label
-            >
-            <input
-              type="range"
-              id="pass-slider"
-              min="0"
-              max="1"
-              step="0.5"
-              value="0.5"
-            />
-          </div>
-
-          <div class="slider-group">
-            <label for="man-slider"
-              >Man Coverage Mix: <span id="man-label">50%</span></label
-            >
-            <input
-              type="range"
-              id="man-slider"
-              min="0"
-              max="1"
-              step="0.5"
-              value="0.5"
-            />
-          </div>
-
-          <div class="slider-group">
-            <label for="blitz-slider"
-              >Blitz Mix: <span id="blitz-label">50%</span></label
-            >
-            <input
-              type="range"
-              id="blitz-slider"
-              min="0"
-              max="1"
-              step="0.5"
-              value="0.5"
-            />
-          </div>
-        </div>
+      <div class="tab-bar">
+        <button id="tab-draft" class="tab-btn">Draft</button>
+        <button id="tab-play" class="tab-btn">Play</button>
       </div>
 
-      <div
-        id="replay-controls"
-        style="margin: 10px 0; display: flex; gap: 5px; flex-wrap: wrap"
-      >
-        <button id="btn-replay-live" class="replay-btn active-mode">Live</button>
-        <!-- "N Plays Ago" buttons are generated from NUM_REPLAYS in replayControls.ts -->
+      <div id="draft-tab" class="tab-panel">
+        <div class="draft-controls">
+          <label for="draft-team-select">Drafting for:</label>
+          <select id="draft-team-select"></select>
+        </div>
+        <h3 class="draft-heading">Available Players</h3>
+        <div id="draft-pool"></div>
+        <h3 class="draft-heading">Rosters</h3>
+        <div id="draft-rosters"></div>
       </div>
 
-      <div id="scoreboard" class="scoreboard">
-        <!-- Two generic team slots filled by updateScoreboardUI from the game's teams -->
-        <div class="team-container">
-          <div class="team-column">
-            <div id="team-0" class="team-box">
-              <span id="dot-0" class="possession-dot">•</span>
-              <span id="name-0" class="team-name"></span>
-              <span id="score-0" class="score">0</span>
-            </div>
-            <div id="timeouts-0" class="timeouts">
-              <span class="timeout-dash"></span>
-              <span class="timeout-dash"></span>
-              <span class="timeout-dash"></span>
+      <div id="play-tab" class="tab-panel">
+        <div class="controls-container">
+          <div class="control-row">
+            <div class="slider-group">
+              <label for="sim-speed-slider"
+                >Speed: <span id="speed-label">1×</span></label
+              >
+              <input
+                type="range"
+                id="sim-speed-slider"
+                min="0"
+                max="13"
+                step="1"
+                value="2"
+              />
             </div>
           </div>
-          <div class="team-column">
-            <div id="team-1" class="team-box">
-              <span id="dot-1" class="possession-dot">•</span>
-              <span id="name-1" class="team-name"></span>
-              <span id="score-1" class="score">0</span>
+
+          <div class="control-row">
+            <div class="slider-group">
+              <label for="team-select-0">Team 1</label>
+              <select id="team-select-0" class="team-select"></select>
             </div>
-            <div id="timeouts-1" class="timeouts">
-              <span class="timeout-dash"></span>
-              <span class="timeout-dash"></span>
-              <span class="timeout-dash"></span>
+            <div class="slider-group">
+              <label for="team-select-1">Team 2</label>
+              <select id="team-select-1" class="team-select"></select>
+            </div>
+          </div>
+
+          <div class="control-row playbook-row" id="playbook-controls">
+            <div class="slider-group">
+              <label for="pass-slider"
+                >Pass Mix: <span id="pass-label">50%</span></label
+              >
+              <input
+                type="range"
+                id="pass-slider"
+                min="0"
+                max="1"
+                step="0.5"
+                value="0.5"
+              />
+            </div>
+
+            <div class="slider-group">
+              <label for="man-slider"
+                >Man Coverage Mix: <span id="man-label">50%</span></label
+              >
+              <input
+                type="range"
+                id="man-slider"
+                min="0"
+                max="1"
+                step="0.5"
+                value="0.5"
+              />
+            </div>
+
+            <div class="slider-group">
+              <label for="blitz-slider"
+                >Blitz Mix: <span id="blitz-label">50%</span></label
+              >
+              <input
+                type="range"
+                id="blitz-slider"
+                min="0"
+                max="1"
+                step="0.5"
+                value="0.5"
+              />
             </div>
           </div>
         </div>
 
-        <div class="game-info">
-          <div class="scoreboard-item">
-            <span id="quarter" class="scoreboard-value"></span>
-            <span id="game-clock"></span>
+        <div
+          id="replay-controls"
+          style="margin: 10px 0; display: flex; gap: 5px; flex-wrap: wrap"
+        >
+          <button id="btn-replay-live" class="replay-btn active-mode">
+            Live
+          </button>
+          <!-- "N Plays Ago" buttons are generated from NUM_REPLAYS in replayControls.ts -->
+        </div>
+
+        <div id="scoreboard" class="scoreboard">
+          <!-- Two generic team slots filled by updateScoreboardUI from the game's teams -->
+          <div class="team-container">
+            <div class="team-column">
+              <div id="team-0" class="team-box">
+                <span id="dot-0" class="possession-dot">•</span>
+                <span id="name-0" class="team-name"></span>
+                <span id="score-0" class="score">0</span>
+              </div>
+              <div id="timeouts-0" class="timeouts">
+                <span class="timeout-dash"></span>
+                <span class="timeout-dash"></span>
+                <span class="timeout-dash"></span>
+              </div>
+            </div>
+            <div class="team-column">
+              <div id="team-1" class="team-box">
+                <span id="dot-1" class="possession-dot">•</span>
+                <span id="name-1" class="team-name"></span>
+                <span id="score-1" class="score">0</span>
+              </div>
+              <div id="timeouts-1" class="timeouts">
+                <span class="timeout-dash"></span>
+                <span class="timeout-dash"></span>
+                <span class="timeout-dash"></span>
+              </div>
+            </div>
           </div>
-          <div class="scoreboard-item">
-            <span id="down-dist" class="scoreboard-value"></span>
-          </div>
-          <div class="scoreboard-item">
-            <span id="yard-line" class="scoreboard-value"></span>
+
+          <div class="game-info">
+            <div class="scoreboard-item">
+              <span id="quarter" class="scoreboard-value"></span>
+              <span id="game-clock"></span>
+            </div>
+            <div class="scoreboard-item">
+              <span id="down-dist" class="scoreboard-value"></span>
+            </div>
+            <div class="scoreboard-item">
+              <span id="yard-line" class="scoreboard-value"></span>
+            </div>
           </div>
         </div>
+
+        <canvas id="field"></canvas>
+
+        <div id="player-dashboard"></div>
       </div>
-
-      <canvas id="field"></canvas>
-
-      <div id="player-dashboard"></div>
     </main>
   </body>
 </html>

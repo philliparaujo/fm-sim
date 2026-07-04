@@ -74,6 +74,9 @@ function triggerMove(entity: Ball | Player) {
 }
 
 function stepSimulation() {
+  // No game to simulate until both teams have been drafted
+  if (state.players.length === 0) return;
+
   // Handle special teams differently
   if (state.currentPlay.special === "fieldgoal") {
     resetSimulation("fieldgoal");
