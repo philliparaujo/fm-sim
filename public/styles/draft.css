@@ -125,3 +125,19 @@
 .draft-slot-name {
   color: #e5e7eb;
 }
+.draft-starred-name {
+  color: #FFD700;
+  font-weight: bold;
+}
+.draft-star-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  padding: 0 4px;
+  line-height: 1;
+}
+.draft-star-btn.starred {
+  color: #FFD700;
+}

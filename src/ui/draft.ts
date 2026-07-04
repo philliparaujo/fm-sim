@@ -135,6 +135,7 @@ function renderPool() {
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
     headerRow.innerHTML =
+      `<th class="dash-th"></th>` +
       `<th class="dash-th dash-th-label">Name</th>` +
       attrs
         .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
@@ -148,8 +149,24 @@ function renderPool() {
       const row = document.createElement("tr");
       row.className = "dash-row";
 
+      const starCell = document.createElement("td");
+      starCell.className = "dash-td";
+      const starBtn = document.createElement("button");
+      starBtn.className = "draft-star-btn" + (prospect.starred ? " starred" : "");
+      starBtn.textContent = prospect.starred ? "★" : "☆";
+      starBtn.addEventListener("click", () => {
+        prospect.starred = !prospect.starred;
+        starBtn.textContent = prospect.starred ? "★" : "☆";
+        starBtn.classList.toggle("starred", prospect.starred);
+        nameCell.className =
+          "dash-td-label" + (prospect.starred ? " draft-starred-name" : "");
+      });
+      starCell.appendChild(starBtn);
+      row.appendChild(starCell);
+
       const nameCell = document.createElement("td");
-      nameCell.className = "dash-td-label";
+      nameCell.className =
+        "dash-td-label" + (prospect.starred ? " draft-starred-name" : "");
       nameCell.textContent = prospect.name;
       row.appendChild(nameCell);
 
@@ -210,7 +227,10 @@ function renderRosters() {
       const rp = team.roster.find((r) => r.label === label);
       const slot = document.createElement("div");
       slot.className = "draft-roster-slot";
-      slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="draft-slot-name">${rp ? rp.name : "—"}</span>`;
+      const nameClass = rp?.starred
+        ? "draft-slot-name draft-starred-name"
+        : "draft-slot-name";
+      slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${rp ? rp.name : "—"}</span>`;
       card.appendChild(slot);
     }
 

@@ -46,6 +46,7 @@ interface RosterPlayer {
   label: Label;
   name: string;
   ratings: Ratings;
+  starred?: boolean;
 }
 type Roster = RosterPlayer[];
 

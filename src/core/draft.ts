@@ -9,6 +9,7 @@ export type DraftProspect = {
   label: Label;
   name: string;
   ratings: Ratings;
+  starred?: boolean;
 };
 
 // One prospect per team, per label -> the pool exactly fills every roster
@@ -72,6 +73,7 @@ export function draftPlayer(teamColor: string, prospectId: number): boolean {
     label: prospect.label,
     name: prospect.name,
     ratings: prospect.ratings,
+    starred: prospect.starred,
   });
   draftPool.splice(idx, 1);
   return true;

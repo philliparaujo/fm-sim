@@ -10,6 +10,9 @@ const LABEL_CHAR_LENGTH = 2;
 const NAME_COLOR = "rgba(255, 255, 255, 0.85)";
 const NAME_FONT = (playerRadius: number) =>
   `${playerRadius * 0.7}px sans-serif`;
+const STARRED_NAME_COLOR = "#FFD700";
+const STARRED_NAME_FONT = (playerRadius: number) =>
+  `bold ${playerRadius * 0.7}px sans-serif`;
 const NAME_GAP = 3; // px between the circle bottom and the name
 
 // Only these skill/defender roles get an on-field name label
@@ -51,9 +54,9 @@ function drawPlayer(player: Player) {
     );
   }
 
-  if (player.name && NAMED_ROLES.includes(player.role)) {
-    ctx.fillStyle = NAME_COLOR;
-    ctx.font = NAME_FONT(radius);
+  if (player.name && (player.starred || NAMED_ROLES.includes(player.role))) {
+    ctx.fillStyle = player.starred ? STARRED_NAME_COLOR : NAME_COLOR;
+    ctx.font = player.starred ? STARRED_NAME_FONT(radius) : NAME_FONT(radius);
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.fillText(

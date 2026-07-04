@@ -80,6 +80,7 @@ export function fillOutRosterPlayer(
     color: rp.color,
     label: rp.label,
     name: rp.name,
+    starred: rp.starred,
     loc: loc ?? nullVector(),
     role: roleOverride ?? labelToRole(rp.label),
     side: labelToSide(rp.label),

@@ -147,7 +147,10 @@ export function initDashboard() {
         const labelCell = document.createElement("td");
         labelCell.className = "dash-td-label";
         // We'll update the bench tag dynamically later
-        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color}">${rp.label}</span><span class="dash-player-name">${rp.name}</span>`;
+        const nameClass = rp.starred
+          ? "dash-player-name draft-starred-name"
+          : "dash-player-name";
+        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color}">${rp.label}</span><span class="${nameClass}">${rp.name}</span>`;
         row.appendChild(labelCell);
 
         for (const attr of allAttrs) {
