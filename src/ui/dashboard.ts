@@ -3,65 +3,7 @@ import { Attribute, getLetterGrade } from "../core/ratings";
 import { PLAYER_LABELS } from "../core/types";
 import { state } from "../sim";
 import { labelToRole, labelToSide } from "../utils/roster";
-
-// Which attributes are relevant per role
-const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
-  passer: [
-    "SPEED",
-    "THROWPOWER",
-    "POCKETPRESENCE",
-    "DECISIONMAKING",
-    "SHORTACCURACY",
-    "DEEPACCURACY",
-  ],
-  runner: ["SPEED", "SIZE", "VISION", "POWER", "PASSBLOCK"],
-  catcher: [
-    "SPEED",
-    "SIZE",
-    "ROUTERUNNING",
-    "CATCHACCELERATION",
-    "CATCHRADIUS",
-    "RUNBLOCK",
-    "VISION",
-    "POWER",
-  ],
-  blocker: ["SPEED", "SIZE", "PASSBLOCK", "RUNBLOCK"],
-  rusher: ["SPEED", "SIZE", "BLOCKSHEDDING", "BEND", "TACKLING"],
-  coverer: [
-    "SPEED",
-    "SIZE",
-    "PURSUIT",
-    "MANCOVERAGE",
-    "ZONECOVERAGE",
-    "TACKLING",
-    "BLOCKSHEDDING",
-    "CATCHRADIUS",
-  ],
-};
-
-// Human-readable label per attribute key
-const ATTR_LABELS: Partial<Record<Attribute, string>> = {
-  SPEED: "Speed",
-  SIZE: "Size",
-  POCKETPRESENCE: "Pocket Pres.",
-  DECISIONMAKING: "Dec. Making",
-  SHORTACCURACY: "Short Acc.",
-  DEEPACCURACY: "Deep Acc.",
-  THROWPOWER: "Throw Power",
-  VISION: "Vision",
-  POWER: "Power",
-  ROUTERUNNING: "Route Running",
-  CATCHACCELERATION: "Catch Accel.",
-  CATCHRADIUS: "Catch Radius",
-  PASSBLOCK: "Pass Block",
-  RUNBLOCK: "Run Block",
-  BLOCKSHEDDING: "Block Shed",
-  BEND: "Bend",
-  MANCOVERAGE: "Man Cov.",
-  ZONECOVERAGE: "Zone Cov.",
-  PURSUIT: "Pursuit",
-  TACKLING: "Tackling",
-};
+import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
 
 // Ratings cache keyed by team color; entries are created lazily per team
 const PLAYER_RATINGS_CACHE: Record<

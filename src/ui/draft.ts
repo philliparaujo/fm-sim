@@ -1,65 +1,14 @@
 import { draftPlayer, draftPool, hasLabel } from "../core/draft";
-import { Attribute, getLetterGrade } from "../core/ratings";
+import { getLetterGrade } from "../core/ratings";
 import { LEAGUE } from "../core/state";
 import { Label, PLAYER_LABELS } from "../core/types";
 import { labelToRole } from "../utils/roster";
+import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
 
 /** Set to true to auto-draft every team's full roster at startup. */
 export const AUTO_DRAFTED = false;
 
 let selectedTeamColor = "";
-
-const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
-  passer: [
-    "SPEED",
-    "THROWPOWER",
-    "POCKETPRESENCE",
-    "DECISIONMAKING",
-    "SHORTACCURACY",
-    "DEEPACCURACY",
-  ],
-  runner: ["SPEED", "SIZE", "VISION", "POWER", "PASSBLOCK"],
-  catcher: [
-    "SPEED",
-    "SIZE",
-    "ROUTERUNNING",
-    "CATCHACCELERATION",
-    "CATCHRADIUS",
-  ],
-  blocker: ["SPEED", "SIZE", "PASSBLOCK", "RUNBLOCK"],
-  rusher: ["SPEED", "SIZE", "BLOCKSHEDDING", "BEND", "TACKLING"],
-  coverer: [
-    "SPEED",
-    "SIZE",
-    "MANCOVERAGE",
-    "ZONECOVERAGE",
-    "TACKLING",
-    "PURSUIT",
-  ],
-};
-
-const ATTR_LABELS: Partial<Record<Attribute, string>> = {
-  SPEED: "Speed",
-  SIZE: "Size",
-  POCKETPRESENCE: "Pocket Pres.",
-  DECISIONMAKING: "Dec. Making",
-  SHORTACCURACY: "Short Acc.",
-  DEEPACCURACY: "Deep Acc.",
-  THROWPOWER: "Throw Power",
-  VISION: "Vision",
-  POWER: "Power",
-  ROUTERUNNING: "Route Running",
-  CATCHACCELERATION: "Catch Accel.",
-  CATCHRADIUS: "Catch Radius",
-  PASSBLOCK: "Pass Block",
-  RUNBLOCK: "Run Block",
-  BLOCKSHEDDING: "Block Shed",
-  BEND: "Bend",
-  MANCOVERAGE: "Man Cov.",
-  ZONECOVERAGE: "Zone Cov.",
-  PURSUIT: "Pursuit",
-  TACKLING: "Tackling",
-};
 
 /** Builds the draft tab: a team selector, the available-player pool, and every
  * team's roster. Re-renders after each pick. */

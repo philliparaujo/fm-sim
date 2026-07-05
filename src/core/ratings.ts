@@ -95,9 +95,9 @@ const ATTRIBUTE_CONFIG = {
     pressureSensitivity: lerp(r, 1, 1),
   }),
   DECISIONMAKING: (r: number) => ({
-    minThrowStep: lerp(r, 120, 40),
-    minOpennessNeeded: lerp(r, 170, 230),
-    panicOpennessNeeded: lerp(r, 110, 90),
+    minThrowStep: lerp(r, 90, 40),
+    minOpennessNeeded: lerp(r, 190, 230),
+    panicOpennessNeeded: lerp(r, 105, 90),
   }),
   SHORTACCURACY: (r: number) => ({
     shortError: lerp(r, 0.6, 0),
@@ -192,11 +192,11 @@ type Ratings = Record<Attribute, number>;
 const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   SPEED: 0.75,
   SIZE: 0.3,
-  POCKETPRESENCE: 0.5,
-  DECISIONMAKING: 0.64,
-  SHORTACCURACY: 0.5,
-  DEEPACCURACY: 0.5,
-  THROWPOWER: 0.5,
+  POCKETPRESENCE: 0.1,
+  DECISIONMAKING: 0.1,
+  SHORTACCURACY: 0.1,
+  DEEPACCURACY: 0.1,
+  THROWPOWER: 0.1,
   VISION: 0.2,
   POWER: 0.1,
   ROUTERUNNING: 0.5,
@@ -216,7 +216,15 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
 // Setup realistic weights/sizes per position using the 0.0 - 1.0 scale
 const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   // Passers
-  QB: createBaseRatings({ SPEED: 0.75, SIZE: 0.3 }),
+  QB: createBaseRatings({
+    SPEED: 0.75,
+    SIZE: 0.3,
+    POCKETPRESENCE: 0.5,
+    DECISIONMAKING: 0.5,
+    THROWPOWER: 0.5,
+    SHORTACCURACY: 0.5,
+    DEEPACCURACY: 0.5,
+  }),
 
   // Runners/Catchers
   RB: createBaseRatings({
@@ -249,6 +257,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     CATCHACCELERATION: 0.5,
     ROUTERUNNING: 0.4,
     CATCHRADIUS: 0.66,
+    RUNBLOCK: 0.3,
   }),
 
   // Blockers

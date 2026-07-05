@@ -1,0 +1,58 @@
+import { Attribute } from "../core/ratings";
+
+export const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
+  passer: [
+    "SPEED",
+    "THROWPOWER",
+    "POCKETPRESENCE",
+    "DECISIONMAKING",
+    "SHORTACCURACY",
+    "DEEPACCURACY",
+  ],
+  runner: ["SPEED", "SIZE", "VISION", "POWER", "PASSBLOCK"],
+  catcher: [
+    "SPEED",
+    "SIZE",
+    "ROUTERUNNING",
+    "CATCHACCELERATION",
+    "CATCHRADIUS",
+    "RUNBLOCK",
+    "VISION",
+    "POWER",
+  ],
+  blocker: ["SPEED", "SIZE", "PASSBLOCK", "RUNBLOCK"],
+  rusher: ["SPEED", "SIZE", "BLOCKSHEDDING", "BEND", "TACKLING"],
+  coverer: [
+    "SPEED",
+    "SIZE",
+    "PURSUIT",
+    "MANCOVERAGE",
+    "ZONECOVERAGE",
+    "TACKLING",
+    "BLOCKSHEDDING",
+    "CATCHRADIUS",
+  ],
+};
+
+export const ATTR_LABELS: Partial<Record<Attribute, string>> = {
+  SPEED: "Speed",
+  SIZE: "Size",
+  POCKETPRESENCE: "Pocket Pres.",
+  DECISIONMAKING: "Dec. Making",
+  SHORTACCURACY: "Short Acc.",
+  DEEPACCURACY: "Deep Acc.",
+  THROWPOWER: "Throw Power",
+  VISION: "Vision",
+  POWER: "Power",
+  ROUTERUNNING: "Route Running",
+  CATCHACCELERATION: "Catch Accel.",
+  CATCHRADIUS: "Catch Radius",
+  PASSBLOCK: "Pass Block",
+  RUNBLOCK: "Run Block",
+  BLOCKSHEDDING: "Block Shed",
+  BEND: "Bend",
+  MANCOVERAGE: "Man Cov.",
+  ZONECOVERAGE: "Zone Cov.",
+  PURSUIT: "Pursuit",
+  TACKLING: "Tackling",
+};
