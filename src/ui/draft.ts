@@ -152,13 +152,27 @@ function renderPool() {
     const section = document.createElement("div");
     section.className = "draft-pool-section";
 
+    // Collapsed by default when the slot is already filled
+    let collapsed = slotFilled;
+
     const labelEl = document.createElement("div");
-    labelEl.className = "draft-pool-label";
-    labelEl.textContent = label;
+    labelEl.className = "draft-pool-label draft-pool-toggle" + (slotFilled ? " filled" : "");
+    labelEl.innerHTML =
+      `<span class="draft-pool-toggle-arrow">${collapsed ? "▶" : "▼"}</span>` +
+      `<span>${label}</span>` +
+      `<span class="draft-pool-count">${prospects.length} available</span>`;
     section.appendChild(labelEl);
 
     const table = document.createElement("table");
     table.className = "dash-table";
+    if (collapsed) table.style.display = "none";
+
+    labelEl.addEventListener("click", () => {
+      collapsed = !collapsed;
+      table.style.display = collapsed ? "none" : "";
+      (labelEl.querySelector(".draft-pool-toggle-arrow") as HTMLElement).textContent =
+        collapsed ? "▶" : "▼";
+    });
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
