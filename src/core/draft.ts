@@ -12,16 +12,55 @@ export type DraftProspect = {
   starred?: boolean;
 };
 
-// One prospect per team, per label -> the pool exactly fills every roster
-const PROSPECTS_PER_LABEL = 8;
+/** Number of available prospects per position label in the draft pool.
+ *  Set higher than the number of teams (8) to create undrafted competition. */
+export const PROSPECTS_PER_LABEL = 12;
 
-const RATING_SPREAD = 0.2;
+// Gaussian random via Box-Muller — bell curve centered on 0 with std dev 1
+function gaussianRandom(): number {
+  let u = 0,
+    v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// Per-attribute standard deviation (in 0–1 rating space).
+// Physical/body attributes cluster tightly; technique/skill attrs spread wider.
+const ATTR_SPREAD: Partial<Record<keyof Ratings, number>> = {
+  // Body — low variation within a position archetype
+  SIZE: 0.04,
+  SPEED: 0.07,
+  POWER: 0.09,
+  BEND: 0.1,
+  // Mixed physical/technique
+  THROWPOWER: 0.12,
+  CATCHACCELERATION: 0.12,
+  TACKLING: 0.12,
+  VISION: 0.11,
+  PURSUIT: 0.11,
+  // Pure technique — highest variation
+  POCKETPRESENCE: 0.18,
+  DECISIONMAKING: 0.2,
+  SHORTACCURACY: 0.18,
+  DEEPACCURACY: 0.2,
+  ROUTERUNNING: 0.18,
+  CATCHRADIUS: 0.15,
+  PASSBLOCK: 0.17,
+  RUNBLOCK: 0.17,
+  BLOCKSHEDDING: 0.17,
+  MANCOVERAGE: 0.18,
+  ZONECOVERAGE: 0.18,
+};
 
 function randomizeRatings(base: Ratings): Ratings {
   const result = { ...base };
   for (const key of Object.keys(result) as Array<keyof Ratings>) {
-    const delta = (Math.random() * 2 - 1) * RATING_SPREAD;
-    result[key] = Math.max(0, Math.min(1, base[key] + delta));
+    const sigma = ATTR_SPREAD[key] ?? 0.15;
+    result[key] = Math.max(
+      0,
+      Math.min(1, base[key] + gaussianRandom() * sigma),
+    );
   }
   return result;
 }
@@ -41,7 +80,12 @@ function generatePool(): DraftProspect[] {
       let name = generatePlayerName(label);
       while (usedNames.has(name)) name = generatePlayerName(label);
       usedNames.add(name);
-      pool.push({ id: id++, label, name, ratings: randomizeRatings(baseRatings) });
+      pool.push({
+        id: id++,
+        label,
+        name,
+        ratings: randomizeRatings(baseRatings),
+      });
     }
   }
 

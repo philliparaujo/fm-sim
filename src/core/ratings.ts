@@ -357,7 +357,7 @@ function getConstants<K extends Attribute>(
   attribute: K,
   player: Player,
 ): ReturnType<(typeof ATTRIBUTE_CONFIG)[K]> {
-  const rating = player.ratings[attribute];
+  const rating = player.ratings[attribute] ?? 0.5;
   const transformer = ATTRIBUTE_CONFIG[attribute] as (r: number) => any;
   return transformer(rating);
 }

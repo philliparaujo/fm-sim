@@ -1,5 +1,4 @@
 import { generatePlayerName } from "../core/names";
-import { getSavedRatings } from "../core/playbook";
 import { getDefaultRatingForLabel } from "../core/ratings";
 import {
   Coverage,
@@ -88,8 +87,7 @@ export function fillOutRosterPlayer(
     vel: nullVector(),
     prevVel: nullVector(),
 
-    // TEMP: Ratings
-    ratings: getSavedRatings(rp.label),
+    ratings: rp.ratings,
 
     // Specific properties determined on creation
     route: route ?? undefined,
