@@ -1,179 +1,62 @@
-import { PLAYBOOK_CONFIG, saveRating, TEAM_PLAYBOOKS } from "../core/playbook";
-import { Attribute, getLetterGrade } from "../core/ratings";
+import { PLAYBOOK_CONFIG, TEAM_PLAYBOOKS } from "../core/playbook";
+import { scoreProspect } from "../core/draftEval";
 import { PLAYER_LABELS } from "../core/types";
 import { state } from "../sim";
-import { labelToRole, labelToSide } from "../utils/roster";
-import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
-
-// Ratings cache keyed by team color; entries are created lazily per team
-const PLAYER_RATINGS_CACHE: Record<
-  string,
-  Record<string, Record<string, number>>
-> = {};
 
 let dashboardInitialized = false;
 
-/** Builds the per-team ratings editor tables from scratch. */
+/** Renders the two playing teams' draft rosters side-by-side. */
 export function initDashboard() {
   const container = document.getElementById("player-dashboard")!;
   container.innerHTML = "";
-
   if (!state.scoreboard?.teams) return;
 
-  const sortedTeams = [...state.scoreboard.teams].sort((a, b) =>
-    b.name.localeCompare(a.name),
-  );
+  const wrap = document.createElement("div");
+  wrap.className = "play-rosters-wrap";
 
-  for (const team of sortedTeams) {
-    PLAYER_RATINGS_CACHE[team.color] ??= {};
+  for (const team of state.scoreboard.teams) {
+    const card = document.createElement("div");
+    card.className = "draft-roster play-roster";
 
-    const section = document.createElement("div");
-    section.className = "dash-team-section";
+    const avgOvr =
+      team.roster.length > 0
+        ? (
+            (team.roster.reduce((s, rp) => s + scoreProspect(rp), 0) /
+              team.roster.length) *
+            100
+          ).toFixed(1)
+        : "—";
 
     const header = document.createElement("div");
-    header.className = "dash-team-header";
-    header.innerHTML = `<span class="dash-team-name" style="color:${team.color}">${team.name}</span><span class="dash-possession-badge" data-team-badge="${team.color}"></span>`;
-    section.appendChild(header);
+    header.className = "draft-roster-header";
+    header.style.color = team.color;
+    header.innerHTML =
+      `${team.name} · OVR ${avgOvr} ` +
+      `<span class="dash-possession-badge" data-team-badge="${team.color}"></span>`;
+    card.appendChild(header);
 
-    const sortedRoster = [...team.roster].sort(
-      (a, b) => PLAYER_LABELS.indexOf(a.label) - PLAYER_LABELS.indexOf(b.label),
-    );
-
-    const offensePlayers = sortedRoster.filter(
-      (rp) => labelToSide(rp.label) === "offense",
-    );
-    const defensePlayers = sortedRoster.filter(
-      (rp) => labelToSide(rp.label) === "defense",
-    );
-
-    for (const [groupLabel, group] of [
-      ["Offense", offensePlayers],
-      ["Defense", defensePlayers],
-    ] as [string, typeof sortedRoster][]) {
-      if (group.length === 0) continue;
-
-      const allAttrs = [
-        ...new Set(
-          group.flatMap((rp) => ROLE_ATTRIBUTES[labelToRole(rp.label)] ?? []),
-        ),
-      ];
-
-      const tableWrap = document.createElement("div");
-      tableWrap.className = "dash-table-wrap";
-
-      const groupLabel2 = document.createElement("div");
-      groupLabel2.className = "dash-sub-header";
-      groupLabel2.textContent = groupLabel;
-      tableWrap.appendChild(groupLabel2);
-
-      const table = document.createElement("table");
-      table.className = "dash-table";
-
-      const thead = document.createElement("thead");
-      const headerRow = document.createElement("tr");
-      headerRow.innerHTML =
-        `<th class="dash-th dash-th-label">Player</th>` +
-        allAttrs
-          .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
-          .join("");
-      thead.appendChild(headerRow);
-      table.appendChild(thead);
-
-      const tbody = document.createElement("tbody");
-      for (const rp of group) {
-        const role = labelToRole(rp.label);
-        const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
-        const row = document.createElement("tr");
-        row.className = "dash-row";
-
-        const labelCell = document.createElement("td");
-        labelCell.className = "dash-td-label";
-        // We'll update the bench tag dynamically later
-        const nameClass = rp.starred
-          ? "dash-player-name draft-starred-name"
-          : "dash-player-name";
-        labelCell.innerHTML = `<span class="dash-player-label" style="border-left-color:${team.color}">${rp.label}</span><span class="${nameClass}">${rp.name}</span>`;
-        row.appendChild(labelCell);
-
-        for (const attr of allAttrs) {
-          const td = document.createElement("td");
-          td.className = "dash-td";
-
-          if (!playerAttrs.includes(attr)) {
-            td.innerHTML = `<span class="dash-td-empty">—</span>`;
-            row.appendChild(td);
-            continue;
-          }
-
-          // Initialize cache
-          if (!PLAYER_RATINGS_CACHE[team.color][rp.label])
-            PLAYER_RATINGS_CACHE[team.color][rp.label] = {};
-          if (PLAYER_RATINGS_CACHE[team.color][rp.label][attr] === undefined) {
-            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] =
-              rp.ratings[attr] ?? 0.5;
-          }
-
-          // Assign unique data attributes so we can find these elements later without rebuilding
-          const ratingPct = Math.round((rp.ratings[attr] ?? 0.5) * 100);
-          const { grade, color } = getLetterGrade(attr, ratingPct);
-
-          const gradeEl = document.createElement("span");
-          gradeEl.className = "dash-grade-badge";
-          gradeEl.style.color = color;
-          gradeEl.textContent = grade;
-          gradeEl.setAttribute(
-            "data-grade",
-            `${team.color}-${rp.label}-${attr}`,
-          );
-
-          const slider = document.createElement("input");
-          slider.type = "number";
-          slider.min = "0";
-          slider.max = "100";
-          slider.step = "1";
-          slider.value = String(ratingPct);
-          slider.className = "dash-inline-number";
-          slider.setAttribute(
-            "data-slider",
-            `${team.color}-${rp.label}-${attr}`,
-          );
-
-          slider.addEventListener("input", () => {
-            const newRating = Number(slider.value) / 100;
-            PLAYER_RATINGS_CACHE[team.color][rp.label][attr] = newRating;
-            rp.ratings[attr] = newRating;
-            saveRating(rp.label, attr, newRating);
-            const livePlayer = state.players.find(
-              (p) => p.label === rp.label && p.color === team.color,
-            );
-            if (livePlayer) livePlayer.ratings[attr] = newRating;
-            const pct = Math.round(newRating * 100);
-            const { grade: g, color: c } = getLetterGrade(attr, pct);
-
-            // Update grade inline immediately on user input
-            gradeEl.textContent = g;
-            gradeEl.style.color = c;
-          });
-
-          td.appendChild(gradeEl);
-          td.appendChild(slider);
-          row.appendChild(td);
-        }
-        tbody.appendChild(row);
-      }
-
-      table.appendChild(tbody);
-      tableWrap.appendChild(table);
-      section.appendChild(tableWrap);
+    for (const label of PLAYER_LABELS) {
+      const rp = team.roster.find((r) => r.label === label);
+      const slot = document.createElement("div");
+      slot.className = "draft-roster-slot";
+      const nameClass = rp?.starred
+        ? "draft-slot-name draft-starred-name"
+        : "draft-slot-name";
+      const nameText = rp
+        ? `${rp.name} (${(scoreProspect(rp) * 100).toFixed(1)})`
+        : "—";
+      slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${nameText}</span>`;
+      card.appendChild(slot);
     }
 
-    container.appendChild(section);
+    wrap.appendChild(card);
   }
 
+  container.appendChild(wrap);
   dashboardInitialized = true;
 }
 
-/** Syncs dashboard widgets to current game state; called after each play reset. */
+/** Called after each play reset — syncs playbook sliders and possession badges. */
 export function updateDashboardValues() {
   if (!dashboardInitialized) return;
   if (!state.scoreboard?.teams) return;
@@ -181,7 +64,6 @@ export function updateDashboardValues() {
   const offenseTeam = state.scoreboard.teams.find((t) => t.possessing);
   const defenseTeam = state.scoreboard.teams.find((t) => !t.possessing);
 
-  // 1. Update Playbook sliders silently
   if (offenseTeam) {
     PLAYBOOK_CONFIG.passPercent = TEAM_PLAYBOOKS[offenseTeam.color].passPercent;
     const ps = document.getElementById("pass-slider") as HTMLInputElement;
@@ -191,6 +73,7 @@ export function updateDashboardValues() {
       pl.textContent = `${PLAYBOOK_CONFIG.passPercent * 100}%`;
     }
   }
+
   if (defenseTeam) {
     PLAYBOOK_CONFIG.manPercent = TEAM_PLAYBOOKS[defenseTeam.color].manPercent;
     PLAYBOOK_CONFIG.blitzPercent =
@@ -209,55 +92,11 @@ export function updateDashboardValues() {
     }
   }
 
-  // 2. Sync live player ratings from cache
-  if (state.players) {
-    for (const p of state.players) {
-      const cached = PLAYER_RATINGS_CACHE[p.color]?.[p.label];
-      if (cached) {
-        for (const attr of Object.keys(cached)) {
-          p.ratings[attr as Attribute] = cached[attr as Attribute];
-        }
-      }
-    }
-  }
-
-  // 3. Update Possession Badges
   document.querySelectorAll("[data-team-badge]").forEach((el) => {
     const color = el.getAttribute("data-team-badge");
     const isPoss = state.scoreboard.teams.find(
       (t) => t.color === color,
     )?.possessing;
-    el.textContent = isPoss ? "🏈 Offense" : "🛡 Defense";
+    el.textContent = isPoss ? "🏈 Off" : "🛡 Def";
   });
-
-  // 4. Update Grades & Sliders (Only if values changed)
-  for (const team of state.scoreboard.teams) {
-    for (const rp of team.roster) {
-      const role = labelToRole(rp.label);
-      const playerAttrs = ROLE_ATTRIBUTES[role] ?? [];
-      for (const attr of playerAttrs) {
-        const cachedVal = PLAYER_RATINGS_CACHE[team.color]?.[rp.label]?.[attr];
-        if (cachedVal !== undefined) {
-          rp.ratings[attr] = cachedVal;
-          const ratingPct = Math.round(cachedVal * 100);
-
-          // Only perform DOM lookups/updates if the number actually changed
-          const slider = document.querySelector(
-            `[data-slider="${team.color}-${rp.label}-${attr}"]`,
-          ) as HTMLInputElement;
-          if (slider && Number(slider.value) !== ratingPct) {
-            slider.value = String(ratingPct);
-            const { grade, color } = getLetterGrade(attr, ratingPct);
-            const gradeEl = document.querySelector(
-              `[data-grade="${team.color}-${rp.label}-${attr}"]`,
-            );
-            if (gradeEl) {
-              gradeEl.textContent = grade;
-              (gradeEl as HTMLElement).style.color = color;
-            }
-          }
-        }
-      }
-    }
-  }
 }

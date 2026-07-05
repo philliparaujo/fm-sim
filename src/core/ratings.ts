@@ -66,6 +66,13 @@ const GRADE_COLORS: Record<string, string> = {
   F: "#7f1d1d",
 };
 
+/** Returns a 0–1 proximity score: 1 = at the attribute's peak, 0 = furthest possible from it. */
+function getProximity(attr: Attribute, rating: number): number {
+  const threshold = ATTR_GRADE_THRESHOLDS[attr] ?? { peak: 100, spread: 100 };
+  const distFromPeak = Math.abs(rating * 100 - threshold.peak);
+  return Math.max(0, 1 - distFromPeak / threshold.spread);
+}
+
 function getLetterGrade(
   attr: Attribute,
   ratingPercent: number,
@@ -355,5 +362,5 @@ function getConstants<K extends Attribute>(
   return transformer(rating);
 }
 
-export { getConstants, getDefaultRatingForLabel, getLetterGrade };
+export { getConstants, getDefaultRatingForLabel, getLetterGrade, getProximity };
 export type { Attribute, Ratings };

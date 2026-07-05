@@ -1,4 +1,5 @@
 import { draftPlayer, draftPool, hasLabel } from "../core/draft";
+import { bestOverall, scoreProspect } from "../core/draftEval";
 import { getLetterGrade } from "../core/ratings";
 import { LEAGUE } from "../core/state";
 import { Label, PLAYER_LABELS } from "../core/types";
@@ -32,6 +33,37 @@ export function setupDraft() {
     render();
   });
 
+  const delayInput = document.createElement("input");
+  delayInput.type = "number";
+  delayInput.min = "0";
+  delayInput.max = "2000";
+  delayInput.step = "50";
+  delayInput.value = "150";
+  delayInput.className = "dash-inline-number";
+  delayInput.title = "Delay between snake draft picks (ms)";
+
+  const delayLabel = document.createElement("label");
+  delayLabel.textContent = "Pick delay (ms)";
+  delayLabel.style.cssText =
+    "font-size:13px;color:#9ca3af;display:flex;align-items:center;gap:6px;";
+  delayLabel.appendChild(delayInput);
+
+  const snakeBtn = document.createElement("button");
+  snakeBtn.className = "draft-auto-btn";
+  snakeBtn.style.whiteSpace = "nowrap";
+  snakeBtn.textContent = "Snake Draft All";
+  snakeBtn.addEventListener("click", async () => {
+    snakeBtn.disabled = true;
+    snakeBtn.textContent = "Drafting…";
+    await snakeDraftAll(Number(delayInput.value));
+    snakeBtn.disabled = false;
+    snakeBtn.textContent = "Snake Draft All";
+  });
+
+  const controls = document.querySelector(".draft-controls");
+  controls?.appendChild(delayLabel);
+  controls?.appendChild(snakeBtn);
+
   if (AUTO_DRAFTED) {
     for (const team of LEAGUE) autoDraftTeam(team.color);
   }
@@ -42,6 +74,29 @@ export function setupDraft() {
 function render() {
   renderPool();
   renderRosters();
+}
+
+/**
+ * Runs a full snake draft using bestOverall (margin-based) picks until the pool
+ * is exhausted. Order alternates each round: T1→T8, T8→T1, T1→T8, …
+ */
+async function snakeDraftAll(delayMs: number) {
+  let forward = true;
+  while (draftPool.length > 0) {
+    const order = forward ? [...LEAGUE] : [...LEAGUE].reverse();
+    let anyPick = false;
+    for (const team of order) {
+      const pick = bestOverall(team, draftPool);
+      if (pick) {
+        draftPlayer(team.color, pick.prospect.id);
+        anyPick = true;
+        render();
+        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    if (!anyPick) break;
+    forward = !forward;
+  }
 }
 
 /** Fills all open label slots for a team with random available prospects. */
@@ -85,6 +140,7 @@ function renderPool() {
     const headerRow = document.createElement("tr");
     headerRow.innerHTML =
       `<th class="dash-th"></th>` +
+      `<th class="dash-th">OVR</th>` +
       `<th class="dash-th dash-th-label">Name</th>` +
       attrs
         .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
@@ -101,7 +157,8 @@ function renderPool() {
       const starCell = document.createElement("td");
       starCell.className = "dash-td";
       const starBtn = document.createElement("button");
-      starBtn.className = "draft-star-btn" + (prospect.starred ? " starred" : "");
+      starBtn.className =
+        "draft-star-btn" + (prospect.starred ? " starred" : "");
       starBtn.textContent = prospect.starred ? "★" : "☆";
       starBtn.addEventListener("click", () => {
         prospect.starred = !prospect.starred;
@@ -112,6 +169,11 @@ function renderPool() {
       });
       starCell.appendChild(starBtn);
       row.appendChild(starCell);
+
+      const scoreCell = document.createElement("td");
+      scoreCell.className = "dash-td draft-ovr";
+      scoreCell.textContent = (scoreProspect(prospect) * 100).toFixed(1);
+      row.appendChild(scoreCell);
 
       const nameCell = document.createElement("td");
       nameCell.className =
@@ -157,20 +219,39 @@ function renderRosters() {
     const card = document.createElement("div");
     card.className = "draft-roster";
 
+    const avgOvr =
+      team.roster.length > 0
+        ? (
+            (team.roster.reduce((sum, rp) => sum + scoreProspect(rp), 0) /
+              team.roster.length) *
+            100
+          ).toFixed(1)
+        : "—";
+
     const header = document.createElement("div");
     header.className = "draft-roster-header";
-    header.textContent = `${team.name} (${team.roster.length}/${PLAYER_LABELS.length})`;
+    header.textContent = `${team.name} (${team.roster.length}/${PLAYER_LABELS.length}) · OVR ${avgOvr}`;
     header.style.color = team.color;
     card.appendChild(header);
 
     const autoBtn = document.createElement("button");
     autoBtn.className = "draft-auto-btn";
-    autoBtn.textContent = "Auto Draft";
+    autoBtn.textContent = "Randomly select all";
     autoBtn.addEventListener("click", () => {
       autoDraftTeam(team.color);
       render();
     });
     card.appendChild(autoBtn);
+
+    const bestBtn = document.createElement("button");
+    bestBtn.className = "draft-auto-btn";
+    bestBtn.textContent = "Best single pick";
+    bestBtn.addEventListener("click", () => {
+      const pick = bestOverall(team, draftPool);
+      if (pick) draftPlayer(team.color, pick.prospect.id);
+      render();
+    });
+    card.appendChild(bestBtn);
 
     for (const label of PLAYER_LABELS) {
       const rp = team.roster.find((r) => r.label === label);
@@ -179,7 +260,10 @@ function renderRosters() {
       const nameClass = rp?.starred
         ? "draft-slot-name draft-starred-name"
         : "draft-slot-name";
-      slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${rp ? rp.name : "—"}</span>`;
+      const nameText = rp
+        ? `${rp.name} (${(scoreProspect(rp) * 100).toFixed(1)})`
+        : "—";
+      slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${nameText}</span>`;
       card.appendChild(slot);
     }
 

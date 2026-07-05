@@ -59,6 +59,12 @@
   color: #555;
   margin-left: 2px;
 }
+.draft-ovr {
+  font-weight: bold;
+  color: #e5e7eb;
+  font-size: 13px;
+  min-width: 44px;
+}
 .draft-prospect-btn {
   padding: 3px 10px;
   background: #1f2937;
@@ -87,7 +93,7 @@
   border: 1px solid #333;
   border-radius: 6px;
   padding: 10px;
-  min-width: 160px;
+  min-width: 200px;
 }
 .draft-roster-header {
   font-weight: bold;
@@ -126,7 +132,7 @@
   color: #e5e7eb;
 }
 .draft-starred-name {
-  color: #FFD700;
+  color: #ffd700;
   font-weight: bold;
 }
 .draft-star-btn {
@@ -139,5 +145,5 @@
   line-height: 1;
 }
 .draft-star-btn.starred {
-  color: #FFD700;
+  color: #ffd700;
 }
