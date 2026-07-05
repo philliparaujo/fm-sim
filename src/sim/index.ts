@@ -155,6 +155,7 @@ function stepSimulation() {
 
 const QUARTERS = ["1st", "2nd", "3rd", "4th"] as const;
 let gameOver = false;
+let simulatingMode = false;
 
 let lastTime = 0;
 let timeAccumulator = 0;
@@ -393,8 +394,10 @@ function resetSimulation(reason: PlayEndReason) {
 
   timeAccumulator = 0;
 
-  updateScoreboardUI(state.scoreboard);
-  onPlayResetCallback?.();
+  if (!simulatingMode) {
+    updateScoreboardUI(state.scoreboard);
+    onPlayResetCallback?.();
+  }
 }
 
 // Color of the team that opened the game on offense; the other team receives
@@ -418,8 +421,10 @@ function startGame(offense: Team, defense: Team) {
   timeAccumulator = 0;
 
   assignCoverageTargets();
-  updateScoreboardUI(state.scoreboard);
-  onPlayResetCallback?.();
+  if (!simulatingMode) {
+    updateScoreboardUI(state.scoreboard);
+    onPlayResetCallback?.();
+  }
 }
 
 /** Restarts the current matchup from scratch, keeping rosters/ratings and the
@@ -445,4 +450,40 @@ function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
 }
 
-export { loadGame, onPlayReset, resetGame, resetSimulation, state, tick };
+/**
+ * Runs a complete game headlessly (no rendering, no UI updates) and returns
+ * the final scores. Restores a playable state for the original teams afterward.
+ */
+function simulateFullGame(
+  offenseColor: string,
+  defenseColor: string,
+): { offenseScore: number; defenseScore: number } {
+  const restoredOffenseColor = openingOffenseColor;
+  const restoredTeams = state.scoreboard.teams;
+
+  simulatingMode = true;
+  loadGame(offenseColor, defenseColor);
+
+  const MAX_TICKS = 500_000;
+  let ticks = 0;
+  while (!gameOver && ticks < MAX_TICKS) {
+    stepSimulation();
+    ticks++;
+  }
+
+  const teams = state.scoreboard.teams;
+  const offenseScore = teams.find((t) => t.color === offenseColor)?.score ?? 0;
+  const defenseScore = teams.find((t) => t.color === defenseColor)?.score ?? 0;
+
+  // Restore the live game for the play tab (keep simulatingMode true so the
+  // restore loadGame doesn't trigger any UI updates)
+  if (typeof document !== "undefined" && restoredTeams.length === 2) {
+    loadGame(restoredTeams[0].color, restoredTeams[1].color);
+    openingOffenseColor = restoredOffenseColor;
+  }
+  simulatingMode = false;
+
+  return { offenseScore, defenseScore };
+}
+
+export { loadGame, onPlayReset, resetGame, resetSimulation, simulateFullGame, state, tick };

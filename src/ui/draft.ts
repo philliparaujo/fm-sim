@@ -38,7 +38,7 @@ export function setupDraft() {
   delayInput.min = "0";
   delayInput.max = "2000";
   delayInput.step = "50";
-  delayInput.value = "150";
+  delayInput.value = "10";
   delayInput.className = "dash-inline-number";
   delayInput.title = "Delay between snake draft picks (ms)";
 
@@ -233,6 +233,27 @@ function renderRosters() {
     header.textContent = `${team.name} (${team.roster.length}/${PLAYER_LABELS.length}) · OVR ${avgOvr}`;
     header.style.color = team.color;
     card.appendChild(header);
+
+    if (team.roster.length > 0) {
+      const roleMap = new Map<string, number[]>();
+      for (const rp of team.roster) {
+        const role = labelToRole(rp.label);
+        if (!roleMap.has(role)) roleMap.set(role, []);
+        roleMap.get(role)!.push(scoreProspect(rp) * 100);
+      }
+      const roleOrder = ["passer", "runner", "catcher", "blocker", "rusher", "coverer"];
+      const breakdown = document.createElement("div");
+      breakdown.className = "draft-role-breakdown";
+      breakdown.innerHTML = roleOrder
+        .filter((r) => roleMap.has(r))
+        .map((r) => {
+          const scores = roleMap.get(r)!;
+          const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+          return `<span class="draft-role-chip">${r}: ${avg}</span>`;
+        })
+        .join("");
+      card.appendChild(breakdown);
+    }
 
     const autoBtn = document.createElement("button");
     autoBtn.className = "draft-auto-btn";

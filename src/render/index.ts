@@ -28,9 +28,13 @@ const BALL_IN_AIR_TARGET_ON = true;
 const ALL_PREDICTED_ROUTE_ON = BALL_IN_AIR_PREDICTED_ROUTE_ON && false;
 const ALL_PREDICTED_TARGET_ON = BALL_IN_AIR_TARGET_ON && false;
 
-const scoreboard = document.getElementById("scoreboard") as HTMLDivElement;
-scoreboard.style.width = `${TOTAL_W}px`;
-scoreboard.style.visibility = "visible";
+if (typeof document !== "undefined") {
+  const scoreboard = document.getElementById("scoreboard") as HTMLDivElement;
+  if (scoreboard) {
+    scoreboard.style.width = `${TOTAL_W}px`;
+    scoreboard.style.visibility = "visible";
+  }
+}
 
 /** Renders the current frame's full play and scoreboard */
 function render(state: State) {

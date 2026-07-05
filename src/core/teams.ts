@@ -6,7 +6,7 @@ export type TeamDef = { color: string; name: string };
  * color/name distinguish them. Add/remove entries here to resize the league. */
 export const LEAGUE_TEAMS: TeamDef[] = [
   { color: "#BB0000", name: "RED" },
-  { color: "#1111FF", name: "BLU" },
+  { color: "#4444FF", name: "BLU" },
   { color: "#DD6600", name: "ORG" },
   { color: "#B59410", name: "GLD" },
   { color: "#006600", name: "GRN" },
