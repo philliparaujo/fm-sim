@@ -8,6 +8,7 @@ import {
 import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Team } from "../core/types";
+import { roleBreakdown } from "./rosterCard";
 
 function workerGame(
   offenseTeam: Team,
@@ -39,33 +40,38 @@ export function setupSimulate() {
     "sim-clear-btn",
   ) as HTMLButtonElement;
 
+  const seasonsInput = document.getElementById("sim-seasons-input") as HTMLInputElement;
+
   seasonBtn?.addEventListener("click", async () => {
     if (seasonRunning) return;
     if (!allDrafted()) {
       alert("Draft all teams before simulating.");
       return;
     }
+    const totalSeasons = Math.max(1, Math.min(1000, Number(seasonsInput?.value) || 1));
     seasonRunning = true;
     seasonBtn.disabled = true;
-    seasonBtn.textContent = "Simulating…";
 
     const pairs: [Team, Team][] = [];
     for (let i = 0; i < LEAGUE.length; i++)
       for (let j = i + 1; j < LEAGUE.length; j++)
         pairs.push([LEAGUE[i], LEAGUE[j]]);
 
-    const results = await Promise.all(
-      pairs.map(([a, b]) =>
-        workerGame(a, b).then(({ offenseScore, defenseScore }) => ({
-          aColor: a.color,
-          bColor: b.color,
-          offenseScore,
-          defenseScore,
-        })),
-      ),
-    );
-    for (const { aColor, bColor, offenseScore, defenseScore } of results)
-      recordResult(aColor, bColor, offenseScore, defenseScore);
+    for (let s = 0; s < totalSeasons; s++) {
+      seasonBtn.textContent = totalSeasons > 1 ? `Simulating… (${s + 1}/${totalSeasons})` : "Simulating…";
+      const results = await Promise.all(
+        pairs.map(([a, b]) =>
+          workerGame(a, b).then(({ offenseScore, defenseScore }) => ({
+            aColor: a.color,
+            bColor: b.color,
+            offenseScore,
+            defenseScore,
+          })),
+        ),
+      );
+      for (const { aColor, bColor, offenseScore, defenseScore } of results)
+        recordResult(aColor, bColor, offenseScore, defenseScore);
+    }
 
     render();
     seasonRunning = false;
@@ -247,9 +253,41 @@ function renderRankings() {
     const pts = getPts(rec);
     const tr = document.createElement("tr");
     tr.className = "sim-rank-row";
-    tr.innerHTML =
-      `<td class="sim-rank-td sim-rank-td-num">${i + 1}</td>` +
-      `<td class="sim-rank-td sim-rank-td-team" style="color:${team.color}">${team.name}${teamOvrStr(team)}</td>` +
+
+    const numTd = document.createElement("td");
+    numTd.className = "sim-rank-td sim-rank-td-num";
+    numTd.textContent = String(i + 1);
+    tr.appendChild(numTd);
+
+    const teamTd = document.createElement("td");
+    teamTd.className = "sim-rank-td sim-rank-td-team";
+    teamTd.style.color = team.color;
+    const nameRow = document.createElement("div");
+    nameRow.textContent = team.name;
+    if (team.roster.length > 0) {
+      const avg = (team.roster.reduce((s, rp) => s + scoreProspect(rp), 0) / team.roster.length * 100).toFixed(1);
+      const ovrSpan = document.createElement("span");
+      ovrSpan.className = "sim-rank-ovr";
+      ovrSpan.textContent = avg;
+      nameRow.appendChild(ovrSpan);
+    }
+    teamTd.appendChild(nameRow);
+    const roles = roleBreakdown(team.roster);
+    if (roles.size > 0) {
+      const breakdown = document.createElement("div");
+      breakdown.className = "sim-rank-breakdown";
+      for (const [role, avg] of roles) {
+        const chip = document.createElement("span");
+        chip.className = "sim-rank-role-chip";
+        chip.innerHTML = `<span class="sim-rank-role-name">${role}</span><span class="sim-rank-role-val">${avg.toFixed(1)}</span>`;
+        breakdown.appendChild(chip);
+      }
+      teamTd.appendChild(breakdown);
+    }
+    tr.appendChild(teamTd);
+
+    const rest = document.createElement("template");
+    rest.innerHTML =
       `<td class="sim-rank-td">${rec.wins}</td>` +
       `<td class="sim-rank-td">${rec.losses}</td>` +
       `<td class="sim-rank-td">${rec.ties}</td>` +
@@ -257,6 +295,7 @@ function renderRankings() {
       `<td class="sim-rank-td">${pag}</td>` +
       `<td class="sim-rank-td">${diffStr}</td>` +
       `<td class="sim-rank-td sim-rank-pts">${pts}</td>`;
+    tr.appendChild(rest.content);
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
@@ -264,8 +303,3 @@ function renderRankings() {
   container.appendChild(wrap);
 }
 
-function teamOvrStr(team: Team): string {
-  if (team.roster.length === 0) return "";
-  const avg = (team.roster.reduce((s, rp) => s + scoreProspect(rp), 0) / team.roster.length * 100).toFixed(1);
-  return ` <span style="font-size:11px;font-weight:normal;opacity:0.75">${avg}</span>`;
-}

@@ -5,11 +5,22 @@ import { LEAGUE } from "../core/state";
 import { Label, PLAYER_LABELS } from "../core/types";
 import { labelToRole } from "../utils/roster";
 import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
+import { buildRosterCard } from "./rosterCard";
 
 /** Set to true to auto-draft every team's full roster at startup. */
 export const AUTO_DRAFTED = false;
 
 let selectedTeamColor = "";
+let snakePickResolve: (() => void) | null = null;
+
+/** Called by any draft action while a snake draft is waiting for the human's pick. */
+function resolveSnakePick() {
+  if (snakePickResolve) {
+    const cb = snakePickResolve;
+    snakePickResolve = null;
+    cb();
+  }
+}
 
 /** Builds the draft tab: a team selector, the available-player pool, and every
  * team's roster. Re-renders after each pick. */
@@ -19,6 +30,11 @@ export function setupDraft() {
   ) as HTMLSelectElement;
   if (!teamSelect) return;
 
+  const noneOpt = document.createElement("option");
+  noneOpt.value = "";
+  noneOpt.textContent = "NONE";
+  teamSelect.appendChild(noneOpt);
+
   for (const team of LEAGUE) {
     const opt = document.createElement("option");
     opt.value = team.color;
@@ -26,7 +42,7 @@ export function setupDraft() {
     teamSelect.appendChild(opt);
   }
 
-  selectedTeamColor = LEAGUE[0].color;
+  selectedTeamColor = "";
   teamSelect.value = selectedTeamColor;
   teamSelect.addEventListener("change", () => {
     selectedTeamColor = teamSelect.value;
@@ -86,10 +102,15 @@ async function snakeDraftAll(delayMs: number) {
     const order = forward ? [...LEAGUE] : [...LEAGUE].reverse();
     let anyPick = false;
     for (const team of order) {
-      const pick = bestOverall(team, draftPool);
-      if (pick) {
-        draftPlayer(team.color, pick.prospect.id);
-        anyPick = true;
+      if (!PLAYER_LABELS.some((l) => !hasLabel(team, l) && draftPool.some((p) => p.label === l))) continue;
+      anyPick = true;
+      if (selectedTeamColor && team.color === selectedTeamColor) {
+        // Human's turn — highlight and wait for them to make a pick
+        render();
+        await new Promise<void>((resolve) => { snakePickResolve = resolve; });
+      } else {
+        const pick = bestOverall(team, draftPool);
+        if (pick) draftPlayer(team.color, pick.prospect.id);
         render();
         if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
       }
@@ -97,6 +118,7 @@ async function snakeDraftAll(delayMs: number) {
     if (!anyPick) break;
     forward = !forward;
   }
+  snakePickResolve = null;
 }
 
 /** Fills all open label slots for a team with random available prospects. */
@@ -116,13 +138,15 @@ function renderPool() {
   const container = document.getElementById("draft-pool")!;
   container.innerHTML = "";
 
-  const team = LEAGUE.find((t) => t.color === selectedTeamColor)!;
+  const team = LEAGUE.find((t) => t.color === selectedTeamColor) ?? null;
 
   for (const label of PLAYER_LABELS) {
-    const prospects = draftPool.filter((p) => p.label === label);
+    const prospects = draftPool
+      .filter((p) => p.label === label)
+      .sort((a, b) => scoreProspect(b) - scoreProspect(a));
     if (prospects.length === 0) continue;
 
-    const slotFilled = hasLabel(team, label);
+    const slotFilled = team ? hasLabel(team, label) : false;
     const attrs = ROLE_ATTRIBUTES[labelToRole(label as Label)] ?? [];
 
     const section = document.createElement("div");
@@ -195,9 +219,12 @@ function renderPool() {
       const btn = document.createElement("button");
       btn.className = "draft-prospect-btn";
       btn.textContent = "Draft";
-      btn.disabled = slotFilled;
+      btn.disabled = slotFilled || !selectedTeamColor;
       btn.addEventListener("click", () => {
-        if (draftPlayer(selectedTeamColor, prospect.id)) render();
+        if (draftPlayer(selectedTeamColor, prospect.id)) {
+          render();
+          resolveSnakePick();
+        }
       });
       actionCell.appendChild(btn);
       row.appendChild(actionCell);
@@ -216,53 +243,10 @@ function renderRosters() {
   container.innerHTML = "";
 
   for (const team of LEAGUE) {
-    const card = document.createElement("div");
-    card.className = "draft-roster";
-
-    const avgOvr =
-      team.roster.length > 0
-        ? (
-            (team.roster.reduce((sum, rp) => sum + scoreProspect(rp), 0) /
-              team.roster.length) *
-            100
-          ).toFixed(1)
-        : "—";
-
-    const header = document.createElement("div");
-    header.className = "draft-roster-header";
-    header.textContent = `${team.name} (${team.roster.length}/${PLAYER_LABELS.length}) · OVR ${avgOvr}`;
-    header.style.color = team.color;
-    card.appendChild(header);
-
-    if (team.roster.length > 0) {
-      const roleMap = new Map<string, number[]>();
-      for (const rp of team.roster) {
-        const role = labelToRole(rp.label);
-        if (!roleMap.has(role)) roleMap.set(role, []);
-        roleMap.get(role)!.push(scoreProspect(rp) * 100);
-      }
-      const roleOrder = ["passer", "runner", "catcher", "blocker", "rusher", "coverer"];
-      const breakdown = document.createElement("div");
-      breakdown.className = "draft-role-breakdown";
-      breakdown.innerHTML = roleOrder
-        .filter((r) => roleMap.has(r))
-        .map((r) => {
-          const scores = roleMap.get(r)!;
-          const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
-          return `<span class="draft-role-chip">${r}: ${avg}</span>`;
-        })
-        .join("");
-      card.appendChild(breakdown);
-    }
-
     const autoBtn = document.createElement("button");
     autoBtn.className = "draft-auto-btn";
     autoBtn.textContent = "Randomly select all";
-    autoBtn.addEventListener("click", () => {
-      autoDraftTeam(team.color);
-      render();
-    });
-    card.appendChild(autoBtn);
+    autoBtn.addEventListener("click", () => { autoDraftTeam(team.color); render(); });
 
     const bestBtn = document.createElement("button");
     bestBtn.className = "draft-auto-btn";
@@ -272,22 +256,8 @@ function renderRosters() {
       if (pick) draftPlayer(team.color, pick.prospect.id);
       render();
     });
-    card.appendChild(bestBtn);
 
-    for (const label of PLAYER_LABELS) {
-      const rp = team.roster.find((r) => r.label === label);
-      const slot = document.createElement("div");
-      slot.className = "draft-roster-slot";
-      const nameClass = rp?.starred
-        ? "draft-slot-name draft-starred-name"
-        : "draft-slot-name";
-      const nameText = rp
-        ? `${rp.name} (${(scoreProspect(rp) * 100).toFixed(1)})`
-        : "—";
-      slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${nameText}</span>`;
-      card.appendChild(slot);
-    }
-
+    const card = buildRosterCard(team, { actionButtons: [autoBtn, bestBtn] });
     container.appendChild(card);
   }
 }

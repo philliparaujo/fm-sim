@@ -29,6 +29,14 @@
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
+.sim-seasons-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #9ca3af;
+}
 .sim-clear-btn {
   background: #1a1a2e;
   color: #f87171;
@@ -100,19 +108,39 @@
 }
 
 /* Standings table */
-.draft-role-breakdown {
+/* Shared roster card role breakdown */
+.roster-card-breakdown {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   margin: 4px 0 6px;
+  min-height: 22px;
 }
-.draft-role-chip {
+.roster-card-role-chip {
+  display: inline-flex;
+  gap: 3px;
   font-size: 11px;
-  color: #9ca3af;
   background: #1f2937;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 2px 5px;
   white-space: nowrap;
+}
+.roster-card-role-name {
+  color: #6b7280;
+}
+.roster-card-role-ovr {
+  color: #e5e7eb;
+  font-weight: bold;
+}
+.roster-card-count {
+  font-size: 12px;
+  font-weight: normal;
+  opacity: 0.6;
+}
+.roster-card-ovr {
+  font-size: 13px;
+  font-weight: normal;
+  opacity: 0.8;
 }
 
 .sim-rankings-wrap {
@@ -170,6 +198,34 @@
 .sim-rank-pts {
   font-weight: bold;
   color: #f3f4f6;
+}
+.sim-rank-ovr {
+  font-size: 11px;
+  font-weight: normal;
+  opacity: 0.65;
+  margin-left: 5px;
+}
+.sim-rank-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+.sim-rank-role-chip {
+  display: inline-flex;
+  gap: 3px;
+  font-size: 10px;
+  background: #1f2937;
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+.sim-rank-role-name {
+  color: #6b7280;
+}
+.sim-rank-role-val {
+  color: #d1d5db;
+  font-weight: bold;
 }
 
 /* --- Draft tab --- */
@@ -244,7 +300,8 @@
   border: 1px solid #333;
   border-radius: 6px;
   padding: 10px;
-  min-width: 200px;
+  width: 220px;
+  flex-shrink: 0;
 }
 .draft-roster-header {
   font-weight: bold;
