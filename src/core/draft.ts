@@ -14,7 +14,7 @@ export type DraftProspect = {
 
 /** Number of available prospects per position label in the draft pool.
  *  Set higher than the number of teams (8) to create undrafted competition. */
-export const PROSPECTS_PER_LABEL = 12;
+export const PROSPECTS_PER_LABEL = 8;
 
 // Gaussian random via Box-Muller — bell curve centered on 0 with std dev 1
 function gaussianRandom(): number {
@@ -30,16 +30,16 @@ function gaussianRandom(): number {
 const ATTR_SPREAD: Partial<Record<keyof Ratings, number>> = {
   // Body — low variation within a position archetype
   SIZE: 0.04,
-  SPEED: 0.07,
-  POWER: 0.09,
-  BEND: 0.1,
+  SPEED: 0.09,
   // Mixed physical/technique
-  THROWPOWER: 0.12,
-  CATCHACCELERATION: 0.12,
-  TACKLING: 0.12,
-  VISION: 0.11,
+  THROWPOWER: 0.13,
+  CATCHACCELERATION: 0.11,
+  TACKLING: 0.11,
   PURSUIT: 0.11,
+  POWER: 0.16,
+  BEND: 0.15,
   // Pure technique — highest variation
+  VISION: 0.2,
   POCKETPRESENCE: 0.18,
   DECISIONMAKING: 0.2,
   SHORTACCURACY: 0.18,

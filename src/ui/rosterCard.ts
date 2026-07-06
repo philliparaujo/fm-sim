@@ -1,6 +1,7 @@
 import { scoreProspect } from "../core/draftEval";
 import { PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
+import { playerOvrDisplay, roleOvrDisplay, teamOvrDisplay } from "./displayMode";
 
 const ROLE_ORDER = ["passer", "runner", "catcher", "blocker", "rusher", "coverer"] as const;
 
@@ -40,17 +41,12 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   card.className = "draft-roster";
 
   // ── Header ──
-  const avgOvr =
-    team.roster.length > 0
-      ? ((team.roster.reduce((s, rp) => s + scoreProspect(rp), 0) / team.roster.length) * 100).toFixed(1)
-      : "—";
-
   const header = document.createElement("div");
   header.className = "draft-roster-header";
   header.style.color = team.color;
   header.innerHTML =
     `${team.name} <span class="roster-card-count">(${team.roster.length}/${PLAYER_LABELS.length})</span>` +
-    ` · <span class="roster-card-ovr">OVR ${avgOvr}</span>` +
+    ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}</span>` +
     (options.headerSuffix ?? "");
   card.appendChild(header);
 
@@ -60,7 +56,7 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   const roles = roleBreakdown(team.roster);
   if (roles.size > 0) {
     breakdown.innerHTML = ROLE_ORDER.filter((r) => roles.has(r))
-      .map((r) => `<span class="roster-card-role-chip"><span class="roster-card-role-name">${r}</span><span class="roster-card-role-ovr">${roles.get(r)!.toFixed(1)}</span></span>`)
+      .map((r) => `<span class="roster-card-role-chip"><span class="roster-card-role-name">${r}</span><span class="roster-card-role-ovr">${roleOvrDisplay(team, r)}</span></span>`)
       .join("");
   }
   card.appendChild(breakdown);
@@ -76,7 +72,7 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
     const slot = document.createElement("div");
     slot.className = "draft-roster-slot";
     const nameClass = rp?.starred ? "draft-slot-name draft-starred-name" : "draft-slot-name";
-    const nameText = rp ? `${rp.name} (${(scoreProspect(rp) * 100).toFixed(1)})` : "—";
+    const nameText = rp ? `${rp.name} (${playerOvrDisplay(rp)})` : "—";
     slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${nameText}</span>`;
     card.appendChild(slot);
   }

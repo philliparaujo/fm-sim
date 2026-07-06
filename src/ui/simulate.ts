@@ -5,9 +5,9 @@ import {
   getTeamRecord,
   recordResult,
 } from "../core/leagueResults";
-import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Team } from "../core/types";
+import { roleOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { roleBreakdown } from "./rosterCard";
 
 function workerGame(
@@ -265,10 +265,9 @@ function renderRankings() {
     const nameRow = document.createElement("div");
     nameRow.textContent = team.name;
     if (team.roster.length > 0) {
-      const avg = (team.roster.reduce((s, rp) => s + scoreProspect(rp), 0) / team.roster.length * 100).toFixed(1);
       const ovrSpan = document.createElement("span");
       ovrSpan.className = "sim-rank-ovr";
-      ovrSpan.textContent = avg;
+      ovrSpan.innerHTML = teamOvrDisplay(team);
       nameRow.appendChild(ovrSpan);
     }
     teamTd.appendChild(nameRow);
@@ -276,10 +275,10 @@ function renderRankings() {
     if (roles.size > 0) {
       const breakdown = document.createElement("div");
       breakdown.className = "sim-rank-breakdown";
-      for (const [role, avg] of roles) {
+      for (const [role] of roles) {
         const chip = document.createElement("span");
         chip.className = "sim-rank-role-chip";
-        chip.innerHTML = `<span class="sim-rank-role-name">${role}</span><span class="sim-rank-role-val">${avg.toFixed(1)}</span>`;
+        chip.innerHTML = `<span class="sim-rank-role-name">${role}</span><span class="sim-rank-role-val">${roleOvrDisplay(team, role)}</span>`;
         breakdown.appendChild(chip);
       }
       teamTd.appendChild(breakdown);

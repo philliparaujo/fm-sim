@@ -353,6 +353,30 @@
   background: #22c55e;
   color: #000;
 }
+/* Rankings medal styling */
+.rank-medal {
+  font-weight: bold;
+}
+.rank-gold {
+  color: #fbbf24;
+}
+.rank-silver {
+  color: #9195cb;
+}
+.rank-bronze {
+  color: #cd7c3a;
+}
+
+.draft-rank-toggle {
+  background: #1a1a2e;
+  color: #60a5fa;
+  border-color: #3b82f6;
+}
+.draft-rank-toggle:hover,
+.draft-rank-toggle.active {
+  background: #3b82f6;
+  color: #fff;
+}
 .draft-roster-slot {
   display: flex;
   gap: 6px;

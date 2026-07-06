@@ -5,6 +5,7 @@ import { LEAGUE } from "../core/state";
 import { Label, PLAYER_LABELS } from "../core/types";
 import { labelToRole } from "../utils/roster";
 import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
+import { playerOvrDisplay, rankingsMode, setRankingsMode } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
 
 /** Set to true to auto-draft every team's full roster at startup. */
@@ -76,9 +77,20 @@ export function setupDraft() {
     snakeBtn.textContent = "Snake Draft All";
   });
 
+  const rankBtn = document.createElement("button");
+  rankBtn.className = "draft-auto-btn draft-rank-toggle";
+  rankBtn.textContent = "Show Rankings";
+  rankBtn.addEventListener("click", () => {
+    setRankingsMode(!rankingsMode);
+    rankBtn.textContent = rankingsMode ? "Show Ratings" : "Show Rankings";
+    rankBtn.classList.toggle("active", rankingsMode);
+    render();
+  });
+
   const controls = document.querySelector(".draft-controls");
   controls?.appendChild(delayLabel);
   controls?.appendChild(snakeBtn);
+  controls?.appendChild(rankBtn);
 
   if (AUTO_DRAFTED) {
     for (const team of LEAGUE) autoDraftTeam(team.color);
@@ -210,7 +222,7 @@ function renderPool() {
 
       const scoreCell = document.createElement("td");
       scoreCell.className = "dash-td draft-ovr";
-      scoreCell.textContent = (scoreProspect(prospect) * 100).toFixed(1);
+      scoreCell.innerHTML = playerOvrDisplay(prospect);
       row.appendChild(scoreCell);
 
       const nameCell = document.createElement("td");
