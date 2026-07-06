@@ -7,7 +7,7 @@ import {
 } from "../core/leagueResults";
 import { LEAGUE } from "../core/state";
 import { Team } from "../core/types";
-import { roleOvrDisplay, teamOvrDisplay } from "./displayMode";
+import { roleOvrDisplay, sideOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { roleBreakdown } from "./rosterCard";
 
 function workerGame(
@@ -269,6 +269,14 @@ function renderRankings() {
       ovrSpan.className = "sim-rank-ovr";
       ovrSpan.innerHTML = teamOvrDisplay(team);
       nameRow.appendChild(ovrSpan);
+      const offSpan = document.createElement("span");
+      offSpan.className = "sim-rank-side-inline";
+      offSpan.innerHTML = `<span class="sim-rank-role-name">OFF</span> <span class="sim-rank-role-val">${sideOvrDisplay(team, "offense")}</span>`;
+      nameRow.appendChild(offSpan);
+      const defSpan = document.createElement("span");
+      defSpan.className = "sim-rank-side-inline";
+      defSpan.innerHTML = `<span class="sim-rank-role-name">DEF</span> <span class="sim-rank-role-val">${sideOvrDisplay(team, "defense")}</span>`;
+      nameRow.appendChild(defSpan);
     }
     teamTd.appendChild(nameRow);
     const roles = roleBreakdown(team.roster);
@@ -299,6 +307,18 @@ function renderRankings() {
   });
   table.appendChild(tbody);
   wrap.appendChild(table);
+
+  // League-wide PPG summary
+  const totalPF = ranked.reduce((s, { rec }) => s + rec.pointsFor, 0);
+  const totalTeamGames = ranked.reduce((s, { rec }) => s + rec.wins + rec.losses + rec.ties, 0);
+  if (totalTeamGames > 0) {
+    const leaguePPG = totalPF / totalTeamGames;
+    const summary = document.createElement("div");
+    summary.className = "sim-league-ppg";
+    summary.textContent = `League avg: ${leaguePPG.toFixed(1)} PPG`;
+    wrap.appendChild(summary);
+  }
+
   container.appendChild(wrap);
 }
 

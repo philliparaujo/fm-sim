@@ -1,7 +1,7 @@
 import { scoreProspect } from "../core/draftEval";
 import { PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
-import { playerOvrDisplay, roleOvrDisplay, teamOvrDisplay } from "./displayMode";
+import { playerOvrDisplay, roleOvrDisplay, sideOvrDisplay, teamOvrDisplay } from "./displayMode";
 
 const ROLE_ORDER = ["passer", "runner", "catcher", "blocker", "rusher", "coverer"] as const;
 
@@ -49,6 +49,16 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
     ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}</span>` +
     (options.headerSuffix ?? "");
   card.appendChild(header);
+
+  // ── Side (OFF/DEF) row ──
+  if (team.roster.length > 0) {
+    const sideRow = document.createElement("div");
+    sideRow.className = "roster-card-side-row";
+    sideRow.innerHTML =
+      `<span class="roster-card-side-chip"><span class="roster-card-role-name">OFF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "offense")}</span></span>` +
+      `<span class="roster-card-side-chip"><span class="roster-card-role-name">DEF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "defense")}</span></span>`;
+    card.appendChild(sideRow);
+  }
 
   // ── Role breakdown ──
   const breakdown = document.createElement("div");

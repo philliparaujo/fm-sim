@@ -2,7 +2,7 @@ import { draftPool } from "../core/draft";
 import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Label, RosterPlayer, Team } from "../core/types";
-import { labelToRole } from "../utils/roster";
+import { labelToRole, labelToSide } from "../utils/roster";
 
 export let rankingsMode = false;
 export function setRankingsMode(v: boolean) { rankingsMode = v; }
@@ -64,5 +64,21 @@ export function roleOvrDisplay(team: Team, role: string): string {
   if (avg === null) return "—";
   if (!rankingsMode) return avg.toFixed(1);
   const allAvgs = LEAGUE.map((t) => teamRoleAvg(t, role)).filter((a): a is number => a !== null);
+  return formatRank(rankIn(avg, allAvgs));
+}
+
+/** Computes offense or defense avg OVR (0–100) for a team, or null if none drafted. */
+function teamSideAvg(team: Team, side: "offense" | "defense"): number | null {
+  const players = team.roster.filter((rp) => labelToSide(rp.label) === side);
+  if (players.length === 0) return null;
+  return (players.reduce((s, rp) => s + scoreProspect(rp), 0) / players.length) * 100;
+}
+
+/** "58.3" in rating mode; "#2" in rankings mode, for the team's offense or defense group. */
+export function sideOvrDisplay(team: Team, side: "offense" | "defense"): string {
+  const avg = teamSideAvg(team, side);
+  if (avg === null) return "—";
+  if (!rankingsMode) return avg.toFixed(1);
+  const allAvgs = LEAGUE.map((t) => teamSideAvg(t, side)).filter((a): a is number => a !== null);
   return formatRank(rankIn(avg, allAvgs));
 }

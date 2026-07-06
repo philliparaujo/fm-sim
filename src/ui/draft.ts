@@ -167,11 +167,13 @@ function renderPool() {
     // Collapsed by default when the slot is already filled
     let collapsed = slotFilled;
 
+    const avgOvr = (prospects.reduce((s, p) => s + scoreProspect(p), 0) / prospects.length * 100).toFixed(1);
     const labelEl = document.createElement("div");
     labelEl.className = "draft-pool-label draft-pool-toggle" + (slotFilled ? " filled" : "");
     labelEl.innerHTML =
       `<span class="draft-pool-toggle-arrow">${collapsed ? "▶" : "▼"}</span>` +
       `<span>${label}</span>` +
+      `<span class="draft-pool-avg">avg ${avgOvr}</span>` +
       `<span class="draft-pool-count">${prospects.length} available</span>`;
     section.appendChild(labelEl);
 
