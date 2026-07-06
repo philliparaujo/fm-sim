@@ -35,7 +35,7 @@
   gap: 4px;
   font-size: 14px;
   font-weight: bold;
-  color: #9ca3af;
+  color: #374151;
 }
 .sim-clear-btn {
   background: #1a1a2e;
@@ -262,8 +262,7 @@
 
 /* --- Draft tab --- */
 #draft-tab {
-  padding: 16px;
-  color: #e5e7eb;
+  color: #111827;
   font-family: "Arial", sans-serif;
 }
 
@@ -288,7 +287,7 @@
 .draft-pool-label {
   font-weight: bold;
   font-size: 13px;
-  color: #9ca3af;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 4px;
@@ -306,7 +305,7 @@
   background: #1f2937;
 }
 .draft-pool-toggle.filled {
-  color: #4b5563;
+  color: #9ca3af;
 }
 .draft-pool-toggle-arrow {
   font-size: 10px;

@@ -187,6 +187,7 @@
   padding: 5px 10px;
   text-align: center;
   vertical-align: middle;
+  color: #e5e7eb;
 }
 
 .dash-td-label {
@@ -196,6 +197,7 @@
   left: 0;
   background: inherit;
   z-index: 1;
+  color: #e5e7eb;
 }
 
 .dash-td-empty {
