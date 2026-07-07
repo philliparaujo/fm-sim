@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./styles/dashboard.css" />
     <link rel="stylesheet" href="./styles/scoreboard.css" />
     <link rel="stylesheet" href="./styles/draft.css" />
+    <link rel="stylesheet" href="./styles/schedule.css" />
     <script type="module" src="./src/app.ts"></script>
   </head>
 
@@ -23,6 +24,7 @@
         <button id="tab-draft" class="tab-btn">Draft</button>
         <button id="tab-play" class="tab-btn">Play</button>
         <button id="tab-simulate" class="tab-btn">Simulate</button>
+        <button id="tab-schedule" class="tab-btn">Season</button>
       </div>
 
       <div id="draft-tab" class="tab-panel">
@@ -34,6 +36,10 @@
         <div id="draft-rosters"></div>
         <h3 class="draft-heading">Available Players</h3>
         <div id="draft-pool"></div>
+      </div>
+
+      <div id="schedule-tab" class="tab-panel">
+        <div id="schedule-root"></div>
       </div>
 
       <div id="simulate-tab" class="tab-panel">

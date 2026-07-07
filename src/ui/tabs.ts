@@ -2,6 +2,7 @@ const TABS = [
   { btn: "tab-play", panel: "play-tab" },
   { btn: "tab-draft", panel: "draft-tab", start: true },
   { btn: "tab-simulate", panel: "simulate-tab" },
+  { btn: "tab-schedule", panel: "schedule-tab" },
 ];
 
 /** Wires the Play/Draft tab bar to show one panel at a time. */

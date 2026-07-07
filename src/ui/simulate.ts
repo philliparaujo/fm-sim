@@ -7,25 +7,9 @@ import {
 } from "../core/leagueResults";
 import { LEAGUE } from "../core/state";
 import { Team } from "../core/types";
+import { workerGame } from "../sim/runGame";
 import { roleOvrDisplay, sideOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { roleBreakdown } from "./rosterCard";
-
-function workerGame(
-  offenseTeam: Team,
-  defenseTeam: Team,
-): Promise<{ offenseScore: number; defenseScore: number }> {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("../sim/simWorker.ts", import.meta.url), {
-      type: "module",
-    });
-    worker.onmessage = (e) => {
-      resolve(e.data);
-      worker.terminate();
-    };
-    worker.onerror = reject;
-    worker.postMessage({ offenseTeam, defenseTeam });
-  });
-}
 
 let seasonRunning = false;
 

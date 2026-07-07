@@ -1,0 +1,466 @@
+/* --- Season / Schedule tab --- */
+#schedule-tab {
+  color: #111827;
+  font-family: "Arial", sans-serif;
+}
+
+#schedule-root {
+  padding: 4px;
+}
+
+.sched-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.sched-warn {
+  font-size: 13px;
+  color: #b45309;
+  font-weight: bold;
+}
+.sched-empty {
+  color: #6b7280;
+  font-size: 14px;
+  padding: 8px 2px;
+}
+
+.sched-section {
+  margin-bottom: 24px;
+}
+.sched-heading {
+  margin: 0 0 10px;
+  font-size: 18px;
+  color: #111827;
+  border-bottom: 2px solid #d1d5db;
+  padding-bottom: 4px;
+}
+.sched-heading-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.sched-heading-toggle:hover {
+  color: #2563eb;
+}
+
+/* ── Champion banner ── */
+.sched-champion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(90deg, #1f2937, #374151, #1f2937);
+  color: #fbbf24;
+  font-size: 20px;
+  font-weight: bold;
+  padding: 14px;
+  border-radius: 8px;
+  border: 2px solid #fbbf24;
+  margin-bottom: 20px;
+}
+.sched-trophy {
+  font-size: 24px;
+}
+
+/* ── Week navigation ── */
+.sched-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sched-nav-btn {
+  background: #1f2937;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sched-nav-btn:hover:not(:disabled) {
+  background: #374151;
+}
+.sched-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.sched-week-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sched-week-name {
+  font-size: 22px;
+  font-weight: bold;
+  color: #111827;
+}
+.sched-week-current {
+  background: #22c55e;
+  color: #04140a;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.06em;
+}
+
+/* ── Game cards ── */
+.sched-games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sched-game {
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 10px 12px;
+  width: 240px;
+  flex-shrink: 0;
+}
+.sched-game.played {
+  background: #10161f;
+}
+.sched-game-playoff {
+  border-color: #fbbf24;
+}
+.sched-game-tag {
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.sched-game-tag-div {
+  color: #f59e0b;
+}
+.sched-game-rec {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: normal;
+}
+.sched-game-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.sched-game-team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 15px;
+  opacity: 0.75;
+}
+.sched-game-team.winner {
+  opacity: 1;
+  font-weight: bold;
+}
+.sched-game-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: bold;
+}
+.sched-game-ovr {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: normal;
+}
+.sched-game-score {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f3f4f6;
+  min-width: 24px;
+  text-align: right;
+}
+.sched-game-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  border-top: 1px solid #262626;
+  padding-top: 8px;
+}
+.sched-play-btn {
+  flex: 1;
+  background: #1e3a2f;
+  color: #4ade80;
+  border: 1px solid #22c55e;
+  border-radius: 4px;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.sched-play-btn:hover:not(:disabled) {
+  background: #22c55e;
+  color: #000;
+}
+.sched-play-btn:disabled,
+.sched-watch-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.sched-watch-btn {
+  background: #1a2436;
+  color: #60a5fa;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sched-watch-btn:hover:not(:disabled) {
+  background: #3b82f6;
+  color: #fff;
+}
+.sched-game-final {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: #6b7280;
+  letter-spacing: 0.08em;
+}
+
+/* seed badge */
+.sched-seed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fbbf24;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* ── Standings ── */
+.sched-standings-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.sched-division {
+  flex: 1;
+  min-width: 340px;
+  background: #111827;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sched-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sched-th {
+  background: #1f2937;
+  color: #d1d5db;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 6px;
+  text-align: center;
+  border-bottom: 2px solid #374151;
+}
+.sched-th-team {
+  text-align: left;
+  padding-left: 12px;
+  min-width: 120px;
+}
+.sched-row {
+  border-bottom: 1px solid #1f2937;
+}
+.sched-row:nth-child(even) {
+  background: #161d2b;
+}
+.sched-row-playoff {
+  background: #17251b !important;
+}
+.sched-row-leader {
+  background: #1a2233 !important;
+}
+.sched-td {
+  padding: 7px 6px;
+  text-align: center;
+  font-size: 13px;
+  color: #e5e7eb;
+}
+.sched-td-team {
+  text-align: left;
+  padding-left: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sched-td-ovr {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: normal;
+  margin-left: 2px;
+}
+.sched-leader-dot {
+  color: #60a5fa;
+  font-size: 10px;
+}
+
+.sched-league-ppg {
+  margin-top: 12px;
+  padding: 8px 16px;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: bold;
+  color: #e5e7eb;
+  background: #1f2937;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  letter-spacing: 0.04em;
+}
+
+/* ── Playoff bracket ── */
+.sched-seedlist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sched-seed-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-weight: bold;
+  font-size: 14px;
+}
+.sched-seed-rec {
+  color: #9ca3af;
+  font-weight: normal;
+  font-size: 12px;
+}
+.sched-bracket {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.sched-bracket-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sched-bracket-label {
+  font-size: 13px;
+  font-weight: bold;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── League leaders ── */
+.sched-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sched-leader {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 150px;
+  flex: 1;
+}
+.sched-leader-title {
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.sched-leader-team {
+  font-size: 18px;
+  font-weight: bold;
+}
+.sched-leader-val {
+  font-size: 14px;
+  color: #e5e7eb;
+  margin-top: 2px;
+}
+.sched-stats-note {
+  color: #9ca3af;
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 10px;
+}
+
+/* ── Stats & awards placeholders ── */
+.sched-placeholder-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sched-placeholder {
+  flex: 1;
+  min-width: 200px;
+  background: repeating-linear-gradient(
+    45deg,
+    #111827,
+    #111827 10px,
+    #141d2e 10px,
+    #141d2e 20px
+  );
+  border: 1px dashed #374151;
+  border-radius: 8px;
+  padding: 18px 16px;
+  text-align: center;
+}
+.sched-placeholder-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.sched-placeholder-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #e5e7eb;
+}
+.sched-placeholder-blurb {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 4px 0 10px;
+}
+.sched-placeholder-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+
+/* ── Rosters ── */
+.sched-roster-div {
+  font-size: 14px;
+  font-weight: bold;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 12px 0 8px;
+}
+.sched-roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

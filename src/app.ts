@@ -2,6 +2,7 @@ import { assignCoverageTargets } from "./sim/assignments";
 import { onPlayReset, tick } from "./sim";
 import { initDashboard, updateDashboardValues } from "./ui/dashboard";
 import { setupDraft } from "./ui/draft";
+import { setupSchedule } from "./ui/schedule";
 import { setupSimulate } from "./ui/simulate";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
 import { setupReplayControls } from "./ui/replayControls";
@@ -25,6 +26,7 @@ async function init() {
   setupTabs();
   setupDraft();
   setupSimulate();
+  setupSchedule();
 
   assignCoverageTargets();
   requestAnimationFrame(tick);
