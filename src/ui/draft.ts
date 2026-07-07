@@ -1,8 +1,8 @@
-import { draftPlayer, draftPool, hasLabel } from "../core/draft";
+import { draftPlayer, draftPool, getRecentPicks, hasLabel } from "../core/draft";
 import { bestOverall, scoreProspect } from "../core/draftEval";
 import { getLetterGrade } from "../core/ratings";
 import { LEAGUE } from "../core/state";
-import { Label, PLAYER_LABELS } from "../core/types";
+import { Label, PLAYER_LABELS, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
 import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
 import { playerOvrDisplay, rankingsMode, setRankingsMode } from "./displayMode";
@@ -13,6 +13,11 @@ export const AUTO_DRAFTED = false;
 
 let selectedTeamColor = "";
 let snakePickResolve: (() => void) | null = null;
+
+/** The team color currently focused in the "Drafting for" dropdown ("" = NONE). */
+export function getSelectedTeamColor(): string {
+  return selectedTeamColor;
+}
 
 /** Called by any draft action while a snake draft is waiting for the human's pick. */
 function resolveSnakePick() {
@@ -104,33 +109,107 @@ function render() {
   renderRosters();
 }
 
+/** True if a team still has an open slot it can fill from the remaining pool. */
+function teamNeedsPick(team: Team): boolean {
+  return PLAYER_LABELS.some(
+    (l) => !hasLabel(team, l) && draftPool.some((p) => p.label === l),
+  );
+}
+
 /**
  * Runs a full snake draft using bestOverall (margin-based) picks until the pool
  * is exhausted. Order alternates each round: T1→T8, T8→T1, T1→T8, …
  */
 async function snakeDraftAll(delayMs: number) {
-  let forward = true;
-  while (draftPool.length > 0) {
-    const order = forward ? [...LEAGUE] : [...LEAGUE].reverse();
-    let anyPick = false;
-    for (const team of order) {
-      if (!PLAYER_LABELS.some((l) => !hasLabel(team, l) && draftPool.some((p) => p.label === l))) continue;
-      anyPick = true;
-      if (selectedTeamColor && team.color === selectedTeamColor) {
-        // Human's turn — highlight and wait for them to make a pick
-        render();
-        await new Promise<void>((resolve) => { snakePickResolve = resolve; });
-      } else {
-        const pick = bestOverall(team, draftPool);
-        if (pick) draftPlayer(team.color, pick.prospect.id);
-        render();
-        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+  showSnakeBar();
+  try {
+    let forward = true;
+    while (draftPool.length > 0) {
+      const order = forward ? [...LEAGUE] : [...LEAGUE].reverse();
+      let anyPick = false;
+      for (let i = 0; i < order.length; i++) {
+        const team = order[i];
+        if (!teamNeedsPick(team)) continue;
+        anyPick = true;
+        const upcoming = order.slice(i + 1).filter(teamNeedsPick);
+        const isHuman = !!selectedTeamColor && team.color === selectedTeamColor;
+        updateSnakeBar(team, upcoming, isHuman);
+        if (isHuman) {
+          // Human's turn — highlight and wait for them to make a pick
+          render();
+          await new Promise<void>((resolve) => { snakePickResolve = resolve; });
+        } else {
+          const pick = bestOverall(team, draftPool);
+          if (pick) draftPlayer(team.color, pick.prospect.id);
+          render();
+          if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+        }
       }
+      if (!anyPick) break;
+      forward = !forward;
     }
-    if (!anyPick) break;
-    forward = !forward;
+  } finally {
+    snakePickResolve = null;
+    hideSnakeBar();
   }
-  snakePickResolve = null;
+}
+
+// ── Frozen snake-draft status bar ───────────────────────────────────────────
+
+let snakeBar: HTMLDivElement | null = null;
+
+function showSnakeBar() {
+  if (!snakeBar) {
+    snakeBar = document.createElement("div");
+    snakeBar.className = "snake-bar";
+    document.body.appendChild(snakeBar);
+  }
+  snakeBar.style.display = "flex";
+  document.body.classList.add("snake-bar-active");
+}
+
+function hideSnakeBar() {
+  if (snakeBar) snakeBar.style.display = "none";
+  document.body.classList.remove("snake-bar-active");
+}
+
+function updateSnakeBar(current: Team, upcoming: Team[], isHuman: boolean) {
+  if (!snakeBar) return;
+
+  const onClock =
+    `<div class="snake-bar-onclock${isHuman ? " snake-bar-you" : ""}">` +
+    `<span class="snake-bar-tag">${isHuman ? "YOUR PICK" : "ON THE CLOCK"}</span>` +
+    `<span class="snake-bar-team" style="color:${current.color}">${current.name}</span>` +
+    `<span class="snake-bar-slots">${current.roster.length}/${PLAYER_LABELS.length}</span>` +
+    `</div>`;
+
+  const next = upcoming.slice(0, 3);
+  const nextUp = next.length
+    ? `<div class="snake-bar-next"><span class="snake-bar-label">Next</span>` +
+      next
+        .map((t) => `<span class="snake-bar-chip" style="color:${t.color}">${t.name}</span>`)
+        .join("") +
+      `</div>`
+    : "";
+
+  const picks = getRecentPicks(5);
+  const recent = picks.length
+    ? `<div class="snake-bar-recent"><span class="snake-bar-label">Last picks</span>` +
+      picks
+        .map((p) => {
+          const team = LEAGUE.find((t) => t.color === p.color);
+          return (
+            `<span class="snake-bar-pick">` +
+            `<span class="snake-bar-pick-label">${p.label}</span> ` +
+            `<span style="color:${team?.color ?? "#fff"}">${p.name}</span>` +
+            `</span>`
+          );
+        })
+        .join("") +
+      `</div>`
+    : "";
+
+  snakeBar.innerHTML = onClock + nextUp + recent;
 }
 
 /** Fills all open label slots for a team with random available prospects. */

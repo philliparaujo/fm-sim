@@ -26,6 +26,7 @@ import { LEAGUE } from "../core/state";
 import { loadGame } from "../sim";
 import { workerGame } from "../sim/runGame";
 import { teamOvrDisplay } from "./displayMode";
+import { getSelectedTeamColor } from "./draft";
 import { initDashboard, updateDashboardValues } from "./dashboard";
 import { buildRosterCard } from "./rosterCard";
 
@@ -276,18 +277,22 @@ function renderGameCard(game: Game): HTMLElement {
   const card = document.createElement("div");
   card.className = "sched-game" + (game.played ? " played" : "");
   if (game.round !== "regular") card.classList.add("sched-game-playoff");
+  const focus = getSelectedTeamColor();
+  if (focus && (game.homeColor === focus || game.awayColor === focus))
+    card.classList.add("sched-game-focus");
 
   const isTie = game.played && game.homeScore === game.awayScore;
   const homeWon = game.played && !isTie && game.homeScore > game.awayScore;
   const awayWon = game.played && !isTie && game.awayScore > game.homeScore;
 
-  // Matchup tag: division rivalry vs. cross-division (regular season only).
-  if (game.round === "regular") {
-    const isDivision =
-      divisionIndexOf(game.homeColor) === divisionIndexOf(game.awayColor);
+  // Matchup tag: only division rivalries are called out (regular season only).
+  const isDivision =
+    game.round === "regular" &&
+    divisionIndexOf(game.homeColor) === divisionIndexOf(game.awayColor);
+  if (isDivision) {
     const tag = document.createElement("div");
-    tag.className = "sched-game-tag" + (isDivision ? " sched-game-tag-div" : "");
-    tag.textContent = isDivision ? "DIVISION" : "CROSS-DIVISION";
+    tag.className = "sched-game-tag sched-game-tag-div";
+    tag.textContent = "DIVISION";
     card.appendChild(tag);
   }
 
@@ -402,6 +407,7 @@ function renderDivisionTable(div: Division, divIndex: number): HTMLElement {
     tr.className = "sched-row";
     if (seed) tr.classList.add("sched-row-playoff");
     else if (isLeader && !seeds) tr.classList.add("sched-row-leader");
+    if (rec.color === getSelectedTeamColor()) tr.classList.add("sched-row-focus");
 
     const marker = seed
       ? `<span class="sched-seed">${seed}</span>`

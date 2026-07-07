@@ -77,10 +77,16 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   }
 
   // ── Player slots ──
+  // The team's most recent pick (highest pickOrder) gets a subtle highlight.
+  const lastPick = team.roster.reduce<RosterPlayer | null>(
+    (best, rp) => ((rp.pickOrder ?? 0) > (best?.pickOrder ?? -1) ? rp : best),
+    null,
+  );
   for (const label of PLAYER_LABELS) {
     const rp = team.roster.find((r) => r.label === label);
     const slot = document.createElement("div");
     slot.className = "draft-roster-slot";
+    if (rp && rp === lastPick) slot.classList.add("draft-slot-recent");
     const nameClass = rp?.starred ? "draft-slot-name draft-starred-name" : "draft-slot-name";
     const nameText = rp ? `${rp.name} (${playerOvrDisplay(rp)})` : "—";
     slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${nameText}</span>`;

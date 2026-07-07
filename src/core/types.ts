@@ -47,6 +47,8 @@ interface RosterPlayer {
   name: string;
   ratings: Ratings;
   starred?: boolean;
+  /** Monotonic draft order across the whole league; higher = picked later. */
+  pickOrder?: number;
 }
 type Roster = RosterPlayer[];
 

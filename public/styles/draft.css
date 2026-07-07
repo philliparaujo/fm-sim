@@ -434,6 +434,96 @@
   color: #ffd700;
   font-weight: bold;
 }
+.draft-slot-recent {
+  background: #23303f;
+  border-radius: 3px;
+  font-style: italic;
+}
+.draft-slot-recent .draft-slot-name {
+  font-weight: bold;
+}
+
+/* --- Frozen snake-draft status bar --- */
+.snake-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: #0b1220;
+  border-bottom: 2px solid #22c55e;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  padding: 8px 16px;
+  color: #e5e7eb;
+  font-size: 13px;
+}
+/* Push the page down so the fixed bar doesn't cover content. */
+body.snake-bar-active {
+  padding-top: 52px;
+}
+.snake-bar-onclock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.snake-bar-tag {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  color: #9ca3af;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.snake-bar-you .snake-bar-tag {
+  color: #04140a;
+  background: #22c55e;
+  border-color: #22c55e;
+  animation: snake-pulse 1s ease-in-out infinite;
+}
+@keyframes snake-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.snake-bar-team {
+  font-size: 18px;
+  font-weight: bold;
+}
+.snake-bar-slots {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.snake-bar-next,
+.snake-bar-recent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.snake-bar-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+.snake-bar-chip {
+  font-weight: bold;
+}
+.snake-bar-recent {
+  margin-left: auto;
+}
+.snake-bar-pick {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.snake-bar-pick-label {
+  color: #6b7280;
+  font-weight: bold;
+  font-size: 10px;
+}
 .draft-star-btn {
   background: none;
   border: none;

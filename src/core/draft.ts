@@ -95,9 +95,28 @@ function generatePool(): DraftProspect[] {
 /** The remaining undrafted players. Shrinks as picks are made. */
 export const draftPool: DraftProspect[] = generatePool();
 
+/** Monotonic counter stamped onto each pick so draft order can be recovered. */
+let pickCounter = 0;
+
 /** True if the team already rostered a player at this label. */
 export function hasLabel(team: Team, label: Label): boolean {
   return team.roster.some((rp) => rp.label === label);
+}
+
+/** The most recent `n` picks across the whole league, newest first. */
+export function getRecentPicks(
+  n: number,
+): { color: string; name: string; label: Label }[] {
+  return LEAGUE.flatMap((t) =>
+    t.roster.map((rp) => ({
+      color: t.color,
+      name: rp.name,
+      label: rp.label,
+      pickOrder: rp.pickOrder ?? 0,
+    })),
+  )
+    .sort((a, b) => b.pickOrder - a.pickOrder)
+    .slice(0, n);
 }
 
 /**
@@ -118,6 +137,7 @@ export function draftPlayer(teamColor: string, prospectId: number): boolean {
     name: prospect.name,
     ratings: prospect.ratings,
     starred: prospect.starred,
+    pickOrder: ++pickCounter,
   });
   draftPool.splice(idx, 1);
   return true;
