@@ -119,7 +119,7 @@
   border: 1px solid #333;
   border-radius: 8px;
   padding: 10px 12px;
-  width: 240px;
+  width: 300px;
   flex-shrink: 0;
 }
 .sched-game.played {
@@ -223,12 +223,67 @@
   color: #fff;
 }
 .sched-game-final {
-  flex: 1;
   text-align: center;
   font-size: 12px;
   font-weight: bold;
   color: #6b7280;
   letter-spacing: 0.08em;
+}
+.sched-box-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 8px;
+}
+.sched-box-btn:hover {
+  background: #1f2937;
+  color: #e5e7eb;
+}
+
+/* ── Box score ── */
+.sched-box {
+  margin-top: 8px;
+  border-top: 1px solid #262626;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sched-box-team-name {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+.sched-box-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sched-box-tag {
+  flex-shrink: 0;
+  width: 30px;
+  color: #6b7280;
+  font-weight: bold;
+  font-size: 9px;
+}
+.sched-box-name {
+  color: #e5e7eb;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.sched-box-detail {
+  color: #9ca3af;
+}
+.sched-box-empty {
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
 }
 
 /* seed badge */
@@ -413,51 +468,105 @@
   margin-top: 10px;
 }
 
-/* ── Stats & awards placeholders ── */
-.sched-placeholder-grid {
+/* ── Player stats (tabbed tables) ── */
+.sched-stat-tabs {
   display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
-  gap: 12px;
 }
-.sched-placeholder {
-  flex: 1;
-  min-width: 200px;
-  background: repeating-linear-gradient(
-    45deg,
-    #111827,
-    #111827 10px,
-    #141d2e 10px,
-    #141d2e 20px
-  );
-  border: 1px dashed #374151;
-  border-radius: 8px;
-  padding: 18px 16px;
-  text-align: center;
-}
-.sched-placeholder-icon {
-  font-size: 28px;
-  margin-bottom: 6px;
-}
-.sched-placeholder-title {
-  font-size: 15px;
+.sched-stat-tab {
+  background: #1f2937;
+  color: #9ca3af;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
   font-weight: bold;
+  cursor: pointer;
+}
+.sched-stat-tab:hover {
+  background: #273449;
   color: #e5e7eb;
 }
-.sched-placeholder-blurb {
-  font-size: 12px;
-  color: #9ca3af;
-  margin: 4px 0 10px;
+.sched-stat-tab.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
 }
-.sched-placeholder-tag {
-  display: inline-block;
-  font-size: 10px;
+.sched-stat-table-wrap {
+  overflow-x: auto;
+  background: #111827;
+  border-radius: 8px;
+}
+.sched-stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+.sched-stat-th {
+  background: #1f2937;
+  color: #d1d5db;
+  font-size: 11px;
   font-weight: bold;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6b7280;
-  border: 1px solid #374151;
-  border-radius: 10px;
-  padding: 2px 10px;
+  letter-spacing: 0.05em;
+  padding: 8px 10px;
+  text-align: right;
+  border-bottom: 2px solid #374151;
+}
+.sched-stat-th-rank {
+  text-align: center;
+  width: 32px;
+}
+.sched-stat-th-player {
+  text-align: left;
+  min-width: 120px;
+}
+.sched-stat-th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sched-stat-th-sortable:hover {
+  background: #273449;
+  color: #fff;
+}
+.sched-stat-th.active {
+  color: #60a5fa;
+}
+.sched-stat-arrow {
+  font-size: 9px;
+}
+/* Divider between the meta columns (player/team/pos/ovr) and the stats. */
+.sched-stat-divider {
+  border-left: 2px solid #374151;
+}
+.sched-stat-row {
+  border-bottom: 1px solid #1f2937;
+}
+.sched-stat-row:nth-child(even) {
+  background: #161d2b;
+}
+.sched-stat-row:hover {
+  background: #1e2d40;
+}
+.sched-stat-row-focus {
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+.sched-stat-td {
+  padding: 6px 10px;
+  text-align: right;
+  font-size: 13px;
+  color: #e5e7eb;
+}
+.sched-stat-td-rank {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+}
+.sched-stat-td-player {
+  text-align: left;
+  font-weight: bold;
 }
 
 /* ── Rosters ── */

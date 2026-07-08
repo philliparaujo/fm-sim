@@ -2,6 +2,7 @@ import { assignCoverageTargets } from "./sim/assignments";
 import { onPlayReset, tick } from "./sim";
 import { initDashboard, updateDashboardValues } from "./ui/dashboard";
 import { setupDraft } from "./ui/draft";
+import { setupRatingsToggle } from "./ui/ratingsToggle";
 import { setupSchedule } from "./ui/schedule";
 import { setupSimulate } from "./ui/simulate";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
@@ -27,6 +28,7 @@ async function init() {
   setupDraft();
   setupSimulate();
   setupSchedule();
+  setupRatingsToggle();
 
   assignCoverageTargets();
   requestAnimationFrame(tick);

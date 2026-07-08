@@ -1,5 +1,5 @@
 import { LEAGUE } from "./state";
-import { Team } from "./types";
+import { PlayerStatsByLabel, Team } from "./types";
 
 /**
  * A single scheduled game. The home team starts the game with the ball (i.e. is
@@ -14,6 +14,8 @@ export type Game = {
   homeScore: number;
   awayScore: number;
   round: "regular" | "semifinal" | "final";
+  /** Per-team, per-label box score, keyed by team color. Set when simulated. */
+  playerStats?: Record<string, PlayerStatsByLabel>;
 };
 
 export type Division = { name: string; teamColors: string[] };

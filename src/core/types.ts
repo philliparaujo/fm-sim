@@ -187,6 +187,38 @@ type RBStats = {
   tfls: number;
 };
 
+// Receiving line for catchers (XR/ZR/TE).
+type ReceivingStats = {
+  targets: number;
+  catches: number;
+  yards: number;
+  tds: number;
+};
+
+// Defensive line for rushers (LE/DT/RE) and coverers (CB/NB/LB/FS/SS).
+type DefensiveStats = {
+  tackles: number;
+  tfls: number;
+  sacks: number;
+  interceptions: number;
+  passBreakups: number;
+};
+
+/**
+ * A single player's stat line. Only the blocks appropriate to the player's role
+ * are populated: passing for QBs, rushing for RBs, receiving for pass catchers,
+ * and defense for pass rushers and coverers.
+ */
+type PlayerStats = {
+  passing?: QBStats;
+  rushing?: RBStats;
+  receiving?: ReceivingStats;
+  defense?: DefensiveStats;
+};
+
+/** Per-team dictionary of roster label → that player's stat line. */
+type PlayerStatsByLabel = Partial<Record<Label, PlayerStats>>;
+
 type PlayAdvancedData = {
   throwTick?: number; // state.steps when throw occurred
   airYards?: number; // pixels from LOS to catcher at throw time
@@ -196,6 +228,9 @@ type PlayAdvancedData = {
   separationAtCatch?: number; // nearest defender dist in pixels at catch
   catchX?: number; // ball.loc.x when catcher caught the ball
   firstContactX?: number; // ball.loc.x on first tackle pressure tick
+  tackler?: Player; // defender credited with the tackle/sack that ended the play
+  interceptor?: Player; // defender who intercepted the pass
+  passDefender?: Player; // defender who broke up an incomplete pass
 };
 
 // Averaged advanced stats
@@ -219,8 +254,7 @@ type Stats = {
   coverage: CoverageStats;
   playcallCoverage: PlaycallCoverageYards;
   playcallCoverageStats: PlayCallCoverageStats;
-  qb: QBStats;
-  rb: RBStats;
+  players: PlayerStatsByLabel;
   routes: Record<string, CountYards>;
   advanced: AdvancedStats;
 };
@@ -296,6 +330,7 @@ export type {
   Coverage,
   CurrentPlay,
   DefensiveCoverageType,
+  DefensiveStats,
   Ellipse,
   Entity,
   Label,
@@ -306,9 +341,12 @@ export type {
   PlaycallCoverageYards,
   PlayEndReason,
   Player,
+  PlayerStats,
+  PlayerStatsByLabel,
   QBStats,
   Ray,
   RBStats,
+  ReceivingStats,
   ReplayFrame,
   Role,
   Roster,

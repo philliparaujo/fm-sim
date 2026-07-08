@@ -6,7 +6,7 @@ import {
 import { generateSpecialPlaycall } from "../core/playbook";
 import { getConstants } from "../core/ratings";
 import { LEAGUE, recreateState, state } from "../core/state";
-import { Ball, PlayEndReason, Player, Team } from "../core/types";
+import { Ball, PlayEndReason, Player, PlayerStatsByLabel, Team } from "../core/types";
 import { stepAsPlayer } from "../behavior";
 import { render } from "../render";
 import { updateScoreboardUI } from "../scoreboard";
@@ -236,11 +236,8 @@ function resetSimulation(reason: PlayEndReason) {
   const activeOffenseTeam = getOffenseTeam(state);
   const activeDefenseTeam = getDefenseTeam(state);
   const offenseTeamName = activeOffenseTeam.name;
-  const updatedTeamStats = updateStatsAfterPlay(state, reason);
-  const updatedGlobalStats = {
-    ...state.stats,
-    [offenseTeamName]: updatedTeamStats,
-  };
+  const updatedGlobalStats = updateStatsAfterPlay(state, reason);
+  const updatedTeamStats = updatedGlobalStats[offenseTeamName];
 
   if (numPlays(updatedTeamStats) % 100 === 0) {
     console.log(
@@ -457,7 +454,11 @@ function onPlayReset(cb: () => void) {
 function simulateFullGame(
   offenseColor: string,
   defenseColor: string,
-): { offenseScore: number; defenseScore: number } {
+): {
+  offenseScore: number;
+  defenseScore: number;
+  playerStats: Record<string, PlayerStatsByLabel>;
+} {
   const restoredOffenseColor = openingOffenseColor;
   const restoredTeams = state.scoreboard.teams;
 
@@ -475,6 +476,14 @@ function simulateFullGame(
   const offenseScore = teams.find((t) => t.color === offenseColor)?.score ?? 0;
   const defenseScore = teams.find((t) => t.color === defenseColor)?.score ?? 0;
 
+  // Harvest each team's per-label player stat lines, keyed by team color, before
+  // the restore below wipes state.stats.
+  const playerStats: Record<string, PlayerStatsByLabel> = {};
+  for (const t of teams) {
+    const s = state.stats[t.name];
+    if (s) playerStats[t.color] = s.players;
+  }
+
   // Restore the live game for the play tab (keep simulatingMode true so the
   // restore loadGame doesn't trigger any UI updates)
   if (typeof document !== "undefined" && restoredTeams.length === 2) {
@@ -483,7 +492,7 @@ function simulateFullGame(
   }
   simulatingMode = false;
 
-  return { offenseScore, defenseScore };
+  return { offenseScore, defenseScore, playerStats };
 }
 
 export { loadGame, onPlayReset, resetGame, resetSimulation, simulateFullGame, state, tick };

@@ -1,12 +1,13 @@
-import { PlayEndReason, QBStats, RBStats, State, Stats } from "./core/types";
+import { Player, PlayEndReason, QBStats, RBStats, State, Stats } from "./core/types";
 import { isCarryingBall } from "./utils/field";
-import { getOffenseTeam } from "./utils/roster";
+import { getDefenseTeam, getOffenseTeam } from "./utils/roster";
 import {
   applyQBStats,
   applyRBStats,
   checkIfFieldGoal,
   checkIfInterception,
   checkIfPassAttempt,
+  checkIfPassIncomplete,
   checkIfTouchdown,
   checkIfPassComplete,
   checkIfPunt,
@@ -21,16 +22,41 @@ import {
 } from "./utils/stats";
 import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "./utils/units";
 
-/** Updates state.stats with information from the play that just ended */
-function updateStatsAfterPlay(state: State, reason: PlayEndReason): Stats {
+/**
+ * Updates stats for the play that just ended and returns the full per-team map
+ * with the offense and defense entries replaced. Offensive lines (passing,
+ * rushing, receiving, playcalls, advanced) accrue to the possessing team; the
+ * defensive line (tackles, TFLs, sacks, INTs, PBUs) accrues to the other team.
+ */
+function updateStatsAfterPlay(
+  state: State,
+  reason: PlayEndReason,
+): Record<string, Stats> {
   const activeOffenseTeam = getOffenseTeam(state);
+  const activeDefenseTeam = getDefenseTeam(state);
   const offenseTeamName = activeOffenseTeam.name;
-  const _stats = state.stats[offenseTeamName] || createEmptyStats();
-  const next: Stats = structuredClone(_stats);
+  const defenseTeamName = activeDefenseTeam.name;
+
+  const next: Stats = structuredClone(
+    state.stats[offenseTeamName] || createEmptyStats(),
+  );
+  const defenseNext: Stats = structuredClone(
+    state.stats[defenseTeamName] || createEmptyStats(),
+  );
+  const result: Record<string, Stats> = {
+    ...state.stats,
+    [offenseTeamName]: next,
+    [defenseTeamName]: defenseNext,
+  };
+
+  // The team's aggregate passing/rushing lines live in the per-label dictionary
+  // under the QB and RB slots; alias them for the accumulation below.
+  const qb = next.players.QB!.passing!;
+  const rb = next.players.RB!.rushing!;
 
   // 1) No stat tracking for special teams plays
   if (checkIfFieldGoal(state, reason) || checkIfPunt(state, reason))
-    return next;
+    return result;
 
   const play = state.currentPlay;
   const los = state.scoreboard.LOS;
@@ -56,7 +82,7 @@ function updateStatsAfterPlay(state: State, reason: PlayEndReason): Stats {
   if (play.offense === "pass") {
     const qbStats = next.playcallCoverageStats[matchupKey] as QBStats;
     applyQBStats(qbStats, netYards, state, reason);
-    applyQBStats(next.qb, netYards, state, reason);
+    applyQBStats(qb, netYards, state, reason);
 
     const ballCarrier = state.players.find((p) =>
       isCarryingBall(p, state.ball),
@@ -74,7 +100,7 @@ function updateStatsAfterPlay(state: State, reason: PlayEndReason): Stats {
   } else {
     const rbStats = next.playcallCoverageStats[matchupKey] as RBStats;
     applyRBStats(rbStats, netYards, state, reason);
-    applyRBStats(next.rb, netYards, state, reason);
+    applyRBStats(rb, netYards, state, reason);
   }
 
   // 4) Advanced stats
@@ -83,10 +109,10 @@ function updateStatsAfterPlay(state: State, reason: PlayEndReason): Stats {
 
   // NOTE: These counts (must) include the current play to comply with updateAverage()
   // These counts were updated during step 3
-  const rushCount = next.rb.rushes;
-  const passCount = next.qb.attempts;
-  const completionCount = next.qb.completions;
-  const sackCount = next.qb.sacks;
+  const rushCount = rb.rushes;
+  const passCount = qb.attempts;
+  const completionCount = qb.completions;
+  const sackCount = qb.sacks;
   const dropbackCount = passCount + sackCount;
 
   // Time to throw (TTT)
@@ -195,7 +221,60 @@ function updateStatsAfterPlay(state: State, reason: PlayEndReason): Stats {
     );
   }
 
-  return next;
+  // 5) Receiving stats (offense): the targeted receiver gets a target; on a
+  // completion the catcher also gets a reception, yards, and any touchdown.
+  if (isPassAttempt) {
+    const intended = state.ballFlight?.receiver;
+    const intendedRec =
+      intended && intended.color === activeOffenseTeam.color
+        ? next.players[intended.label]?.receiving
+        : undefined;
+    if (intendedRec) intendedRec.targets++;
+    if (isComplete) {
+      const catcher = state.players.find((p) => isCarryingBall(p, state.ball));
+      const rec =
+        catcher && catcher.color === activeOffenseTeam.color
+          ? next.players[catcher.label]?.receiving
+          : undefined;
+      if (rec) {
+        rec.catches++;
+        rec.yards += netYards;
+        if (isTouchdown) rec.tds++;
+      }
+    }
+  }
+
+  // 6) Defensive stats (defense): credit the tackler, sacker, interceptor, or
+  // pass-breakup defender captured during the play.
+  const pa = state.playAdvanced;
+  const defenseOf = (pl?: Player) =>
+    pl && pl.color === activeDefenseTeam.color
+      ? defenseNext.players[pl.label]?.defense
+      : undefined;
+
+  if (isSack) {
+    const d = defenseOf(pa.tackler);
+    if (d) {
+      d.sacks++;
+      d.tackles++; // a sack is also a tackle in the box score
+    }
+  } else if (reason === "tackle") {
+    const d = defenseOf(pa.tackler);
+    if (d) {
+      d.tackles++;
+      if (netYards < 0) d.tfls++; // tackle for loss
+    }
+  }
+  if (isInterception) {
+    const d = defenseOf(pa.interceptor);
+    if (d) d.interceptions++;
+  }
+  if (checkIfPassIncomplete(state, reason)) {
+    const d = defenseOf(pa.passDefender);
+    if (d) d.passBreakups++;
+  }
+
+  return result;
 }
 
 export { updateStatsAfterPlay };

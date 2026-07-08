@@ -22,13 +22,24 @@ import {
   teamByColor,
   TeamRecord,
 } from "../core/schedule";
+import {
+  addGamePlayerStats,
+  clearSeasonStats,
+  getGamesPlayed,
+  getSeasonStats,
+  hasSeasonStats,
+} from "../core/seasonStats";
+import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
+import { Label, PlayerStats, PlayerStatsByLabel } from "../core/types";
 import { loadGame } from "../sim";
 import { workerGame } from "../sim/runGame";
-import { teamOvrDisplay } from "./displayMode";
+import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { getSelectedTeamColor } from "./draft";
 import { initDashboard, updateDashboardValues } from "./dashboard";
 import { buildRosterCard } from "./rosterCard";
+
+type StatTab = "passing" | "rushing" | "receiving" | "defense";
 
 /** When true, the viewed week jumps to the current week after simming games.
  * Off by default so playing a week's games leaves you on that week. */
@@ -37,6 +48,11 @@ const AUTO_ADVANCE_WEEK = false;
 let viewWeek = 1;
 let busy = false;
 let showRosters = false;
+let statTab: StatTab = "passing";
+/** Active column sort for the player-stats table; null = tab's default sort. */
+let statSort: { col: number; dir: "asc" | "desc" } | null = null;
+/** Keys of game cards whose box score is expanded. */
+const expandedGames = new Set<string>();
 
 function allDrafted(): boolean {
   return LEAGUE.every((t) => t.roster.length > 0);
@@ -64,14 +80,24 @@ export function setupSchedule() {
   render();
 }
 
+/** Re-renders the season tab (e.g. after the global ratings/rankings toggle). */
+export function rerenderSchedule() {
+  render();
+}
+
 // ── Simulation helpers ─────────────────────────────────────────────────────
 
 async function simOneGame(game: Game): Promise<void> {
   const home = teamByColor(game.homeColor);
   const away = teamByColor(game.awayColor);
   // Home team starts with the ball → passed as the "offense" team.
-  const { offenseScore, defenseScore } = await workerGame(home, away);
+  const { offenseScore, defenseScore, playerStats } = await workerGame(
+    home,
+    away,
+  );
   recordGame(game, offenseScore, defenseScore);
+  game.playerStats = playerStats;
+  addGamePlayerStats(playerStats);
 }
 
 async function simWeek(week: number): Promise<void> {
@@ -134,7 +160,7 @@ function render() {
   root.appendChild(renderStandings());
   if (regSeasonComplete()) root.appendChild(renderPlayoffs());
   root.appendChild(renderStatsPlaceholder());
-  root.appendChild(renderStatsPlaceholders());
+  root.appendChild(renderPlayerStats());
   root.appendChild(renderRosters());
 }
 
@@ -145,12 +171,18 @@ function renderControls(): HTMLElement {
   const genBtn = document.createElement("button");
   genBtn.className = "draft-auto-btn";
   genBtn.style.width = "auto";
-  genBtn.textContent = isSeasonGenerated() ? "Regenerate Season" : "Generate Season";
+  genBtn.textContent = isSeasonGenerated()
+    ? "Regenerate Season"
+    : "Generate Season";
   genBtn.disabled = busy;
   genBtn.addEventListener("click", () => {
-    if (isSeasonGenerated() && !confirm("Regenerate divisions & schedule? All results will be lost."))
+    if (
+      isSeasonGenerated() &&
+      !confirm("Regenerate divisions & schedule? All results will be lost.")
+    )
       return;
     generateSeason();
+    clearSeasonStats();
     viewWeek = 1;
     render();
   });
@@ -164,7 +196,9 @@ function renderControls(): HTMLElement {
     weekBtn.style.width = "auto";
     weekBtn.textContent = busy ? "Simulating…" : `Sim Week ${getCurrentWeek()}`;
     weekBtn.disabled = busy || notDrafted || !!getChampion();
-    weekBtn.addEventListener("click", () => withBusy(() => simWeek(getCurrentWeek())));
+    weekBtn.addEventListener("click", () =>
+      withBusy(() => simWeek(getCurrentWeek())),
+    );
     bar.appendChild(weekBtn);
 
     const seasonBtn = document.createElement("button");
@@ -182,6 +216,7 @@ function renderControls(): HTMLElement {
     clearBtn.disabled = busy;
     clearBtn.addEventListener("click", () => {
       clearSeason();
+      clearSeasonStats();
       render();
     });
     bar.appendChild(clearBtn);
@@ -296,7 +331,12 @@ function renderGameCard(game: Game): HTMLElement {
     card.appendChild(tag);
   }
 
-  const teamRow = (team: typeof home, score: number, won: boolean, isHome: boolean) => {
+  const teamRow = (
+    team: typeof home,
+    score: number,
+    won: boolean,
+    isHome: boolean,
+  ) => {
     const seed = game.round !== "regular" ? seedOf(team.color) : null;
     return (
       `<div class="sched-game-team${won ? " winner" : ""}">` +
@@ -326,6 +366,20 @@ function renderGameCard(game: Game): HTMLElement {
     result.className = "sched-game-final";
     result.textContent = isTie ? "TIE" : "FINAL";
     actions.appendChild(result);
+
+    if (game.playerStats) {
+      const key = gameKey(game);
+      const expanded = expandedGames.has(key);
+      const boxBtn = document.createElement("button");
+      boxBtn.className = "sched-box-btn";
+      boxBtn.textContent = expanded ? "▾ Box score" : "▸ Box score";
+      boxBtn.addEventListener("click", () => {
+        if (expanded) expandedGames.delete(key);
+        else expandedGames.add(key);
+        render();
+      });
+      actions.appendChild(boxBtn);
+    }
   } else {
     const playBtn = document.createElement("button");
     playBtn.className = "sched-play-btn";
@@ -348,7 +402,173 @@ function renderGameCard(game: Game): HTMLElement {
   }
 
   card.appendChild(actions);
+
+  if (game.played && game.playerStats && expandedGames.has(gameKey(game))) {
+    card.appendChild(renderBoxScore(game));
+  }
+
   return card;
+}
+
+function gameKey(game: Game): string {
+  return `${game.round}-${game.week}-${game.homeColor}-${game.awayColor}`;
+}
+
+/** Compact per-team leaders (passer, rusher, top receiver, top defender). */
+function renderBoxScore(game: Game): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "sched-box";
+
+  const stats = game.playerStats!;
+  // Away team on top to match the card's team order.
+  for (const color of [game.awayColor, game.homeColor]) {
+    const team = teamByColor(color);
+    const players = stats[color] ?? {};
+
+    const teamEl = document.createElement("div");
+    teamEl.className = "sched-box-team";
+
+    const head = document.createElement("div");
+    head.className = "sched-box-team-name";
+    head.style.color = team.color;
+    head.textContent = team.name;
+    teamEl.appendChild(head);
+
+    const nameOf = (label: string) =>
+      team.roster.find((p) => p.label === label)?.name ?? label;
+
+    const lines: string[] = [];
+
+    // Joins stat parts, dropping any whose count is zero (keeps `always` parts).
+    const statline = (always: string[], optional: [number, string][]) =>
+      [
+        ...always,
+        ...optional.filter(([n]) => n !== 0).map(([n, unit]) => `${n} ${unit}`),
+      ].join(", ");
+
+    // Passer (the team's QB)
+    const passEntry = Object.entries(players).find(([, s]) => s?.passing);
+    if (passEntry) {
+      const p = passEntry[1]!.passing!;
+      if (p.attempts > 0)
+        lines.push(
+          leaderLine(
+            passEntry[0],
+            nameOf(passEntry[0]),
+            statline(
+              [`${p.completions}/${p.attempts}`, `${p.yards.toFixed(0)} yds`],
+              [
+                [p.tds, "TD"],
+                [p.ints, "INT"],
+              ],
+            ),
+          ),
+        );
+    }
+
+    // Leading rusher (most carries, then yards)
+    const rusher = topBy(
+      players,
+      (s) => (s.rushing?.rushes ?? 0) * 1000 + (s.rushing?.yards ?? 0),
+    );
+    if (rusher && rusher.stats.rushing!.rushes > 0) {
+      const r = rusher.stats.rushing!;
+      lines.push(
+        leaderLine(
+          rusher.label,
+          nameOf(rusher.label),
+          statline(
+            [`${r.rushes} car`, `${r.yards.toFixed(0)} yds`],
+            [[r.tds, "TD"]],
+          ),
+        ),
+      );
+    }
+
+    // Leading receiver (most catches, then yards)
+    const receiver = topBy(
+      players,
+      (s) => (s.receiving?.catches ?? 0) * 1000 + (s.receiving?.yards ?? 0),
+    );
+    if (receiver && receiver.stats.receiving!.catches > 0) {
+      const r = receiver.stats.receiving!;
+      lines.push(
+        leaderLine(
+          receiver.label,
+          nameOf(receiver.label),
+          statline(
+            [`${r.catches} rec`, `${r.yards.toFixed(0)} yds`],
+            [[r.tds, "TD"]],
+          ),
+        ),
+      );
+    }
+
+    // Leading defender (top tackles, then sacks + INTs)
+    const defender = topBy(players, (s) =>
+      s.defense
+        ? s.defense.tackles +
+          s.defense.tfls * 2 +
+          s.defense.sacks * 6 +
+          s.defense.interceptions * 10 +
+          s.defense.passBreakups * 2
+        : 0,
+    );
+    if (defender && defender.stats.defense) {
+      const d = defender.stats.defense;
+      if (d.tackles + d.sacks + d.interceptions + d.passBreakups > 0)
+        lines.push(
+          leaderLine(
+            defender.label,
+            nameOf(defender.label),
+            statline(
+              [],
+              [
+                [d.tackles, "tkl"],
+                [d.tfls, "tfl"],
+                [d.sacks, "sk"],
+                [d.interceptions, "INT"],
+                [d.passBreakups, "PBU"],
+              ],
+            ),
+          ),
+        );
+    }
+
+    teamEl.innerHTML +=
+      lines.join("") || `<div class="sched-box-empty">No production.</div>`;
+    box.appendChild(teamEl);
+  }
+
+  return box;
+}
+
+function leaderLine(tag: string, name: string, detail: string): string {
+  return (
+    `<div class="sched-box-line">` +
+    `<span class="sched-box-tag">${tag}</span>` +
+    `<span class="sched-box-name">${name}</span>` +
+    `<span class="sched-box-detail">${detail}</span>` +
+    `</div>`
+  );
+}
+
+/** Highest-scoring player line by `score` (negatives allowed), or null if none. */
+function topBy(
+  players: PlayerStatsByLabel,
+  score: (s: PlayerStats) => number,
+): { label: Label; stats: PlayerStats } | null {
+  let best: { label: Label; stats: PlayerStats } | null = null;
+  let bestScore = -Infinity;
+  for (const [label, stats] of Object.entries(players)) {
+    if (!stats) continue;
+    const sc = score(stats);
+    if (sc > bestScore) {
+      bestScore = sc;
+      best = { label: label as Label, stats };
+    }
+  }
+  return best;
 }
 
 function renderStandings(): HTMLElement {
@@ -362,7 +582,9 @@ function renderStandings(): HTMLElement {
 
   const wrap = document.createElement("div");
   wrap.className = "sched-standings-wrap";
-  getDivisions().forEach((div, i) => wrap.appendChild(renderDivisionTable(div, i)));
+  getDivisions().forEach((div, i) =>
+    wrap.appendChild(renderDivisionTable(div, i)),
+  );
   section.appendChild(wrap);
 
   const avg = leagueAvgPPG();
@@ -397,7 +619,10 @@ function renderDivisionTable(div: Division, divIndex: number): HTMLElement {
   standings.forEach((rec, rank) => {
     const team = teamByColor(rec.color);
     const games = rec.wins + rec.losses + rec.ties;
-    const pct = games > 0 ? ((rec.wins + 0.5 * rec.ties) / games).toFixed(3).replace(/^0/, "") : "—";
+    const pct =
+      games > 0
+        ? ((rec.wins + 0.5 * rec.ties) / games).toFixed(3).replace(/^0/, "")
+        : "—";
     const diff = rec.pointsFor - rec.pointsAgainst;
     const seed = seeds ? seedOf(rec.color) : null;
     // Before the season ends, highlight the current division leader.
@@ -407,7 +632,8 @@ function renderDivisionTable(div: Division, divIndex: number): HTMLElement {
     tr.className = "sched-row";
     if (seed) tr.classList.add("sched-row-playoff");
     else if (isLeader && !seeds) tr.classList.add("sched-row-leader");
-    if (rec.color === getSelectedTeamColor()) tr.classList.add("sched-row-focus");
+    if (rec.color === getSelectedTeamColor())
+      tr.classList.add("sched-row-focus");
 
     const marker = seed
       ? `<span class="sched-seed">${seed}</span>`
@@ -518,7 +744,9 @@ function renderStatsPlaceholder(): HTMLElement {
     fmt: (r: TeamRecord) => string,
     max = true,
   ) => {
-    const best = [...records].sort((a, b) => (max ? pick(b) - pick(a) : pick(a) - pick(b)))[0];
+    const best = [...records].sort((a, b) =>
+      max ? pick(b) - pick(a) : pick(a) - pick(b),
+    )[0];
     const team = teamByColor(best.color);
     const cell = document.createElement("div");
     cell.className = "sched-leader";
@@ -529,9 +757,20 @@ function renderStatsPlaceholder(): HTMLElement {
     return cell;
   };
 
-  grid.appendChild(leader("Most Points For", (r) => r.pointsFor, (r) => `${r.pointsFor} pts`));
   grid.appendChild(
-    leader("Stingiest Defense", (r) => r.pointsAgainst, (r) => `${r.pointsAgainst} allowed`, false),
+    leader(
+      "Most Points For",
+      (r) => r.pointsFor,
+      (r) => `${r.pointsFor} pts`,
+    ),
+  );
+  grid.appendChild(
+    leader(
+      "Stingiest Defense",
+      (r) => r.pointsAgainst,
+      (r) => `${r.pointsAgainst} allowed`,
+      false,
+    ),
   );
   grid.appendChild(
     leader(
@@ -543,42 +782,320 @@ function renderStatsPlaceholder(): HTMLElement {
       },
     ),
   );
-  grid.appendChild(leader("Most Wins", (r) => r.wins, (r) => `${r.wins} wins`));
+  grid.appendChild(
+    leader(
+      "Most Wins",
+      (r) => r.wins,
+      (r) => `${r.wins} wins`,
+    ),
+  );
 
   section.appendChild(grid);
   return section;
 }
 
-/** Placeholder panels for future team/player stats and an MVP race. */
-function renderStatsPlaceholders(): HTMLElement {
+// ── Player stats (tabbed: passing / rushing / receiving / defense) ───────────
+
+type StatColumn = {
+  header: string;
+  /** Cell value from a player's stat line. */
+  get: (s: PlayerStats) => number;
+  /** Format for display (defaults to integer). */
+  fmt?: (v: number) => string;
+};
+
+const STAT_TABS: {
+  key: StatTab;
+  label: string;
+  /** Which stat block a player must have to appear on this tab. */
+  has: (s: PlayerStats) => boolean;
+  /** Column that the table is sorted by (descending). */
+  sortBy: (s: PlayerStats) => number;
+  columns: StatColumn[];
+  /** Yardage accessor for offensive tabs → enables a YPG column. */
+  yardsFor?: (s: PlayerStats) => number;
+}[] = [
+  {
+    key: "passing",
+    label: "Passing",
+    has: (s) => !!s.passing,
+    sortBy: (s) => s.passing?.yards ?? 0,
+    yardsFor: (s) => s.passing!.yards,
+    columns: [
+      { header: "ATT", get: (s) => s.passing!.attempts },
+      { header: "CMP", get: (s) => s.passing!.completions },
+      {
+        header: "CMP%",
+        get: (s) => s.passing!.cmp * 100,
+        fmt: (v) => v.toFixed(1),
+      },
+      { header: "YDS", get: (s) => s.passing!.yards, fmt: (v) => v.toFixed(0) },
+      { header: "YPA", get: (s) => s.passing!.ypa, fmt: (v) => v.toFixed(1) },
+      { header: "TD", get: (s) => s.passing!.tds },
+      { header: "INT", get: (s) => s.passing!.ints },
+      { header: "SACK", get: (s) => s.passing!.sacks },
+    ],
+  },
+  {
+    key: "rushing",
+    label: "Rushing",
+    has: (s) => !!s.rushing,
+    sortBy: (s) => s.rushing?.yards ?? 0,
+    yardsFor: (s) => s.rushing!.yards,
+    columns: [
+      { header: "ATT", get: (s) => s.rushing!.rushes },
+      { header: "YDS", get: (s) => s.rushing!.yards, fmt: (v) => v.toFixed(0) },
+      { header: "YPC", get: (s) => s.rushing!.ypc, fmt: (v) => v.toFixed(1) },
+      { header: "TD", get: (s) => s.rushing!.tds },
+    ],
+  },
+  {
+    key: "receiving",
+    label: "Receiving",
+    has: (s) => !!s.receiving,
+    sortBy: (s) => s.receiving?.yards ?? 0,
+    yardsFor: (s) => s.receiving!.yards,
+    columns: [
+      { header: "TGT", get: (s) => s.receiving!.targets },
+      { header: "REC", get: (s) => s.receiving!.catches },
+      {
+        header: "YDS",
+        get: (s) => s.receiving!.yards,
+        fmt: (v) => v.toFixed(0),
+      },
+      { header: "TD", get: (s) => s.receiving!.tds },
+    ],
+  },
+  {
+    key: "defense",
+    label: "Defense",
+    has: (s) => !!s.defense,
+    sortBy: (s) => s.defense?.tackles ?? 0,
+    columns: [
+      { header: "TCKL", get: (s) => s.defense!.tackles },
+      { header: "TFL", get: (s) => s.defense!.tfls },
+      { header: "SACK", get: (s) => s.defense!.sacks },
+      { header: "INT", get: (s) => s.defense!.interceptions },
+      { header: "PBU", get: (s) => s.defense!.passBreakups },
+    ],
+  },
+];
+
+function renderPlayerStats(): HTMLElement {
   const section = document.createElement("div");
   section.className = "sched-section";
 
   const heading = document.createElement("h3");
   heading.className = "sched-heading";
-  heading.textContent = "Stats & Awards";
+  heading.textContent = "Player Stats";
   section.appendChild(heading);
 
-  const grid = document.createElement("div");
-  grid.className = "sched-placeholder-grid";
+  if (!hasSeasonStats()) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent =
+      "Simulate games to accumulate player stats over the season.";
+    section.appendChild(p);
+    return section;
+  }
 
-  const panel = (icon: string, title: string, blurb: string) => {
-    const p = document.createElement("div");
-    p.className = "sched-placeholder";
-    p.innerHTML =
-      `<div class="sched-placeholder-icon">${icon}</div>` +
-      `<div class="sched-placeholder-title">${title}</div>` +
-      `<div class="sched-placeholder-blurb">${blurb}</div>` +
-      `<div class="sched-placeholder-tag">Coming soon</div>`;
-    return p;
-  };
+  // Sub-tab bar
+  const tabBar = document.createElement("div");
+  tabBar.className = "sched-stat-tabs";
+  for (const tab of STAT_TABS) {
+    const btn = document.createElement("button");
+    btn.className = "sched-stat-tab" + (statTab === tab.key ? " active" : "");
+    btn.textContent = tab.label;
+    btn.addEventListener("click", () => {
+      statTab = tab.key;
+      statSort = null; // columns differ per tab
+      render();
+    });
+    tabBar.appendChild(btn);
+  }
+  section.appendChild(tabBar);
 
-  grid.appendChild(panel("🏈", "Player Stats", "Passing, rushing & receiving leaders per game."));
-  grid.appendChild(panel("📊", "Team Stats", "Yards, turnovers, third-down and red-zone rates."));
-  grid.appendChild(panel("⭐", "MVP Race", "Top performers ranked by season impact."));
-
-  section.appendChild(grid);
+  const cfg = STAT_TABS.find((t) => t.key === statTab)!;
+  section.appendChild(renderStatTable(cfg));
   return section;
+}
+
+type StatRow = {
+  color: string;
+  label: Label;
+  stats: PlayerStats;
+  team: ReturnType<typeof teamByColor>;
+  rp: ReturnType<typeof teamByColor>["roster"][number] | undefined;
+  name: string;
+};
+
+type TableColumn = {
+  header: string;
+  thClass?: string;
+  tdClass?: string;
+  cell: (row: StatRow) => string;
+  /** Value used for sorting; string sorts alphabetically, number numerically. */
+  sortVal: (row: StatRow) => number | string;
+};
+
+function renderStatTable(cfg: (typeof STAT_TABS)[number]): HTMLElement {
+  // Gather every player carrying the relevant stat block.
+  const rows: StatRow[] = [];
+  for (const [color, players] of Object.entries(getSeasonStats())) {
+    for (const [label, stats] of Object.entries(players)) {
+      // Only include players with at least one non-zero stat on this tab
+      // (e.g. hides RBs with no receiving production from the receiving tab).
+      if (
+        stats &&
+        cfg.has(stats) &&
+        cfg.columns.some((c) => c.get(stats) !== 0)
+      ) {
+        const team = teamByColor(color);
+        const rp = team.roster.find((p) => p.label === label);
+        rows.push({
+          color,
+          label: label as Label,
+          stats,
+          team,
+          rp,
+          name: rp?.name ?? "—",
+        });
+      }
+    }
+  }
+
+  // Meta columns (player/team/pos/ovr) — visually separated from the stats.
+  const metaColumns: TableColumn[] = [
+    {
+      header: "Player",
+      thClass: "sched-stat-th-player",
+      tdClass: "sched-stat-td-player",
+      cell: (r) => r.name,
+      sortVal: (r) => r.name.toLowerCase(),
+    },
+    {
+      header: "Team",
+      cell: (r) =>
+        `<span style="color:${r.team.color};font-weight:bold">${r.team.name}</span>`,
+      sortVal: (r) => r.team.name,
+    },
+    { header: "Pos", cell: (r) => r.label, sortVal: (r) => r.label },
+    {
+      header: "OVR",
+      cell: (r) => (r.rp ? playerOvrDisplay(r.rp) : "—"),
+      sortVal: (r) => (r.rp ? scoreProspect(r.rp) : -1),
+    },
+  ];
+
+  // Stat columns: games played, the tab's stats, and YPG for offensive tabs.
+  const statColumns: TableColumn[] = [
+    {
+      header: "GP",
+      cell: (r) => String(getGamesPlayed(r.color)),
+      sortVal: (r) => getGamesPlayed(r.color),
+    },
+    ...cfg.columns.map(
+      (c): TableColumn => ({
+        header: c.header,
+        cell: (r) => {
+          const v = c.get(r.stats);
+          return c.fmt ? c.fmt(v) : String(v);
+        },
+        sortVal: (r) => c.get(r.stats),
+      }),
+    ),
+  ];
+  if (cfg.yardsFor) {
+    const yardsFor = cfg.yardsFor;
+    const ypg = (r: StatRow) => {
+      const gp = getGamesPlayed(r.color);
+      return gp ? yardsFor(r.stats) / gp : 0;
+    };
+    statColumns.push({
+      header: "YPG",
+      cell: (r) => ypg(r).toFixed(1),
+      sortVal: ypg,
+    });
+  }
+
+  // Mark the first stat column so it renders the meta/stats divider.
+  statColumns[0].thClass =
+    `${statColumns[0].thClass ?? ""} sched-stat-divider`.trim();
+  statColumns[0].tdClass =
+    `${statColumns[0].tdClass ?? ""} sched-stat-divider`.trim();
+
+  const columns: TableColumn[] = [...metaColumns, ...statColumns];
+
+  // Apply the active sort, or fall back to the tab's default (key stat, desc).
+  if (statSort && statSort.col < columns.length) {
+    const { col, dir } = statSort;
+    const sv = columns[col].sortVal;
+    rows.sort((a, b) => {
+      const va = sv(a);
+      const vb = sv(b);
+      const cmp =
+        typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb));
+      return dir === "asc" ? cmp : -cmp;
+    });
+  } else {
+    rows.sort((a, b) => cfg.sortBy(b.stats) - cfg.sortBy(a.stats));
+  }
+
+  const wrap = document.createElement("div");
+  wrap.className = "sched-stat-table-wrap";
+
+  const table = document.createElement("table");
+  table.className = "sched-stat-table";
+
+  const thead = document.createElement("thead");
+  const hRow = document.createElement("tr");
+  hRow.innerHTML = `<th class="sched-stat-th sched-stat-th-rank">#</th>`;
+  columns.forEach((c, i) => {
+    const th = document.createElement("th");
+    th.className =
+      "sched-stat-th sched-stat-th-sortable" +
+      (c.thClass ? " " + c.thClass : "");
+    const active = statSort?.col === i;
+    const arrow = active ? (statSort!.dir === "asc" ? " ▲" : " ▼") : "";
+    th.innerHTML = `${c.header}<span class="sched-stat-arrow">${arrow}</span>`;
+    if (active) th.classList.add("active");
+    th.addEventListener("click", () => {
+      if (statSort?.col === i) {
+        statSort = { col: i, dir: statSort.dir === "asc" ? "desc" : "asc" };
+      } else {
+        // OVR (col 3) and stat columns are numeric → default descending
+        // (highest first); the text columns default to ascending.
+        const numeric = i >= 3;
+        statSort = { col: i, dir: numeric ? "desc" : "asc" };
+      }
+      render();
+    });
+    hRow.appendChild(th);
+  });
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  rows.forEach((row, i) => {
+    const tr = document.createElement("tr");
+    tr.className = "sched-stat-row";
+    if (row.color === getSelectedTeamColor())
+      tr.classList.add("sched-stat-row-focus");
+    tr.innerHTML =
+      `<td class="sched-stat-td sched-stat-td-rank">${i + 1}</td>` +
+      columns
+        .map(
+          (c) =>
+            `<td class="sched-stat-td${c.tdClass ? " " + c.tdClass : ""}">${c.cell(row)}</td>`,
+        )
+        .join("");
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
 }
 
 function renderRosters(): HTMLElement {

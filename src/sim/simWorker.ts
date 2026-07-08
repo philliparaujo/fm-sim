@@ -1,9 +1,13 @@
 import { LEAGUE } from "../core/state";
-import { Team } from "../core/types";
+import { PlayerStatsByLabel, Team } from "../core/types";
 import { simulateFullGame } from "./index";
 
 type WorkerInput = { offenseTeam: Team; defenseTeam: Team };
-type WorkerOutput = { offenseScore: number; defenseScore: number };
+type WorkerOutput = {
+  offenseScore: number;
+  defenseScore: number;
+  playerStats: Record<string, PlayerStatsByLabel>;
+};
 
 self.onmessage = (e: MessageEvent<WorkerInput>) => {
   const { offenseTeam, defenseTeam } = e.data;

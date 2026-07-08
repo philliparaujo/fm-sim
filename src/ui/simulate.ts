@@ -87,6 +87,11 @@ async function runMatchup(
   render();
 }
 
+/** Re-renders the simulate tab (e.g. after the global ratings/rankings toggle). */
+export function rerenderSimulate() {
+  render();
+}
+
 function render() {
   renderGrid();
   renderRankings();

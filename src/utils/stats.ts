@@ -2,18 +2,25 @@ import {
   AdvancedStats,
   CountYards,
   DefensiveCoverageType,
+  DefensiveStats,
+  Label,
   OffensivePlayType,
+  PLAYER_LABELS,
   PlaycallCoverageKey,
   PlayCallCoverageStats,
   PlaycallCoverageYards,
   PlayEndReason,
+  PlayerStats,
+  PlayerStatsByLabel,
   QBStats,
   RBStats,
+  ReceivingStats,
   Route,
   Scoreboard,
   State,
   Stats,
 } from "../core/types";
+import { labelToRole } from "./roster";
 import { isCarryingBall } from "./field";
 import { round2 } from "./math";
 import {
@@ -106,6 +113,42 @@ function emptyRBStats(): RBStats {
   return { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 };
 }
 
+function emptyReceivingStats(): ReceivingStats {
+  return { targets: 0, catches: 0, yards: 0, tds: 0 };
+}
+
+function emptyDefensiveStats(): DefensiveStats {
+  return { tackles: 0, tfls: 0, sacks: 0, interceptions: 0, passBreakups: 0 };
+}
+
+/** Builds the empty stat line appropriate to a label's role (blockers get none). */
+function emptyPlayerStats(label: Label): PlayerStats {
+  switch (labelToRole(label)) {
+    case "passer":
+      return { passing: emptyQBStats() };
+    case "runner":
+      // RBs can catch out of the backfield, so track receiving too.
+      return { rushing: emptyRBStats(), receiving: emptyReceivingStats() };
+    case "catcher":
+      return { receiving: emptyReceivingStats() };
+    case "rusher":
+    case "coverer":
+      return { defense: emptyDefensiveStats() };
+    default:
+      return {};
+  }
+}
+
+/** Seeds the per-label player dictionary with empty, role-appropriate stat lines. */
+function emptyPlayerStatsByLabel(): PlayerStatsByLabel {
+  const out: PlayerStatsByLabel = {};
+  for (const label of PLAYER_LABELS) {
+    const line = emptyPlayerStats(label);
+    if (Object.keys(line).length > 0) out[label] = line;
+  }
+  return out;
+}
+
 function emptyAdvancedStats(): AdvancedStats {
   return {
     completedAirYards: 0,
@@ -149,8 +192,7 @@ export function createEmptyStats(): Stats {
     },
     playcallCoverage: { ...emptyPlaycallCoverageYards() },
     playcallCoverageStats: { ...emptyPlaycallCoverageStats() },
-    qb: { ...emptyQBStats() },
-    rb: { ...emptyRBStats() },
+    players: emptyPlayerStatsByLabel(),
     routes: Object.fromEntries(
       ROUTE_NAMES.map(([, route]) => [
         routeKey(route),

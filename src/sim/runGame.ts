@@ -1,13 +1,18 @@
-import { Team } from "../core/types";
+import { PlayerStatsByLabel, Team } from "../core/types";
 
 /**
- * Runs a full headless game in a Web Worker and resolves with the final scores.
+ * Runs a full headless game in a Web Worker and resolves with the final scores
+ * plus each team's per-label player stat lines (keyed by team color).
  * The `offenseTeam` starts the game with the ball (i.e. the home team).
  */
 export function workerGame(
   offenseTeam: Team,
   defenseTeam: Team,
-): Promise<{ offenseScore: number; defenseScore: number }> {
+): Promise<{
+  offenseScore: number;
+  defenseScore: number;
+  playerStats: Record<string, PlayerStatsByLabel>;
+}> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./simWorker.ts", import.meta.url), {
       type: "module",

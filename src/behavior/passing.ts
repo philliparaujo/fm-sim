@@ -334,6 +334,8 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
     let isComplete = false;
     let isInterception = false;
     let isIncomplete = false;
+    // Defender credited with a pass breakup if this ends in a contested incompletion
+    let pbuDefender: Player | null = null;
 
     // For throw aways
     if (!receiver) {
@@ -368,7 +370,7 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
 
     if (!receiverInRadius && defenderInRadius) {
       // Uncontested interception attempt
-      const INTERCEPT_CHANCE = 0.25;
+      const INTERCEPT_CHANCE = 0.35;
       if (Math.random() < INTERCEPT_CHANCE) {
         isInterception = true;
       } else {
@@ -407,6 +409,7 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
           isInterception = true;
         } else {
           isIncomplete = true; // Pass Broken Up!
+          pbuDefender = closestDefender;
         }
       } else {
         // Receiver has equal or better position than the defender (e.g. receiver's body is between defender and ball)
@@ -415,7 +418,8 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
         if (Math.random() < catchChance) {
           isComplete = true;
         } else {
-          isIncomplete = true; // Contested incompletion
+          isIncomplete = true; // Contested incompletion — defender contested the catch
+          pbuDefender = closestDefender;
         }
       }
     }
@@ -428,6 +432,7 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
       if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
       }
+      state.playAdvanced.interceptor = closestDefender!;
       // Spot the ball where the defender picked it off so the field position
       // flips correctly for the intercepting team
       snapBallToPlayer(closestDefender!, state.ball);
@@ -438,6 +443,7 @@ function resolveBallInAir(state: State, cachedPlayers: CachedPlayers) {
       if (receiverDist > receiverRadius) {
         state.playAdvanced.wasOffTarget = true;
       }
+      if (pbuDefender) state.playAdvanced.passDefender = pbuDefender;
       resetSimulation("incomplete");
     }
   }

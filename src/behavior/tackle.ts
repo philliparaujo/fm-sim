@@ -20,6 +20,7 @@ function attemptTackle(defender: Player, carrier: Player) {
   );
 
   if (carrier.role === "passer" && !state.ballFlight?.isInFlight) {
+    state.playAdvanced.tackler = defender;
     resetSimulation("sack");
     return;
   } else if (carrier.role === "passer") {
@@ -38,6 +39,7 @@ function attemptTackle(defender: Player, carrier: Player) {
     (carrier.tacklePressure ?? 0) + TACKLE_PRESSURE_PER_TICK;
 
   if (carrier.tacklePressure >= tacklePressureThreshold) {
+    state.playAdvanced.tackler = defender;
     resetSimulation("tackle");
     return;
   }
@@ -90,6 +92,7 @@ function attemptTackle(defender: Player, carrier: Player) {
       adjustedDefenderTackle / (adjustedDefenderTackle + carrierPower);
 
     if (Math.random() < tackleChance) {
+      state.playAdvanced.tackler = defender;
       resetSimulation("tackle");
     } else {
       // Broken tackle logic
