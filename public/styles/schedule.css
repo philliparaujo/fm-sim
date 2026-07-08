@@ -119,7 +119,7 @@
   border: 1px solid #333;
   border-radius: 8px;
   padding: 10px 12px;
-  width: 300px;
+  width: 330px;
   flex-shrink: 0;
 }
 .sched-game.played {
@@ -130,7 +130,9 @@
 }
 .sched-game-focus {
   border-color: #60a5fa;
-  box-shadow: 0 0 0 1px #60a5fa, 0 0 12px rgba(96, 165, 250, 0.25);
+  box-shadow:
+    0 0 0 1px #60a5fa,
+    0 0 12px rgba(96, 165, 250, 0.25);
 }
 .sched-game-tag {
   font-size: 9px;
@@ -284,6 +286,150 @@
   font-size: 11px;
   color: #6b7280;
   font-style: italic;
+}
+
+/* ── Players of the week ── */
+.sched-awards {
+  margin-top: 16px;
+  background: #0f1420;
+  border: 1px solid #2a3345;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.sched-awards-head {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fbbf24;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+.sched-awards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sched-award {
+  flex: 1;
+  min-width: 200px;
+  background: #141b28;
+  border: 1px solid #2a3345;
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.sched-award-offense {
+  border-left-color: #4ade80;
+}
+.sched-award-defense {
+  border-left-color: #f87171;
+}
+.sched-award .sched-award-head {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+.sched-award-player {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: bold;
+}
+.sched-award-grade {
+  font-size: 12px;
+  font-weight: bold;
+  color: #fbbf24;
+  background: #1f2937;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.sched-award-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: bold;
+  margin: 2px 0 4px;
+}
+.sched-award-stat {
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+/* ── Season awards (OPOY / DPOY / MVP) ── */
+.sched-award-col {
+  flex: 1;
+  min-width: 240px;
+  background: #111827;
+  border: 1px solid #2a3345;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.sched-award-col-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a3345;
+}
+.sched-award-col-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #fbbf24;
+  letter-spacing: 0.04em;
+}
+.sched-award-col-sub {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sched-award-rank {
+  padding: 5px 4px;
+  border-radius: 4px;
+  border-bottom: 1px solid #1a2233;
+}
+.sched-award-rank.leader {
+  background: #1c2432;
+}
+.sched-award-rank.focus {
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+.sched-award-rank-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.sched-award-rank-n {
+  width: 20px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.sched-award-rank-name {
+  font-weight: bold;
+  white-space: nowrap;
+}
+.sched-award-rank-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+.sched-award-rank-grade {
+  margin-left: auto;
+  font-weight: bold;
+  color: #e5e7eb;
+}
+.sched-award-rank-stat {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-left: 28px;
+  margin-top: 1px;
 }
 
 /* seed badge */
@@ -540,6 +686,12 @@
 /* Divider between the meta columns (player/team/pos/ovr) and the stats. */
 .sched-stat-divider {
   border-left: 2px solid #374151;
+}
+/* Award-grade column, visually separated and highlighted. */
+.sched-stat-grade {
+  border-left: 2px solid #374151;
+  color: #fbbf24 !important;
+  font-weight: bold;
 }
 .sched-stat-row {
   border-bottom: 1px solid #1f2937;

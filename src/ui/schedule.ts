@@ -29,6 +29,14 @@ import {
   getSeasonStats,
   hasSeasonStats,
 } from "../core/seasonStats";
+import {
+  Award,
+  defensiveGrade,
+  hasOffense,
+  mvpGrade,
+  offensiveGrade,
+  weeklyAwards,
+} from "../core/awards";
 import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Label, PlayerStats, PlayerStatsByLabel } from "../core/types";
@@ -105,10 +113,12 @@ async function simWeek(week: number): Promise<void> {
   await Promise.all(unplayed.map(simOneGame));
 }
 
-async function simRestOfSeason(): Promise<void> {
+/** Sims consecutive weeks until `lastWeek` is done (or the season ends). */
+async function simThroughWeek(lastWeek: number): Promise<void> {
   let guard = 0;
   while (guard++ < FINAL_WEEK + 2) {
     const w = getCurrentWeek();
+    if (w > lastWeek) break;
     const unplayed = getGamesForWeek(w).filter((g) => !g.played);
     if (unplayed.length === 0) break;
     await simWeek(w);
@@ -160,6 +170,7 @@ function render() {
   root.appendChild(renderStandings());
   if (regSeasonComplete()) root.appendChild(renderPlayoffs());
   root.appendChild(renderStatsPlaceholder());
+  root.appendChild(renderSeasonAwards());
   root.appendChild(renderPlayerStats());
   root.appendChild(renderRosters());
 }
@@ -201,12 +212,27 @@ function renderControls(): HTMLElement {
     );
     bar.appendChild(weekBtn);
 
+    // Only offer "Sim to Playoffs" while the regular season is still going.
+    if (!regSeasonComplete()) {
+      const regBtn = document.createElement("button");
+      regBtn.className = "draft-auto-btn";
+      regBtn.style.width = "auto";
+      regBtn.textContent = "Sim to Playoffs";
+      regBtn.title = "Play out the rest of the regular season";
+      regBtn.disabled = busy || notDrafted;
+      regBtn.addEventListener("click", () =>
+        withBusy(() => simThroughWeek(REG_SEASON_WEEKS)),
+      );
+      bar.appendChild(regBtn);
+    }
+
     const seasonBtn = document.createElement("button");
     seasonBtn.className = "draft-auto-btn";
     seasonBtn.style.width = "auto";
     seasonBtn.textContent = "Sim to End";
+    seasonBtn.title = "Play out the regular season and the entire playoffs";
     seasonBtn.disabled = busy || notDrafted || !!getChampion();
-    seasonBtn.addEventListener("click", () => withBusy(simRestOfSeason));
+    seasonBtn.addEventListener("click", () => withBusy(() => simThroughWeek(FINAL_WEEK)));
     bar.appendChild(seasonBtn);
 
     const clearBtn = document.createElement("button");
@@ -301,9 +327,81 @@ function renderWeekView(): HTMLElement {
     grid.className = "sched-games";
     for (const g of games) grid.appendChild(renderGameCard(g));
     section.appendChild(grid);
+
+    const awards = weeklyAwards(viewWeek);
+    if (awards && awards.length > 0) section.appendChild(renderAwards(awards));
   }
 
   return section;
+}
+
+/** Player-of-the-week award cards (per division, offense & defense). */
+function renderAwards(awards: Award[]): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "sched-awards";
+
+  const heading = document.createElement("div");
+  heading.className = "sched-awards-head";
+  heading.textContent = "🏅 Players of the Week";
+  box.appendChild(heading);
+
+  const grid = document.createElement("div");
+  grid.className = "sched-awards-grid";
+  for (const a of awards) grid.appendChild(renderAwardCard(a));
+  box.appendChild(grid);
+
+  return box;
+}
+
+function renderAwardCard(a: Award): HTMLElement {
+  const team = teamByColor(a.color);
+  const name = team.roster.find((p) => p.label === a.label)?.name ?? a.label;
+  const summary =
+    a.side === "offense" ? offAwardSummary(a.stats) : defAwardSummary(a.stats);
+
+  const card = document.createElement("div");
+  card.className = `sched-award sched-award-${a.side}`;
+  card.innerHTML =
+    `<div class="sched-award-head">${a.divisionName} · ${a.side === "offense" ? "Offense" : "Defense"}</div>` +
+    `<div class="sched-award-player" style="color:${team.color}">${name}` +
+    `<span class="sched-award-grade">${a.grade.toFixed(1)}</span></div>` +
+    `<div class="sched-award-meta">${a.label} · <span style="color:${team.color}">${team.name}</span></div>` +
+    `<div class="sched-award-stat">${summary}</div>`;
+  return card;
+}
+
+/** Combined offensive line (passing/rushing/receiving), zero parts dropped. */
+function offAwardSummary(s: PlayerStats): string {
+  const parts: string[] = [];
+  if (s.passing?.attempts) {
+    const p = s.passing;
+    parts.push(
+      `${p.completions}/${p.attempts}, ${p.yards.toFixed(0)} pass yds` +
+        (p.tds ? `, ${p.tds} TD` : "") +
+        (p.ints ? `, ${p.ints} INT` : ""),
+    );
+  }
+  if (s.rushing?.rushes) {
+    const r = s.rushing;
+    parts.push(`${r.rushes} car, ${r.yards.toFixed(0)} rush yds` + (r.tds ? `, ${r.tds} TD` : ""));
+  }
+  if (s.receiving?.catches) {
+    const r = s.receiving;
+    parts.push(`${r.catches} rec, ${r.yards.toFixed(0)} rec yds` + (r.tds ? `, ${r.tds} TD` : ""));
+  }
+  return parts.join(" · ");
+}
+
+function defAwardSummary(s: PlayerStats): string {
+  const d = s.defense!;
+  const parts: [number, string][] = [
+    [d.tackles, "tkl"],
+    [d.tfls, "TFL"],
+    [d.sacks, "sk"],
+    [d.interceptions, "INT"],
+    [d.passBreakups, "PBU"],
+  ];
+  return parts.filter(([n]) => n !== 0).map(([n, u]) => `${n} ${u}`).join(", ");
 }
 
 function renderGameCard(game: Game): HTMLElement {
@@ -1018,6 +1116,17 @@ function renderStatTable(cfg: (typeof STAT_TABS)[number]): HTMLElement {
     });
   }
 
+  // Award grade for this tab: offensive grade on offensive tabs, defensive on
+  // the defense tab. Mirrors the OPOY/DPOY scoring.
+  const grade = cfg.key === "defense" ? defensiveGrade : offensiveGrade;
+  statColumns.push({
+    header: "GRD",
+    thClass: "sched-stat-grade",
+    tdClass: "sched-stat-grade",
+    cell: (r) => grade(r.stats).toFixed(1),
+    sortVal: (r) => grade(r.stats),
+  });
+
   // Mark the first stat column so it renders the meta/stats divider.
   statColumns[0].thClass =
     `${statColumns[0].thClass ?? ""} sched-stat-divider`.trim();
@@ -1096,6 +1205,116 @@ function renderStatTable(cfg: (typeof STAT_TABS)[number]): HTMLElement {
   table.appendChild(tbody);
   wrap.appendChild(table);
   return wrap;
+}
+
+// ── Season awards (OPOY / DPOY / MVP) ────────────────────────────────────────
+
+type AwardCandidate = {
+  color: string;
+  label: Label;
+  name: string;
+  grade: number;
+  stats: PlayerStats;
+  side: "offense" | "defense";
+};
+
+/**
+ * Season-long award leaderboards. Because the grade functions are linear in the
+ * counting stats, grading the accumulated season totals equals the sum of each
+ * game's grade — so this stays in sync with the weekly stat accumulation.
+ */
+function renderSeasonAwards(): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "sched-section";
+
+  const heading = document.createElement("h3");
+  heading.className = "sched-heading";
+  heading.textContent = "Season Awards";
+  section.appendChild(heading);
+
+  if (!hasSeasonStats()) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent = "Simulate games to build the OPOY, DPOY, and MVP races.";
+    section.appendChild(p);
+    return section;
+  }
+
+  const opoy: AwardCandidate[] = [];
+  const dpoy: AwardCandidate[] = [];
+  const mvp: AwardCandidate[] = [];
+
+  for (const [color, players] of Object.entries(getSeasonStats())) {
+    const team = teamByColor(color);
+    for (const [label, stats] of Object.entries(players)) {
+      if (!stats) continue;
+      const name = team.roster.find((p) => p.label === label)?.name ?? label;
+      const base = { color, label: label as Label, name, stats };
+      const off = offensiveGrade(stats);
+      const def = defensiveGrade(stats);
+      const isOff = hasOffense(stats);
+      if (isOff) opoy.push({ ...base, grade: off, side: "offense" });
+      if (stats.defense && def > 0) dpoy.push({ ...base, grade: def, side: "defense" });
+      // MVP is QB-weighted total impact (see mvpGrade); its summary follows the
+      // player's dominant side.
+      if (off !== 0 || def > 0)
+        mvp.push({ ...base, grade: mvpGrade(stats), side: isOff ? "offense" : "defense" });
+    }
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "sched-awards-grid";
+  grid.appendChild(awardLeaderboard("MVP", "Most Valuable Player", mvp));
+  grid.appendChild(awardLeaderboard("OPOY", "Offensive Player of the Year", opoy));
+  grid.appendChild(awardLeaderboard("DPOY", "Defensive Player of the Year", dpoy));
+  section.appendChild(grid);
+
+  return section;
+}
+
+function awardLeaderboard(
+  title: string,
+  subtitle: string,
+  candidates: AwardCandidate[],
+): HTMLElement {
+  const col = document.createElement("div");
+  col.className = "sched-award-col";
+
+  const head = document.createElement("div");
+  head.className = "sched-award-col-head";
+  head.innerHTML =
+    `<span class="sched-award-col-title">${title}</span>` +
+    `<span class="sched-award-col-sub">${subtitle}</span>`;
+  col.appendChild(head);
+
+  const top = [...candidates].sort((a, b) => b.grade - a.grade).slice(0, 5);
+  if (top.length === 0) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent = "No candidates yet.";
+    col.appendChild(p);
+    return col;
+  }
+
+  top.forEach((c, i) => {
+    const team = teamByColor(c.color);
+    const summary =
+      c.side === "offense" ? offAwardSummary(c.stats) : defAwardSummary(c.stats);
+    const row = document.createElement("div");
+    row.className = "sched-award-rank" + (i === 0 ? " leader" : "");
+    if (c.color === getSelectedTeamColor()) row.classList.add("focus");
+    row.innerHTML =
+      `<div class="sched-award-rank-top">` +
+      `<span class="sched-award-rank-n">${i === 0 ? "👑" : i + 1}</span>` +
+      `<span class="sched-award-rank-name" style="color:${team.color}">${c.name}</span>` +
+      `<span class="sched-award-rank-meta">${c.label} · ${team.name}</span>` +
+      `<span class="sched-award-rank-grade">${c.grade.toFixed(1)}</span>` +
+      `</div>` +
+      `<div class="sched-award-rank-stat">${summary}</div>`;
+    col.appendChild(row);
+  });
+
+  return col;
 }
 
 function renderRosters(): HTMLElement {
