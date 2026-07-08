@@ -11,8 +11,28 @@ let replayFrameIndex = 0;
  * from this, so changing it is all that's needed. */
 export const NUM_REPLAYS = 10;
 
-/** Selects a specific replay index or to watch live */
+// ── One-off highlight playback (overrides the normal replay path) ──
+let highlightFrames: ReplayFrame[] | null = null;
+let highlightIndex = 0;
+let highlightStride = 1;
+let highlightTick = 0;
+
+/** Plays an externally supplied set of frames (e.g. a simulated-game highlight),
+ * advancing one frame every `stride` ticks to match the capture downsampling. */
+function playHighlight(frames: ReplayFrame[], stride = 1) {
+  highlightFrames = frames.length > 0 ? frames : null;
+  highlightIndex = 0;
+  highlightStride = Math.max(1, stride);
+  highlightTick = 0;
+}
+
+function isHighlightPlaying(): boolean {
+  return highlightFrames !== null;
+}
+
+/** Selects a specific replay index or to watch live; also exits highlight mode. */
 function setReplayMode(mode: "live" | number) {
+  highlightFrames = null;
   replayMode = mode;
   replayFrameIndex = 0; // Reset animation playhead on switch
 }
@@ -22,9 +42,9 @@ function getCompletedPlaysCount(): number {
   return completedPlays.length;
 }
 
-/** Records current frame to later save as part of a full play's replay */
-function captureReplayFrame() {
-  currentPlayFrames.push({
+/** Builds a renderable snapshot of the current live state. */
+function snapshotFrame(): ReplayFrame {
+  return {
     ballLoc: { x: state.ball.loc.x, y: state.ball.loc.y },
     ballVel: { x: state.ball.vel.x, y: state.ball.vel.y },
     players: state.players.map((p) => ({
@@ -36,7 +56,12 @@ function captureReplayFrame() {
     })),
     // Create a deep value copy of the scoreboard state
     scoreboard: JSON.parse(JSON.stringify(state.scoreboard)),
-  });
+  };
+}
+
+/** Records current frame to later save as part of a full play's replay */
+function captureReplayFrame() {
+  currentPlayFrames.push(snapshotFrame());
 }
 
 /** Save the most recent replay and make room for it if necessary */
@@ -53,11 +78,13 @@ function saveReplay() {
 
 /** Returns true if on the current play, returns false if watching a replay */
 function isLive(): boolean {
+  if (highlightFrames) return false;
   return replayMode === "live";
 }
 
-/** If watching a replay, returns its current frame. Otherwise, returns null */
+/** If watching a replay/highlight, returns its current frame. Otherwise null */
 function getReplayFrame(): ReplayFrame | null {
+  if (highlightFrames) return highlightFrames[highlightIndex] ?? null;
   if (replayMode === "live") return null;
   const activePlay = completedPlays[replayMode];
   return activePlay[replayFrameIndex];
@@ -73,8 +100,15 @@ function getReplayMockState(frame: ReplayFrame): State {
   };
 }
 
-/** If watching a replay, move to its next frame (loops). Otherwise, no-op */
+/** If watching a replay/highlight, move to its next frame (loops). Else no-op */
 function incrementReplay(): void {
+  if (highlightFrames) {
+    highlightTick++;
+    if (highlightTick % highlightStride === 0) {
+      highlightIndex = (highlightIndex + 1) % highlightFrames.length;
+    }
+    return;
+  }
   if (replayMode === "live") return;
   const activePlay = completedPlays[replayMode];
   replayFrameIndex = (replayFrameIndex + 1) % activePlay.length;
@@ -86,7 +120,10 @@ export {
   getReplayFrame,
   getReplayMockState,
   incrementReplay,
+  isHighlightPlaying,
   isLive,
+  playHighlight,
   saveReplay,
   setReplayMode,
+  snapshotFrame,
 };

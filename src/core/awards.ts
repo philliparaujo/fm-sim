@@ -17,27 +17,31 @@ export type Award = {
  *   rush  0.1/yd (~1 per 10), +6/TD
  *   recv  0.1/yd, +6/TD, +0.5/reception (PPR)
  */
+export function passingGrade(s: PlayerStats): number {
+  const p = s.passing;
+  if (!p) return 0;
+  return (
+    p.yards * 0.04 +
+    p.tds * 4 -
+    p.ints * 3 +
+    p.completions * 0.09 -
+    p.attempts * 0.01 -
+    p.sacks * 0.5
+  );
+}
+
+export function rushingGrade(s: PlayerStats): number {
+  const r = s.rushing;
+  return r ? r.yards * 0.1 + r.tds * 6 : 0;
+}
+
+export function receivingGrade(s: PlayerStats): number {
+  const r = s.receiving;
+  return r ? r.yards * 0.1 + r.tds * 6 + r.catches * 0.5 : 0;
+}
+
 export function offensiveGrade(s: PlayerStats): number {
-  let g = 0;
-  if (s.passing) {
-    const p = s.passing;
-    g +=
-      p.yards * 0.04 +
-      p.tds * 4 -
-      p.ints * 3 +
-      p.completions * 0.09 -
-      p.attempts * 0.01 -
-      p.sacks * 0.5;
-  }
-  if (s.rushing) {
-    const r = s.rushing;
-    g += r.yards * 0.1 + r.tds * 6;
-  }
-  if (s.receiving) {
-    const r = s.receiving;
-    g += r.yards * 0.1 + r.tds * 6 + r.catches * 0.5;
-  }
-  return g;
+  return passingGrade(s) + rushingGrade(s) + receivingGrade(s);
 }
 
 /**

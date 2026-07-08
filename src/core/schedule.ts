@@ -1,3 +1,4 @@
+import { Highlight } from "./highlights";
 import { LEAGUE } from "./state";
 import { PlayerStatsByLabel, Team } from "./types";
 
@@ -16,6 +17,8 @@ export type Game = {
   round: "regular" | "semifinal" | "final";
   /** Per-team, per-label box score, keyed by team color. Set when simulated. */
   playerStats?: Record<string, PlayerStatsByLabel>;
+  /** Notable plays with replay frames. Set when simulated. */
+  highlights?: Highlight[];
 };
 
 export type Division = { name: string; teamColors: string[] };

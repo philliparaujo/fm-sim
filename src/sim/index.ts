@@ -4,6 +4,11 @@ import {
   TRAINING_MODE_ON,
 } from "../core/constants";
 import { generateSpecialPlaycall } from "../core/playbook";
+import {
+  evaluateHighlight,
+  Highlight,
+  HIGHLIGHT_FRAME_STRIDE,
+} from "../core/highlights";
 import { getConstants } from "../core/ratings";
 import { LEAGUE, recreateState, state } from "../core/state";
 import { Ball, PlayEndReason, Player, PlayerStatsByLabel, Team } from "../core/types";
@@ -19,6 +24,7 @@ import {
   incrementReplay,
   isLive,
   saveReplay,
+  snapshotFrame,
 } from "./replay";
 import { updateStatsAfterPlay } from "../stats";
 import {
@@ -33,8 +39,11 @@ import { getDefenseTeam, getOffenseTeam } from "../utils/roster";
 import {
   checkIfFieldGoal,
   checkIfInterception,
+  checkIfPassComplete,
   checkIfPassIncomplete,
   checkIfPunt,
+  checkIfRush,
+  checkIfSack,
   checkIfSafety,
   checkIfTouchdown,
   checkIfTurnoverOnDowns,
@@ -45,6 +54,7 @@ import {
   ENDZONE_W,
   LOGIC_TICK_MS,
   PLAY_CLOCK_RUNOFF,
+  pxToYards,
   QUARTER_SECONDS,
   START_DRIVE,
   ticksToSeconds,
@@ -88,6 +98,17 @@ function stepSimulation() {
 
   // Increment tick count on current play
   state.steps++;
+
+  // Buffer a downsampled frame for highlight capture during headless sim. Doing
+  // this at the top of the tick (before any mid-tick resetSimulation) guarantees
+  // every buffered frame belongs to the play that is live this tick, so a saved
+  // highlight can never mix in frames from an adjacent play.
+  if (capturingHighlights) {
+    if (highlightTickCounter % HIGHLIGHT_FRAME_STRIDE === 0) {
+      playFrameBuffer.push(snapshotFrame());
+    }
+    highlightTickCounter++;
+  }
 
   // Run the game clock down during live play (real game only)
   if (!TRAINING_MODE_ON) {
@@ -156,6 +177,33 @@ function stepSimulation() {
 const QUARTERS = ["1st", "2nd", "3rd", "4th"] as const;
 let gameOver = false;
 let simulatingMode = false;
+
+// ── Highlight capture (used during headless simulateFullGame) ──
+let capturingHighlights = false;
+let playFrameBuffer: Highlight["frames"] = [];
+let capturedHighlights: Highlight[] = [];
+let highlightTickCounter = 0;
+
+function beginHighlightCapture() {
+  capturingHighlights = true;
+  playFrameBuffer = [];
+  capturedHighlights = [];
+  highlightTickCounter = 0;
+}
+
+function endHighlightCapture(): Highlight[] {
+  capturingHighlights = false;
+  const out = capturedHighlights;
+  capturedHighlights = [];
+  playFrameBuffer = [];
+  return out;
+}
+
+function formatClock(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 let lastTime = 0;
 let timeAccumulator = 0;
@@ -238,6 +286,39 @@ function resetSimulation(reason: PlayEndReason) {
   const offenseTeamName = activeOffenseTeam.name;
   const updatedGlobalStats = updateStatsAfterPlay(state, reason);
   const updatedTeamStats = updatedGlobalStats[offenseTeamName];
+
+  // Highlight capture: judge the finished play and, if notable, save its frames.
+  if (capturingHighlights) {
+    const playYards = pxToYards(
+      (isTouchdown ? W + ENDZONE_W : finalLOSBeforeFlip) - prevScoreboard.LOS,
+    );
+    const res = evaluateHighlight({
+      playYards,
+      isRush: checkIfRush(state, reason),
+      isCompletePass: checkIfPassComplete(state, reason),
+      isSack: checkIfSack(state, reason),
+      isInterception,
+      isTouchdown,
+      isFieldGoal,
+      isSafety,
+      offenseColor: activeOffenseTeam.color,
+      offenseName: activeOffenseTeam.name,
+      defenseColor: activeDefenseTeam.color,
+      defenseName: activeDefenseTeam.name,
+    });
+    // Only record highlights that actually have replay frames — instantaneous
+    // special-teams plays (field goals, punts) never animate, so they're skipped.
+    if (res && playFrameBuffer.length > 0) {
+      capturedHighlights.push({
+        ...res,
+        quarter: prevScoreboard.quarter,
+        clock: formatClock(prevScoreboard.time),
+        frames: [...playFrameBuffer],
+      });
+    }
+    playFrameBuffer = [];
+    highlightTickCounter = 0;
+  }
 
   if (numPlays(updatedTeamStats) % 100 === 0) {
     console.log(
@@ -458,12 +539,14 @@ function simulateFullGame(
   offenseScore: number;
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
+  highlights: Highlight[];
 } {
   const restoredOffenseColor = openingOffenseColor;
   const restoredTeams = state.scoreboard.teams;
 
   simulatingMode = true;
   loadGame(offenseColor, defenseColor);
+  beginHighlightCapture();
 
   const MAX_TICKS = 500_000;
   let ticks = 0;
@@ -484,6 +567,8 @@ function simulateFullGame(
     if (s) playerStats[t.color] = s.players;
   }
 
+  const highlights = endHighlightCapture();
+
   // Restore the live game for the play tab (keep simulatingMode true so the
   // restore loadGame doesn't trigger any UI updates)
   if (typeof document !== "undefined" && restoredTeams.length === 2) {
@@ -492,7 +577,7 @@ function simulateFullGame(
   }
   simulatingMode = false;
 
-  return { offenseScore, defenseScore, playerStats };
+  return { offenseScore, defenseScore, playerStats, highlights };
 }
 
 export { loadGame, onPlayReset, resetGame, resetSimulation, simulateFullGame, state, tick };

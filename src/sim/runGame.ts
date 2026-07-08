@@ -1,9 +1,10 @@
+import { Highlight } from "../core/highlights";
 import { PlayerStatsByLabel, Team } from "../core/types";
 
 /**
- * Runs a full headless game in a Web Worker and resolves with the final scores
- * plus each team's per-label player stat lines (keyed by team color).
- * The `offenseTeam` starts the game with the ball (i.e. the home team).
+ * Runs a full headless game in a Web Worker and resolves with the final scores,
+ * each team's per-label player stat lines (keyed by team color), and the game's
+ * highlight reel. The `offenseTeam` starts the game with the ball (home team).
  */
 export function workerGame(
   offenseTeam: Team,
@@ -12,6 +13,7 @@ export function workerGame(
   offenseScore: number;
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
+  highlights: Highlight[];
 }> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./simWorker.ts", import.meta.url), {

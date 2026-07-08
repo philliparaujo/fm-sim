@@ -1,3 +1,4 @@
+import { Highlight } from "../core/highlights";
 import { LEAGUE } from "../core/state";
 import { PlayerStatsByLabel, Team } from "../core/types";
 import { simulateFullGame } from "./index";
@@ -7,6 +8,7 @@ type WorkerOutput = {
   offenseScore: number;
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
+  highlights: Highlight[];
 };
 
 self.onmessage = (e: MessageEvent<WorkerInput>) => {

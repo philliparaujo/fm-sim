@@ -35,12 +35,16 @@ import {
   hasOffense,
   mvpGrade,
   offensiveGrade,
+  receivingGrade,
+  rushingGrade,
   weeklyAwards,
 } from "../core/awards";
 import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Label, PlayerStats, PlayerStatsByLabel } from "../core/types";
+import { Highlight, HIGHLIGHT_FRAME_STRIDE } from "../core/highlights";
 import { loadGame } from "../sim";
+import { playHighlight } from "../sim/replay";
 import { workerGame } from "../sim/runGame";
 import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { getSelectedTeamColor } from "./draft";
@@ -61,6 +65,8 @@ let statTab: StatTab = "passing";
 let statSort: { col: number; dir: "asc" | "desc" } | null = null;
 /** Keys of game cards whose box score is expanded. */
 const expandedGames = new Set<string>();
+/** Keys of game cards whose highlight list is expanded. */
+const expandedHighlights = new Set<string>();
 
 function allDrafted(): boolean {
   return LEAGUE.every((t) => t.roster.length > 0);
@@ -99,12 +105,11 @@ async function simOneGame(game: Game): Promise<void> {
   const home = teamByColor(game.homeColor);
   const away = teamByColor(game.awayColor);
   // Home team starts with the ball → passed as the "offense" team.
-  const { offenseScore, defenseScore, playerStats } = await workerGame(
-    home,
-    away,
-  );
+  const { offenseScore, defenseScore, playerStats, highlights } =
+    await workerGame(home, away);
   recordGame(game, offenseScore, defenseScore);
   game.playerStats = playerStats;
+  game.highlights = highlights;
   addGamePlayerStats(playerStats);
 }
 
@@ -465,8 +470,8 @@ function renderGameCard(game: Game): HTMLElement {
     result.textContent = isTie ? "TIE" : "FINAL";
     actions.appendChild(result);
 
+    const key = gameKey(game);
     if (game.playerStats) {
-      const key = gameKey(game);
       const expanded = expandedGames.has(key);
       const boxBtn = document.createElement("button");
       boxBtn.className = "sched-box-btn";
@@ -477,6 +482,19 @@ function renderGameCard(game: Game): HTMLElement {
         render();
       });
       actions.appendChild(boxBtn);
+    }
+
+    if (game.highlights && game.highlights.length > 0) {
+      const expanded = expandedHighlights.has(key);
+      const hlBtn = document.createElement("button");
+      hlBtn.className = "sched-box-btn sched-hl-btn";
+      hlBtn.textContent = `${expanded ? "▾" : "▸"} Highlights (${game.highlights.length})`;
+      hlBtn.addEventListener("click", () => {
+        if (expanded) expandedHighlights.delete(key);
+        else expandedHighlights.add(key);
+        render();
+      });
+      actions.appendChild(hlBtn);
     }
   } else {
     const playBtn = document.createElement("button");
@@ -504,8 +522,56 @@ function renderGameCard(game: Game): HTMLElement {
   if (game.played && game.playerStats && expandedGames.has(gameKey(game))) {
     card.appendChild(renderBoxScore(game));
   }
+  if (game.played && game.highlights && expandedHighlights.has(gameKey(game))) {
+    card.appendChild(renderHighlightList(game.highlights));
+  }
 
   return card;
+}
+
+const HIGHLIGHT_ICON: Record<Highlight["kind"], string> = {
+  score: "🏈",
+  turnover: "🔄",
+  sack: "💥",
+  bigPass: "🎯",
+  bigRun: "🏃",
+  loss: "🔻",
+};
+
+/** Expandable list of a game's highlights, each playable in the Play tab. */
+function renderHighlightList(highlights: Highlight[]): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "sched-hl-list";
+
+  for (const h of highlights) {
+    const team = teamByColor(h.teamColor);
+    const row = document.createElement("div");
+    row.className = "sched-hl-row";
+
+    const info = document.createElement("div");
+    info.className = "sched-hl-info";
+    info.innerHTML =
+      `<span class="sched-hl-icon">${HIGHLIGHT_ICON[h.kind]}</span>` +
+      `<span class="sched-hl-when">${h.quarter} ${h.clock}</span>` +
+      `<span class="sched-hl-desc" style="color:${team.color}">${h.description}</span>`;
+    row.appendChild(info);
+
+    if (h.frames.length > 0) {
+      const watch = document.createElement("button");
+      watch.className = "sched-hl-watch";
+      watch.textContent = "▶";
+      watch.title = "Watch this play in the Play tab";
+      watch.addEventListener("click", () => {
+        playHighlight(h.frames, HIGHLIGHT_FRAME_STRIDE);
+        document.getElementById("tab-play")?.click();
+      });
+      row.appendChild(watch);
+    }
+
+    box.appendChild(row);
+  }
+
+  return box;
 }
 
 function gameKey(game: Game): string {
@@ -564,11 +630,8 @@ function renderBoxScore(game: Game): HTMLElement {
         );
     }
 
-    // Leading rusher (most carries, then yards)
-    const rusher = topBy(
-      players,
-      (s) => (s.rushing?.rushes ?? 0) * 1000 + (s.rushing?.yards ?? 0),
-    );
+    // Leading rusher (by rushing grade — same criteria as awards)
+    const rusher = topBy(players, rushingGrade);
     if (rusher && rusher.stats.rushing!.rushes > 0) {
       const r = rusher.stats.rushing!;
       lines.push(
@@ -583,11 +646,8 @@ function renderBoxScore(game: Game): HTMLElement {
       );
     }
 
-    // Leading receiver (most catches, then yards)
-    const receiver = topBy(
-      players,
-      (s) => (s.receiving?.catches ?? 0) * 1000 + (s.receiving?.yards ?? 0),
-    );
+    // Leading receiver (by receiving grade — catches & TDs count, not just yards)
+    const receiver = topBy(players, receivingGrade);
     if (receiver && receiver.stats.receiving!.catches > 0) {
       const r = receiver.stats.receiving!;
       lines.push(
@@ -602,16 +662,8 @@ function renderBoxScore(game: Game): HTMLElement {
       );
     }
 
-    // Leading defender (top tackles, then sacks + INTs)
-    const defender = topBy(players, (s) =>
-      s.defense
-        ? s.defense.tackles +
-          s.defense.tfls * 2 +
-          s.defense.sacks * 6 +
-          s.defense.interceptions * 10 +
-          s.defense.passBreakups * 2
-        : 0,
-    );
+    // Leading defender (by defensive grade — same criteria as DPOW)
+    const defender = topBy(players, defensiveGrade);
     if (defender && defender.stats.defense) {
       const d = defender.stats.defense;
       if (d.tackles + d.sacks + d.interceptions + d.passBreakups > 0)
