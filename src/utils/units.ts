@@ -1,19 +1,22 @@
 import { Ellipse } from "../core/types";
 
+/** Scale factor applied to all spatial pixel constants. 1.0 = original full size. */
+export const FIELD_SCALE = 1 / 2;
+
 /* Sizing constants */
 /** Goal line to goal line length (px) */
-export const W = 2160;
+export const W = 2160 * FIELD_SCALE;
 
 /** Sideline-to-sideline (px)  */
-export const H = 1200;
+export const H = 1200 * FIELD_SCALE;
 
 /** Get the dimensions of the pocket ellipse (px) */
 export function getPocket(LOS: number): Ellipse {
   return {
     cx: LOS - yardsToPx(5),
     cy: H / 2,
-    rx: 90,
-    ry: 360,
+    rx: 90 * FIELD_SCALE,
+    ry: 360 * FIELD_SCALE,
   };
 }
 

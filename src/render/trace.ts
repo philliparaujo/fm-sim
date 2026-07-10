@@ -1,38 +1,39 @@
 import { Ellipse, Player, State } from "../core/types";
 import { predictReceiverRoute } from "../utils/behavior";
+import { FIELD_SCALE } from "../utils/units";
 import { ctx } from "./canvas";
 
 const PREDICTED_ROUTE_STROKE = "rgba(255, 160, 0, 1)";
-const PREDICTED_ROUTE_WIDTH = 3;
-const PREDICTED_ROUTE_DASH = [4, 8];
+const PREDICTED_ROUTE_WIDTH = 3 * FIELD_SCALE;
+const PREDICTED_ROUTE_DASH = [4 * FIELD_SCALE, 8 * FIELD_SCALE];
 
 const CATCHER_TRACE_STROKE = "rgba(255, 255, 255, 0.5)";
-const CATCHER_TRACE_WIDTH = 6;
-const CATCHER_TRACE_DASH = [15, 15];
+const CATCHER_TRACE_WIDTH = 6 * FIELD_SCALE;
+const CATCHER_TRACE_DASH = [15 * FIELD_SCALE, 15 * FIELD_SCALE];
 
 const RUNNER_PATH_STROKE = "rgba(255, 255, 255, 0.6)";
-const RUNNER_PATH_WIDTH = 3.5;
-const RUNNER_PATH_DASH = [6, 6];
+const RUNNER_PATH_WIDTH = 3.5 * FIELD_SCALE;
+const RUNNER_PATH_DASH = [6 * FIELD_SCALE, 6 * FIELD_SCALE];
 
 const ZONE_STROKE = "rgba(255, 255, 0, 0.7)";
-const ZONE_WIDTH = 3;
-const ZONE_DASH = [30, 30];
-const ZONE_RADIUS = 240;
+const ZONE_WIDTH = 3 * FIELD_SCALE;
+const ZONE_DASH = [30 * FIELD_SCALE, 30 * FIELD_SCALE];
+const ZONE_RADIUS = 240 * FIELD_SCALE;
 const ZONE_FILL_COLOR = "rgba(255, 255, 255, 0.7)";
-const ZONE_FILL_RADIUS = 4;
+const ZONE_FILL_RADIUS = 4 * FIELD_SCALE;
 
 const POCKET_ELLIPSE_STROKE = "rgba(255, 255, 255, 0.25)";
-const POCKET_ELLIPSE_WIDTH = 3;
-const POCKET_ELLIPSE_DASH = [18, 18];
+const POCKET_ELLIPSE_WIDTH = 3 * FIELD_SCALE;
+const POCKET_ELLIPSE_DASH = [18 * FIELD_SCALE, 18 * FIELD_SCALE];
 const POCKET_ELLIPSE_FILL_COLOR = "rgba(255, 255, 255, 0.04)";
 const POCKET_LINE_STROKE = "rgba(255, 255, 255, 0.25)";
-const POCKET_LINE_WIDTH = 3;
-const POCKET_LINE_DASH = [6, 12];
+const POCKET_LINE_WIDTH = 3 * FIELD_SCALE;
+const POCKET_LINE_DASH = [6 * FIELD_SCALE, 12 * FIELD_SCALE];
 
-const RAY_LENGTH = 55;
-const RAY_WIDTH = 2.5;
+const RAY_LENGTH = 55 * FIELD_SCALE;
+const RAY_WIDTH = 2.5 * FIELD_SCALE;
 const RAY_STROKE = (opacity: number) => `rgba(46, 204, 113, ${opacity})`;
-const RAY_DOT_RADIUS = 4.5;
+const RAY_DOT_RADIUS = 4.5 * FIELD_SCALE;
 const RAY_DOT_FILL = "#F1C40F";
 
 function resetCtx() {

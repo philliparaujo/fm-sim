@@ -2,6 +2,7 @@ import { attemptTackle } from "../behavior/tackle";
 import { INLINE_NUDGE } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { state } from "../core/state";
+import { FIELD_SCALE } from "../utils/units";
 import { Ball, Entity, Player } from "../core/types";
 import { resetSimulation } from ".";
 import {
@@ -145,9 +146,10 @@ function resolveCollision(a: Player, b: Entity) {
             const toBall = diff(state.ball.loc, defender.loc);
             const ballDist = length(toBall);
             if (ballDist > 0) {
-              // Nudge them 25 pixels toward the ball to clear the blocker's bounding circle immediately
-              defender.loc.x += (toBall.x / ballDist) * 25;
-              defender.loc.y += (toBall.y / ballDist) * 25;
+              // Nudge them toward the ball to clear the blocker's bounding circle immediately
+              const SHED_NUDGE = 25 * FIELD_SCALE;
+              defender.loc.x += (toBall.x / ballDist) * SHED_NUDGE;
+              defender.loc.y += (toBall.y / ballDist) * SHED_NUDGE;
             }
             return; // Exit early to avoid damping this frame
           }

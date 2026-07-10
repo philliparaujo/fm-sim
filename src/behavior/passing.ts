@@ -16,6 +16,7 @@ import {
 } from "../utils/field";
 import { lerp } from "../utils/math";
 import {
+  FIELD_SCALE,
   getPocket,
   H,
   metersToPx,
@@ -75,7 +76,7 @@ function navigatePocket(
     const velDiff =
       Math.abs(targetVelX - player.vel.x) + Math.abs(targetVelY - player.vel.y);
     const smoothSteer =
-      velDiff < 0.4 ? passerSteerFactor * 0.15 : passerSteerFactor;
+      velDiff < 0.4 * FIELD_SCALE ? passerSteerFactor * 0.15 : passerSteerFactor;
 
     player.vel.x += (targetVelX - player.vel.x) * smoothSteer;
     player.vel.y += (targetVelY - player.vel.y) * smoothSteer;
@@ -189,8 +190,8 @@ function throwingDecision(
   if (throwAway) {
     const throwAwaySide = player.loc.y < H / 2 ? -1 : 1;
     const throwAwayTarget = {
-      x: player.loc.x + 60,
-      y: throwAwaySide < 0 ? -40 : TOTAL_H + 40,
+      x: player.loc.x + 60 * FIELD_SCALE,
+      y: throwAwaySide < 0 ? -40 * FIELD_SCALE : TOTAL_H + 40 * FIELD_SCALE,
     };
     const { ballMetersPerSecond } = getConstants("THROWPOWER", player);
     const ballPixelsPerTick = metersToPx(
@@ -228,7 +229,7 @@ function throwingDecision(
     : 0;
   const pressureFactor = rawPressure * pressureSensitivity;
 
-  const maxDistanceScale = 400;
+  const maxDistanceScale = 400 * FIELD_SCALE;
   const distanceWeight = Math.min(1, bestOption.throwDist / maxDistanceScale);
   const baseErrorRate = lerp(distanceWeight, shortError, deepError);
 
@@ -271,7 +272,7 @@ function avoidBallCarrier(
   const runAngleY = state.currentPlay.runAngle?.y;
 
   if (
-    ballSpeed > 0.1 &&
+    ballSpeed > 0.1 * FIELD_SCALE &&
     runAngleY &&
     dist(player.loc, state.ball.loc) < PASSER_HANDOFF_SEPARATION
   ) {

@@ -2,7 +2,7 @@ import { MIN_BLOCK_DISTANCE } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { CachedPlayers, Player, State, Vector } from "../core/types";
 import { isPassPlay } from "../utils/field";
-import { H } from "../utils/units";
+import { FIELD_SCALE, H } from "../utils/units";
 import { closestPointOnSegment, diff, dist, length } from "../utils/vector";
 
 function blockNearestDefender(
@@ -32,7 +32,7 @@ function blockNearestDefender(
 
     // Checks if an immediate thread has breached the pocket edge
     const activeThreat =
-      assignedDefender || defenders.find((d) => dist(d.loc, anchorLoc) < 180);
+      assignedDefender || defenders.find((d) => dist(d.loc, anchorLoc) < 180 * FIELD_SCALE);
 
     if (activeThreat) {
       // Intercept path to protect the pocket anchor
@@ -55,7 +55,7 @@ function blockNearestDefender(
     } else {
       // POCKET SCAN POSITION: Stationed 35 pixels upfield (East) of the passer to wait for blitzers
       targetLoc = {
-        x: anchorLoc.x + 35,
+        x: anchorLoc.x + 35 * FIELD_SCALE,
         y: anchorLoc.y,
       };
     }
@@ -82,15 +82,15 @@ function blockNearestDefender(
       const distanceToDefender = dist(player.loc, targetDefender.loc);
 
       // If they haven't engaged yet, shade dynamically to seal inside paths
-      if (distanceToDefender > 30) {
+      if (distanceToDefender > 30 * FIELD_SCALE) {
         const fieldCenterY = H / 2;
 
         // Above centerline: shade DOWN (+Y). Below centerline: shade UP (-Y)
         const insideShadeDirection =
           targetDefender.loc.y < fieldCenterY ? 1 : -1;
 
-        const UPFIELD_SEAL_X = 15; // Positioning allowance downfield (Ahead of defender)
-        const INSIDE_SEAL_Y = 50; // Lateral buffer size to establish an inside wall
+        const UPFIELD_SEAL_X = 15 * FIELD_SCALE;
+        const INSIDE_SEAL_Y = 50 * FIELD_SCALE;
 
         targetLoc = {
           x: targetDefender.loc.x + UPFIELD_SEAL_X,
@@ -141,7 +141,7 @@ function blockNearestDefender(
   if (targetLoc) {
     const distToTarget = dist(player.loc, targetLoc);
 
-    if (distToTarget < 3) {
+    if (distToTarget < 3 * FIELD_SCALE) {
       // Dead zone threshold prevents micro-jittering oscillations when set
       player.vel.x = 0;
       player.vel.y = 0;

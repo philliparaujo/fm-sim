@@ -1,6 +1,7 @@
 import { Ball, Player, Scoreboard, State, Vector } from "../core/types";
 import {
   ENDZONE_W,
+  FIELD_SCALE,
   pxToYards,
   TOTAL_H,
   TOTAL_W,
@@ -123,7 +124,7 @@ export function updateDownAndDistance(
   };
 }
 
-const BALL_SNAP_DIST = 24; // Maximum distance where a player will snap to the ball
+const BALL_SNAP_DIST = 24 * FIELD_SCALE; // Maximum distance where a player will snap to the ball
 export function isCarryingBall(player: Player, ball: Ball): boolean {
   return dist(player.loc, ball.loc) < BALL_SNAP_DIST;
 }

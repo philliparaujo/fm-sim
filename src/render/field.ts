@@ -1,6 +1,7 @@
 import { Scoreboard } from "../core/types";
 import {
   ENDZONE_W,
+  FIELD_SCALE,
   GOALPOST_CROSSBAR_WIDTH,
   H,
   TOTAL_H,
@@ -23,18 +24,18 @@ const YARD_LINE_INTERVAL = 10;
 
 const HASH_STROKE = "rgba(255, 255, 255, 0.3)";
 const HASH_ALPHA = 0.5;
-const HASH_LENGTH = 20;
+const HASH_LENGTH = 20 * FIELD_SCALE;
 const HASH_SUBDIVISIONS = 5;
 
 const FIELD_NUMBER_FILL = "rgba(255, 255, 255, 0.5)";
-const FIELD_NUMBER_FONT = "bold 20px Arial";
+const FIELD_NUMBER_FONT = `bold ${Math.round(20 * FIELD_SCALE)}px Arial`;
 
 const GOALPOST_STROKE = "#FFD400";
 const GOALPOST_WIDTH = 5;
 const GOALPOST_POST_RADIUS = 6;
 const GOALPOST_CENTER_HASH_LENGTH = 10;
 
-const VERTICAL_LINE_WIDTH = 6; // Both LOS and FIRST_DOWN line
+const VERTICAL_LINE_WIDTH = 6 * FIELD_SCALE; // Both LOS and FIRST_DOWN line
 const LOS_STROKE = "rgba(0, 120, 255, 0.8)";
 const FIRST_DOWN_STROKE = "rgba(255, 255, 0, 0.8)";
 const FIRST_DOWN_4TH_STROKE = "rgba(255, 0, 0, 0.8)";
@@ -103,8 +104,8 @@ function drawField(scoreboard?: Scoreboard) {
   );
 
   // 4. Draw Goal Posts
-  drawFieldGoalPosts(10);
-  drawFieldGoalPosts(TOTAL_W - 10);
+  drawFieldGoalPosts(10 * FIELD_SCALE);
+  drawFieldGoalPosts(TOTAL_W - 10 * FIELD_SCALE);
 
   // 5. Draw Yard Lines and Hashes
   const yardSpacing = yardsToPx(YARD_LINE_INTERVAL);
@@ -144,8 +145,8 @@ function drawField(scoreboard?: Scoreboard) {
       ctx.font = FIELD_NUMBER_FONT;
       ctx.textAlign = "center";
       const yardNum = i <= 5 ? i * 10 : (10 - i) * 10;
-      ctx.fillText(yardNum.toString(), x, 40);
-      ctx.fillText(yardNum.toString(), x, H - 30);
+      ctx.fillText(yardNum.toString(), x, 40 * FIELD_SCALE);
+      ctx.fillText(yardNum.toString(), x, H - 30 * FIELD_SCALE);
     }
   }
 

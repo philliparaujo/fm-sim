@@ -1,3 +1,5 @@
+import { FIELD_SCALE } from "../utils/units";
+
 /* Global constants */
 export const TRAINING_MODE_ON = false;
 
@@ -10,10 +12,10 @@ export function setSimSpeed(value: number) {
 
 /* Player attribute constants */
 // Blocker
-export const MIN_BLOCK_DISTANCE = 120;
+export const MIN_BLOCK_DISTANCE = 120 * FIELD_SCALE;
 
 // Rusher
-export const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker
+export const INLINE_NUDGE = 2.1; // Nudges rusher if inline with blocker (bias on unit normal Y component — dimensionless, must NOT scale)
 export const RUSHER_STEER_FACTOR = 1; // Rusher C.O.D amount
 
 // Recevier
@@ -21,14 +23,14 @@ export const ROUTE_BREAK_ANGLE_JITTER = 3;
 
 // Coverer
 export const LEAD_TICKS = 20; // # of ticks ahead the coverer wants to be
-export const ARRIVAL_RADIUS = 45;
+export const ARRIVAL_RADIUS = 45 * FIELD_SCALE;
 
 // Pursuer
 export const PURSUER_STEER_FACTOR = 0.5;
 
 // Passer
-export const PASSER_HANDOFF_SEPARATION = 80;
-export const PANIC_RUSHER_DIST = 80;
+export const PASSER_HANDOFF_SEPARATION = 80 * FIELD_SCALE;
+export const PANIC_RUSHER_DIST = 80 * FIELD_SCALE;
 export const PANIC_THROW_CHANCE = 0.25;
 export const MAX_PREDICTION_TICKS = 300; // # of ticks ahead passer scans for
 export const THROW_EVAL_INTERVAL = 6; // Passer evaluates throws every X ticks

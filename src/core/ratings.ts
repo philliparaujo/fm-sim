@@ -1,5 +1,8 @@
 import { lerp } from "../utils/math";
+import { FIELD_SCALE } from "../utils/units";
 import { Player } from "./types";
+
+function s(px: number) { return px * FIELD_SCALE; }
 
 type GradeThreshold = {
   peak: number; // Optimal rating value
@@ -89,22 +92,22 @@ function getLetterGrade(
 const ATTRIBUTE_CONFIG = {
   /* All Positions */
   SPEED: (r: number) => ({
-    maxSpeed: lerp(r, 2.82, 4.13),
-    acceleration: lerp(r, 0.18, 0.32),
+    maxSpeed: lerp(r, s(2.82), s(4.13)),
+    acceleration: lerp(r, s(0.18), s(0.32)),
   }),
-  SIZE: (r: number) => ({ radius: lerp(r, 22, 30) }),
+  SIZE: (r: number) => ({ radius: lerp(r, s(22), s(30)) }),
 
   /* Passers */
   POCKETPRESENCE: (r: number) => ({
-    passerLookAhead: lerp(r, 180, 300),
+    passerLookAhead: lerp(r, s(180), s(300)),
     passerAvoidStrength: lerp(r, 1.0, 2.4),
     passerSteerFactor: lerp(r, 0.1, 0.3),
     pressureSensitivity: lerp(r, 1, 1),
   }),
   DECISIONMAKING: (r: number) => ({
     minThrowStep: lerp(r, 90, 40),
-    minOpennessNeeded: lerp(r, 190, 230),
-    panicOpennessNeeded: lerp(r, 105, 90),
+    minOpennessNeeded: lerp(r, s(190), s(230)),
+    panicOpennessNeeded: lerp(r, s(105), s(90)),
   }),
   SHORTACCURACY: (r: number) => ({
     shortError: lerp(r, 0.6, 0),
@@ -119,7 +122,7 @@ const ATTRIBUTE_CONFIG = {
   /* Runners */
   // Best = ~0.50
   VISION: (r: number) => ({
-    lookAhead: lerp(r, 100, 220),
+    lookAhead: lerp(r, s(100), s(220)),
     avoidStrength: lerp(r, 1, 3),
     steerAvoidStrength: lerp(r, 0.2, 1.6),
     steerDuration: lerp(r, 110, 50),
@@ -141,7 +144,7 @@ const ATTRIBUTE_CONFIG = {
     minCatchSpeedMultiplier: lerp(r, 0.6, 1),
   }),
   CATCHRADIUS: (r: number) => ({
-    completionRadius: lerp(r, 30, 80),
+    completionRadius: lerp(r, s(30), s(80)),
     catchInTraffic: lerp(r, 0.35, 0.75),
   }),
 
@@ -182,7 +185,7 @@ const ATTRIBUTE_CONFIG = {
   PURSUIT: (r: number) => ({
     predictionTicks: lerp(r, 50, 10),
     pursuerHomingFactor: lerp(r, 0.01, 0.2),
-    pursuerContainOffset: lerp(r, -5, 20),
+    pursuerContainOffset: lerp(r, s(-5), s(20)),
     pursuitLateralStrength: lerp(r, 0.4, 0),
     pursuitLateralFreq: lerp(r, 0.01, 0.05),
   }),

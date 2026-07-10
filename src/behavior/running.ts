@@ -4,7 +4,7 @@ import { CachedPlayers, Player, Ray, State, Vector } from "../core/types";
 import { MAX_PATH_LENGTH } from "../utils/behavior";
 import { isCarryingBall, snapBallToPlayer } from "../utils/field";
 import { lerp } from "../utils/math";
-import { H } from "../utils/units";
+import { FIELD_SCALE, H } from "../utils/units";
 import { diff, length } from "../utils/vector";
 
 function getContextSteering(
@@ -68,7 +68,7 @@ function getContextSteering(
   for (const c of cachedPlayers.coverers) checkDefender(c);
 
   // 3. Keep runner inside field geometry bounds (Sideline Danger mitigation)
-  const SIDELINE_CUSHION = 110;
+  const SIDELINE_CUSHION = 110 * FIELD_SCALE;
   if (player.loc.y < SIDELINE_CUSHION) {
     const scale = (SIDELINE_CUSHION - player.loc.y) / SIDELINE_CUSHION;
     for (const ray of rays) {

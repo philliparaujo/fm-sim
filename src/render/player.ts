@@ -1,5 +1,6 @@
 import { getConstants } from "../core/ratings";
 import { Player, Role } from "../core/types";
+import { FIELD_SCALE } from "../utils/units";
 import { ctx } from "./canvas";
 
 const LABEL_COLOR = "#FFFFFF";
@@ -13,7 +14,7 @@ const NAME_FONT = (playerRadius: number) =>
 const STARRED_NAME_COLOR = "#FFD700";
 const STARRED_NAME_FONT = (playerRadius: number) =>
   `bold ${playerRadius * 0.7}px sans-serif`;
-const NAME_GAP = 3; // px between the circle bottom and the name
+const NAME_GAP = 3 * FIELD_SCALE; // px between the circle bottom and the name
 
 // Only these skill/defender roles get an on-field name label
 const NAMED_ROLES: Role[] = ["runner", "catcher", "coverer", "rusher"];

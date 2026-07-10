@@ -3,6 +3,7 @@ import { fillOutRosterPlayer, labelToRole, labelToSide } from "../utils/roster";
 import { randomRoute, randomRunVector } from "../utils/route";
 import {
   ENDZONE_W,
+  FIELD_SCALE,
   H,
   pxToYards,
   QUARTER_SECONDS,
@@ -63,9 +64,9 @@ function getSavedRatings(label: string): Ratings {
 }
 
 function generateBall(LOS: number): Ball {
-  const BALL_RADIUS = 18;
-  const STROKE_WIDTH = 0.8;
-  const LACE_WIDTH = 2;
+  const BALL_RADIUS = 18 * FIELD_SCALE;
+  const STROKE_WIDTH = 0.8 * FIELD_SCALE;
+  const LACE_WIDTH = 2 * FIELD_SCALE;
   const BALL_X = LOS - yardsToPx(5);
   return {
     type: "ball",

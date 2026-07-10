@@ -18,11 +18,11 @@ import { getPocket, TOTAL_W } from "../utils/units";
 const ONLY_SIMULATE = false;
 
 /* Trace rendering constants */
-const CATCHER_TRACE_ON = false;
+const CATCHER_TRACE_ON = true;
 const COVERER_ZONE_ON = true;
-const RUNNER_PATH_ON = false;
-const PASSER_POCKET_ON = false;
-const RUNNER_LOOK_AHEAD_ON = false;
+const RUNNER_PATH_ON = true;
+const PASSER_POCKET_ON = true;
+const RUNNER_LOOK_AHEAD_ON = true;
 const BALL_IN_AIR_PREDICTED_ROUTE_ON = true;
 const BALL_IN_AIR_TARGET_ON = true;
 const ALL_PREDICTED_ROUTE_ON = BALL_IN_AIR_PREDICTED_ROUTE_ON && false;

@@ -2,7 +2,7 @@ import { RUSHER_STEER_FACTOR } from "../core/constants";
 import { getConstants } from "../core/ratings";
 import { CachedPlayers, Player, State } from "../core/types";
 import { isRunPlay } from "../utils/field";
-import { yardsToPx } from "../utils/units";
+import { FIELD_SCALE, yardsToPx } from "../utils/units";
 import { diff, dist, length } from "../utils/vector";
 
 function rushTowardsBall(
@@ -22,7 +22,7 @@ function rushTowardsBall(
     const playerIndex = state.players.indexOf(player);
     const isOuterRusher = playerIndex === 0 || playerIndex === 2;
     if (isOuterRusher) {
-      targetLoc.x = state.scoreboard.LOS + 10;
+      targetLoc.x = state.scoreboard.LOS + 10 * FIELD_SCALE;
     }
   }
 
@@ -30,7 +30,7 @@ function rushTowardsBall(
   // arcs around the tackle rather than running straight into them.
   // The bend collapses toward the ball as the rusher passes the LOS.
   if (isEdgeRusher && !isRunPlay(state)) {
-    const EDGE_CONTAIN_OFFSET = 120;
+    const EDGE_CONTAIN_OFFSET = 120 * FIELD_SCALE;
     const scaledOffset = EDGE_CONTAIN_OFFSET * lateralStrength;
     const outsideDir = player.label === "LE" ? -1 : 1;
 
@@ -64,8 +64,8 @@ function rushTowardsBall(
   let toTarget = diff(targetLoc, player.loc);
 
   if (!isRunPlay(state)) {
-    toTarget.x += Math.sin(state.steps * 0.05 + playSeed) * 8;
-    toTarget.y += Math.cos(state.steps * 0.05 + playSeed) * 8;
+    toTarget.x += Math.sin(state.steps * 0.05 + playSeed) * 8 * FIELD_SCALE;
+    toTarget.y += Math.cos(state.steps * 0.05 + playSeed) * 8 * FIELD_SCALE;
   }
 
   const d = length(toTarget);

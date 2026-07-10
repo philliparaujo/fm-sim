@@ -1,4 +1,5 @@
 import { Ball, Vector } from "../core/types";
+import { FIELD_SCALE } from "../utils/units";
 import { ctx } from "./canvas";
 
 const BALL_FILL = "#8B4513";
@@ -10,13 +11,13 @@ const TARGET_RING_STROKE = "#E74C3C";
 const TARGET_RING_WIDTH = 2.5;
 const TARGET_INNER_RING_STROKE = "#FFFFFF";
 const TARGET_INNER_RING_WIDTH = 2;
-const TARGET_OUTER_RADIUS = 16;
-const TARGET_INNER_RADIUS = 10;
-const TARGET_DOT_RADIUS = 4;
+const TARGET_OUTER_RADIUS = 16 * FIELD_SCALE;
+const TARGET_INNER_RADIUS = 10 * FIELD_SCALE;
+const TARGET_DOT_RADIUS = 4 * FIELD_SCALE;
 const TARGET_CROSSHAIR_STROKE = "#E74C3C";
 const TARGET_CROSSHAIR_WIDTH = 1.5;
-const TARGET_CROSSHAIR_REACH = 22;
-const TARGET_CROSSHAIR_GAP = 6;
+const TARGET_CROSSHAIR_REACH = 22 * FIELD_SCALE;
+const TARGET_CROSSHAIR_GAP = 6 * FIELD_SCALE;
 
 function drawThrowTarget(location: Vector) {
   if (!location) return;
