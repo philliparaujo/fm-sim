@@ -37,7 +37,7 @@ export function rushingGrade(s: PlayerStats): number {
 
 export function receivingGrade(s: PlayerStats): number {
   const r = s.receiving;
-  return r ? r.yards * 0.1 + r.tds * 6 + r.catches * 0.5 : 0;
+  return r ? r.yards * 0.1 + r.tds * 6 + r.catches * 0.3 : 0;
 }
 
 export function offensiveGrade(s: PlayerStats): number {
@@ -52,8 +52,8 @@ export function defensiveGrade(s: PlayerStats): number {
   const d = s.defense;
   if (!d) return 0;
   return (
-    d.tackles * 0.8 +
-    d.tfls * 2 +
+    d.tackles * 0.7 +
+    d.tfls * 1.5 +
     d.sacks * 7 +
     d.interceptions * 7 +
     d.passBreakups * 0.7

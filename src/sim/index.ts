@@ -24,6 +24,7 @@ import {
   incrementReplay,
   isLive,
   saveReplay,
+  setReplayMode,
   snapshotFrame,
 } from "./replay";
 import { updateStatsAfterPlay } from "../stats";
@@ -306,9 +307,9 @@ function resetSimulation(reason: PlayEndReason) {
       defenseColor: activeDefenseTeam.color,
       defenseName: activeDefenseTeam.name,
     });
-    // Only record highlights that actually have replay frames — instantaneous
-    // special-teams plays (field goals, punts) never animate, so they're skipped.
-    if (res && playFrameBuffer.length > 0) {
+    // Record highlights that have replay frames; field goals are the exception —
+    // they never animate but are still listed (without a playable replay).
+    if (res && (playFrameBuffer.length > 0 || isFieldGoal)) {
       capturedHighlights.push({
         ...res,
         quarter: prevScoreboard.quarter,
@@ -500,6 +501,13 @@ function startGame(offense: Team, defense: Team) {
 
   assignCoverageTargets();
   if (!simulatingMode) {
+    // Loading a live game exits any active highlight/replay and notifies the UI
+    // so the highlight reel can dismiss itself — otherwise stale highlight
+    // frames would keep rendering instead of the new game.
+    setReplayMode("live");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("liveGameLoaded"));
+    }
     updateScoreboardUI(state.scoreboard);
     onPlayResetCallback?.();
   }

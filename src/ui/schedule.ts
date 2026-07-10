@@ -42,10 +42,10 @@ import {
 import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Label, PlayerStats, PlayerStatsByLabel } from "../core/types";
-import { Highlight, HIGHLIGHT_FRAME_STRIDE } from "../core/highlights";
+import { Highlight } from "../core/highlights";
 import { loadGame } from "../sim";
-import { playHighlight } from "../sim/replay";
 import { workerGame } from "../sim/runGame";
+import { openReel } from "./highlightReel";
 import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { getSelectedTeamColor } from "./draft";
 import { initDashboard, updateDashboardValues } from "./dashboard";
@@ -560,11 +560,8 @@ function renderHighlightList(highlights: Highlight[]): HTMLElement {
       const watch = document.createElement("button");
       watch.className = "sched-hl-watch";
       watch.textContent = "▶";
-      watch.title = "Watch this play in the Play tab";
-      watch.addEventListener("click", () => {
-        playHighlight(h.frames, HIGHLIGHT_FRAME_STRIDE);
-        document.getElementById("tab-play")?.click();
-      });
+      watch.title = "Watch on the Play tab (use the reel bar for next/prev)";
+      watch.addEventListener("click", () => openReel(highlights, h));
       row.appendChild(watch);
     }
 
@@ -632,8 +629,8 @@ function renderBoxScore(game: Game): HTMLElement {
 
     // Leading rusher (by rushing grade — same criteria as awards)
     const rusher = topBy(players, rushingGrade);
-    if (rusher && rusher.stats.rushing!.rushes > 0) {
-      const r = rusher.stats.rushing!;
+    if (rusher && rusher.stats.rushing && rusher.stats.rushing.rushes > 0) {
+      const r = rusher.stats.rushing;
       lines.push(
         leaderLine(
           rusher.label,
@@ -648,8 +645,8 @@ function renderBoxScore(game: Game): HTMLElement {
 
     // Leading receiver (by receiving grade — catches & TDs count, not just yards)
     const receiver = topBy(players, receivingGrade);
-    if (receiver && receiver.stats.receiving!.catches > 0) {
-      const r = receiver.stats.receiving!;
+    if (receiver && receiver.stats.receiving && receiver.stats.receiving.catches > 0) {
+      const r = receiver.stats.receiving;
       lines.push(
         leaderLine(
           receiver.label,

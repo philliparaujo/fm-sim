@@ -2,6 +2,7 @@ import { assignCoverageTargets } from "./sim/assignments";
 import { onPlayReset, tick } from "./sim";
 import { initDashboard, updateDashboardValues } from "./ui/dashboard";
 import { setupDraft } from "./ui/draft";
+import { setupHighlightReel } from "./ui/highlightReel";
 import { setupRatingsToggle } from "./ui/ratingsToggle";
 import { setupSchedule } from "./ui/schedule";
 import { setupSimulate } from "./ui/simulate";
@@ -29,6 +30,7 @@ async function init() {
   setupSimulate();
   setupSchedule();
   setupRatingsToggle();
+  setupHighlightReel();
 
   assignCoverageTargets();
   requestAnimationFrame(tick);

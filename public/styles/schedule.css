@@ -348,6 +348,64 @@
   color: #000;
 }
 
+/* ── Highlight reel bar (fixed, drives playback on the Play tab) ── */
+.reel-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #0b1220;
+  border-top: 2px solid #fbbf24;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.5);
+  padding: 8px 16px;
+  color: #e5e7eb;
+  font-size: 13px;
+}
+.reel-btn {
+  background: #1f2937;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  min-width: 34px;
+  height: 30px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.reel-btn:hover {
+  background: #374151;
+}
+.reel-exit {
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+.reel-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  justify-content: center;
+}
+.reel-count {
+  font-size: 11px;
+  font-weight: bold;
+  color: #fbbf24;
+  background: #1f2937;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.reel-when {
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+.reel-desc {
+  font-weight: bold;
+}
+
 /* ── Players of the week ── */
 .sched-awards {
   margin-top: 16px;
