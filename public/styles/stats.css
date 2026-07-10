@@ -1,0 +1,61 @@
+#stats-tab {
+  padding: 12px 16px;
+  color: #e5e7eb;
+}
+
+/* ── Top row: standings (left) + league leaders (right) ── */
+.stats-top-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.stats-standings-col {
+  flex: 1;
+  min-width: 320px;
+}
+
+.stats-leaders-col {
+  flex: 1;
+  min-width: 260px;
+}
+
+/* ── Bottom row: player stats (left) + season awards (right) ── */
+.stats-bottom-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.stats-player-col {
+  flex: 2;
+  min-width: 320px;
+  overflow-x: auto;
+}
+
+.stats-awards-col {
+  flex: 1;
+  min-width: 260px;
+}
+
+.stats-awards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Training placeholder ── */
+.training-placeholder {
+  padding: 32px 16px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.training-placeholder h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #6b7280;
+}

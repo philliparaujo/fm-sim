@@ -5,6 +5,8 @@ import { setupDraft } from "./ui/draft";
 import { setupHighlightReel } from "./ui/highlightReel";
 import { setupRatingsToggle } from "./ui/ratingsToggle";
 import { setupSchedule } from "./ui/schedule";
+import { setupStats } from "./ui/stats";
+import { setupTraining } from "./ui/training";
 import { setupSimulate } from "./ui/simulate";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
 import { setupReplayControls } from "./ui/replayControls";
@@ -29,6 +31,8 @@ async function init() {
   setupDraft();
   setupSimulate();
   setupSchedule();
+  setupStats();
+  setupTraining();
   setupRatingsToggle();
   setupHighlightReel();
 

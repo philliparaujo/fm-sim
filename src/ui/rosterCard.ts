@@ -10,6 +10,8 @@ export type RosterCardOptions = {
   headerSuffix?: string;
   /** Buttons to append after the role breakdown and before the player slots. */
   actionButtons?: HTMLElement[];
+  /** Sort order for the player slot list. Default: position order (PLAYER_LABELS). */
+  slotSort?: "pos" | "ovr" | "draft";
 };
 
 /** Computes per-role average OVR (0–100) for a roster. */
@@ -77,13 +79,37 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   }
 
   // ── Player slots ──
-  // The team's most recent pick (highest pickOrder) gets a subtle highlight.
   const lastPick = team.roster.reduce<RosterPlayer | null>(
     (best, rp) => ((rp.pickOrder ?? 0) > (best?.pickOrder ?? -1) ? rp : best),
     null,
   );
-  for (const label of PLAYER_LABELS) {
-    const rp = team.roster.find((r) => r.label === label);
+
+  // Build ordered slot list based on slotSort option.
+  type Slot = { label: string; rp: RosterPlayer | undefined };
+  let slots: Slot[];
+  if (options.slotSort === "ovr") {
+    const drafted = PLAYER_LABELS
+      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
+      .filter((s) => s.rp)
+      .sort((a, b) => scoreProspect(b.rp!) - scoreProspect(a.rp!));
+    const empty = PLAYER_LABELS
+      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
+      .filter((s) => !s.rp);
+    slots = [...drafted, ...empty];
+  } else if (options.slotSort === "draft") {
+    const drafted = PLAYER_LABELS
+      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
+      .filter((s) => s.rp)
+      .sort((a, b) => (a.rp!.pickOrder ?? 0) - (b.rp!.pickOrder ?? 0));
+    const empty = PLAYER_LABELS
+      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
+      .filter((s) => !s.rp);
+    slots = [...drafted, ...empty];
+  } else {
+    slots = PLAYER_LABELS.map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }));
+  }
+
+  for (const { label, rp } of slots) {
     const slot = document.createElement("div");
     slot.className = "draft-roster-slot";
     if (rp && rp === lastPick) slot.classList.add("draft-slot-recent");

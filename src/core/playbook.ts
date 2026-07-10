@@ -39,7 +39,10 @@ const PLAYBOOK_CONFIG = {
 };
 
 // One tendency profile per league team, keyed by color, seeded from the defaults
-const TEAM_PLAYBOOKS: Record<string, Record<string, number>> = Object.fromEntries(
+const TEAM_PLAYBOOKS: Record<
+  string,
+  Record<string, number>
+> = Object.fromEntries(
   LEAGUE_TEAMS.map((t) => [
     t.color,
     {

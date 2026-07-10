@@ -14,6 +14,10 @@ export const AUTO_DRAFTED = false;
 let selectedTeamColor = "";
 let snakePickResolve: (() => void) | null = null;
 
+const POOL_FILTERS: (Label | "ALL")[] = ["ALL", ...PLAYER_LABELS];
+let poolFilter: Label | "ALL" = "ALL";
+let rosterSort: "pos" | "ovr" | "draft" = "pos";
+
 /** The team color currently focused in the "Drafting for" dropdown ("" = NONE). */
 export function getSelectedTeamColor(): string {
   return selectedTeamColor;
@@ -218,124 +222,163 @@ function autoDraftTeam(teamColor: string) {
   }
 }
 
-/** Available prospects, grouped by label, shown as a stats table for comparison. */
+/** Available prospects with a position carousel filter at the top. */
 function renderPool() {
   const container = document.getElementById("draft-pool")!;
   container.innerHTML = "";
 
   const team = LEAGUE.find((t) => t.color === selectedTeamColor) ?? null;
 
-  for (const label of PLAYER_LABELS) {
-    const prospects = draftPool
-      .filter((p) => p.label === label)
-      .sort((a, b) => scoreProspect(b) - scoreProspect(a));
-    if (prospects.length === 0) continue;
+  // ── Carousel header ──────────────────────────────────────────────────────
+  const filterIdx = POOL_FILTERS.indexOf(poolFilter);
+  const prospects =
+    poolFilter === "ALL"
+      ? [...draftPool].sort((a, b) => scoreProspect(b) - scoreProspect(a))
+      : draftPool
+          .filter((p) => p.label === poolFilter)
+          .sort((a, b) => scoreProspect(b) - scoreProspect(a));
 
-    const slotFilled = team ? hasLabel(team, label) : false;
-    const attrs = ROLE_ATTRIBUTES[labelToRole(label as Label)] ?? [];
+  const avgOvr =
+    prospects.length > 0
+      ? (
+          (prospects.reduce((s, p) => s + scoreProspect(p), 0) / prospects.length) *
+          100
+        ).toFixed(1)
+      : null;
 
-    const section = document.createElement("div");
-    section.className = "draft-pool-section";
+  const slotFilled =
+    poolFilter !== "ALL" && team ? hasLabel(team, poolFilter as Label) : false;
 
-    // Collapsed by default when the slot is already filled
-    let collapsed = slotFilled;
+  const carousel = document.createElement("div");
+  carousel.className = "draft-pool-carousel";
 
-    const avgOvr = (prospects.reduce((s, p) => s + scoreProspect(p), 0) / prospects.length * 100).toFixed(1);
-    const labelEl = document.createElement("div");
-    labelEl.className = "draft-pool-label draft-pool-toggle" + (slotFilled ? " filled" : "");
-    labelEl.innerHTML =
-      `<span class="draft-pool-toggle-arrow">${collapsed ? "▶" : "▼"}</span>` +
-      `<span>${label}</span>` +
-      `<span class="draft-pool-avg">avg ${avgOvr}</span>` +
-      `<span class="draft-pool-count">${prospects.length} available</span>`;
-    section.appendChild(labelEl);
+  const prevBtn = document.createElement("button");
+  prevBtn.className = "draft-carousel-btn";
+  prevBtn.textContent = "‹";
+  prevBtn.addEventListener("click", () => {
+    poolFilter = POOL_FILTERS[(filterIdx - 1 + POOL_FILTERS.length) % POOL_FILTERS.length];
+    render();
+  });
 
-    const table = document.createElement("table");
-    table.className = "dash-table";
-    if (collapsed) table.style.display = "none";
+  const labelSpan = document.createElement("span");
+  labelSpan.className = "draft-carousel-label" + (slotFilled ? " filled" : "");
+  labelSpan.textContent = poolFilter === "ALL" ? "ALL" : poolFilter;
 
-    labelEl.addEventListener("click", () => {
-      collapsed = !collapsed;
-      table.style.display = collapsed ? "none" : "";
-      (labelEl.querySelector(".draft-pool-toggle-arrow") as HTMLElement).textContent =
-        collapsed ? "▶" : "▼";
-    });
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "draft-carousel-btn";
+  nextBtn.textContent = "›";
+  nextBtn.addEventListener("click", () => {
+    poolFilter = POOL_FILTERS[(filterIdx + 1) % POOL_FILTERS.length];
+    render();
+  });
 
-    const thead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    headerRow.innerHTML =
-      `<th class="dash-th"></th>` +
-      `<th class="dash-th">OVR</th>` +
-      `<th class="dash-th dash-th-label">Name</th>` +
-      attrs
-        .map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`)
-        .join("") +
-      `<th class="dash-th"></th>`;
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
+  const infoSpan = document.createElement("span");
+  infoSpan.className = "draft-carousel-info";
+  if (avgOvr !== null)
+    infoSpan.textContent = `avg ${avgOvr}  ·  ${prospects.length} available`;
 
-    const tbody = document.createElement("tbody");
-    for (const prospect of prospects) {
-      const row = document.createElement("tr");
-      row.className = "dash-row";
+  carousel.append(prevBtn, labelSpan, nextBtn, infoSpan);
+  container.appendChild(carousel);
 
-      const starCell = document.createElement("td");
-      starCell.className = "dash-td";
-      const starBtn = document.createElement("button");
-      starBtn.className =
-        "draft-star-btn" + (prospect.starred ? " starred" : "");
-      starBtn.textContent = prospect.starred ? "★" : "☆";
-      starBtn.addEventListener("click", () => {
-        prospect.starred = !prospect.starred;
-        starBtn.textContent = prospect.starred ? "★" : "☆";
-        starBtn.classList.toggle("starred", prospect.starred);
-        nameCell.className =
-          "dash-td-label" + (prospect.starred ? " draft-starred-name" : "");
-      });
-      starCell.appendChild(starBtn);
-      row.appendChild(starCell);
-
-      const scoreCell = document.createElement("td");
-      scoreCell.className = "dash-td draft-ovr";
-      scoreCell.innerHTML = playerOvrDisplay(prospect);
-      row.appendChild(scoreCell);
-
-      const nameCell = document.createElement("td");
-      nameCell.className =
-        "dash-td-label" + (prospect.starred ? " draft-starred-name" : "");
-      nameCell.textContent = prospect.name;
-      row.appendChild(nameCell);
-
-      for (const attr of attrs) {
-        const td = document.createElement("td");
-        td.className = "dash-td";
-        const ratingPct = Math.round((prospect.ratings[attr] ?? 0.5) * 100);
-        const { grade, color } = getLetterGrade(attr, ratingPct);
-        td.innerHTML = `<span class="dash-grade-badge" style="color:${color}">${grade}</span><span class="draft-rating-num">${ratingPct}</span>`;
-        row.appendChild(td);
-      }
-
-      const actionCell = document.createElement("td");
-      actionCell.className = "dash-td";
-      const btn = document.createElement("button");
-      btn.className = "draft-prospect-btn";
-      btn.textContent = "Draft";
-      btn.disabled = slotFilled || !selectedTeamColor;
-      btn.addEventListener("click", () => {
-        if (draftPlayer(selectedTeamColor, prospect.id)) {
-          render();
-          resolveSnakePick();
-        }
-      });
-      actionCell.appendChild(btn);
-      row.appendChild(actionCell);
-
-      tbody.appendChild(row);
-    }
-    table.appendChild(tbody);
-    section.appendChild(table);
-    container.appendChild(section);
+  if (prospects.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "draft-pool-empty";
+    empty.textContent = poolFilter === "ALL" ? "Draft pool is empty." : `No ${poolFilter} available.`;
+    container.appendChild(empty);
+    return;
   }
+
+  // ── Table ────────────────────────────────────────────────────────────────
+  const showAll = poolFilter === "ALL";
+  const attrs = showAll ? [] : (ROLE_ATTRIBUTES[labelToRole(poolFilter as Label)] ?? []);
+
+  const table = document.createElement("table");
+  table.className = "dash-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  headerRow.innerHTML =
+    `<th class="dash-th"></th>` +
+    `<th class="dash-th">OVR</th>` +
+    (showAll ? `<th class="dash-th">POS</th>` : "") +
+    `<th class="dash-th dash-th-label">Name</th>` +
+    attrs.map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`).join("") +
+    `<th class="dash-th"></th>`;
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const prospect of prospects) {
+    const prospectLabel = prospect.label as Label;
+    const prospectSlotFilled = team ? hasLabel(team, prospectLabel) : false;
+    const row = document.createElement("tr");
+    row.className = "dash-row";
+
+    // Star
+    const starCell = document.createElement("td");
+    starCell.className = "dash-td";
+    const starBtn = document.createElement("button");
+    starBtn.className = "draft-star-btn" + (prospect.starred ? " starred" : "");
+    starBtn.textContent = prospect.starred ? "★" : "☆";
+    starBtn.addEventListener("click", () => {
+      prospect.starred = !prospect.starred;
+      starBtn.textContent = prospect.starred ? "★" : "☆";
+      starBtn.classList.toggle("starred", prospect.starred);
+      nameCell.className = "dash-td-label" + (prospect.starred ? " draft-starred-name" : "");
+    });
+    starCell.appendChild(starBtn);
+    row.appendChild(starCell);
+
+    // OVR
+    const scoreCell = document.createElement("td");
+    scoreCell.className = "dash-td draft-ovr";
+    scoreCell.innerHTML = playerOvrDisplay(prospect);
+    row.appendChild(scoreCell);
+
+    // Position (ALL mode only)
+    if (showAll) {
+      const posCell = document.createElement("td");
+      posCell.className = "dash-td";
+      posCell.textContent = prospect.label;
+      row.appendChild(posCell);
+    }
+
+    // Name
+    const nameCell = document.createElement("td");
+    nameCell.className = "dash-td-label" + (prospect.starred ? " draft-starred-name" : "");
+    nameCell.textContent = prospect.name;
+    row.appendChild(nameCell);
+
+    // Attributes (label-specific mode only)
+    for (const attr of attrs) {
+      const td = document.createElement("td");
+      td.className = "dash-td";
+      const ratingPct = Math.round((prospect.ratings[attr] ?? 0.5) * 100);
+      const { grade, color } = getLetterGrade(attr, ratingPct);
+      td.innerHTML = `<span class="dash-grade-badge" style="color:${color}">${grade}</span><span class="draft-rating-num">${ratingPct}</span>`;
+      row.appendChild(td);
+    }
+
+    // Draft button
+    const actionCell = document.createElement("td");
+    actionCell.className = "dash-td";
+    const btn = document.createElement("button");
+    btn.className = "draft-prospect-btn";
+    btn.textContent = "Draft";
+    btn.disabled = prospectSlotFilled || !selectedTeamColor;
+    btn.addEventListener("click", () => {
+      if (draftPlayer(selectedTeamColor, prospect.id)) {
+        render();
+        resolveSnakePick();
+      }
+    });
+    actionCell.appendChild(btn);
+    row.appendChild(actionCell);
+
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  container.appendChild(table);
 }
 
 /** All 8 rosters, one card per team, with every label slot shown. */
@@ -343,6 +386,26 @@ function renderRosters() {
   const container = document.getElementById("draft-rosters")!;
   container.innerHTML = "";
 
+  // ── Sort toggle ───────────────────────────────────────────────────────────
+  const sortBar = document.createElement("div");
+  sortBar.className = "draft-sort-bar";
+  const sortLabel = document.createElement("span");
+  sortLabel.className = "draft-sort-label";
+  sortLabel.textContent = "Sort:";
+  sortBar.appendChild(sortLabel);
+
+  for (const mode of ["pos", "ovr", "draft"] as const) {
+    const btn = document.createElement("button");
+    btn.className = "draft-sort-btn" + (rosterSort === mode ? " active" : "");
+    btn.textContent = mode === "pos" ? "Pos" : mode === "ovr" ? "OVR" : "Draft";
+    btn.addEventListener("click", () => { rosterSort = mode; render(); });
+    sortBar.appendChild(btn);
+  }
+  container.appendChild(sortBar);
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  const grid = document.createElement("div");
+  grid.id = "draft-rosters-grid";
   for (const team of LEAGUE) {
     const autoBtn = document.createElement("button");
     autoBtn.className = "draft-auto-btn";
@@ -358,7 +421,11 @@ function renderRosters() {
       render();
     });
 
-    const card = buildRosterCard(team, { actionButtons: [autoBtn, bestBtn] });
-    container.appendChild(card);
+    const card = buildRosterCard(team, {
+      actionButtons: [autoBtn, bestBtn],
+      slotSort: rosterSort,
+    });
+    grid.appendChild(card);
   }
+  container.appendChild(grid);
 }

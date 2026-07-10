@@ -280,6 +280,75 @@
   padding-bottom: 4px;
 }
 
+/* ── Pool carousel ── */
+.draft-pool-carousel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid #374151;
+}
+.draft-carousel-btn {
+  background: none;
+  border: 1px solid #4b5563;
+  color: #e5e7eb;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.draft-carousel-btn:hover { border-color: #9ca3af; }
+.draft-carousel-label {
+  font-weight: bold;
+  font-size: 14px;
+  color: #e5e7eb;
+  min-width: 36px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.draft-carousel-label.filled { color: #6b7280; }
+.draft-carousel-info {
+  font-size: 12px;
+  color: #6b7280;
+  margin-left: 8px;
+}
+.draft-pool-empty {
+  color: #6b7280;
+  font-size: 13px;
+  padding: 8px 2px;
+}
+
+/* ── Roster sort bar ── */
+.draft-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.draft-sort-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+.draft-sort-btn {
+  background: none;
+  border: 1px solid #374151;
+  color: #9ca3af;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.draft-sort-btn:hover { border-color: #6b7280; color: #e5e7eb; }
+.draft-sort-btn.active { border-color: #4ade80; color: #4ade80; }
+
+#draft-rosters-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 /* Available players, grouped by label */
 .draft-pool-section {
   margin-bottom: 12px;

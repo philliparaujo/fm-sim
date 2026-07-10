@@ -2,6 +2,7 @@ import { OvrMode, ovrMode, setOvrMode } from "./displayMode";
 import { rerenderDraft } from "./draft";
 import { rerenderSchedule } from "./schedule";
 import { rerenderSimulate } from "./simulate";
+import { rerenderStats } from "./stats";
 
 // Click cycles ratings → rankings → both → ratings. The label names the mode
 // the next click will switch to.
@@ -37,5 +38,6 @@ export function setupRatingsToggle() {
     rerenderDraft();
     rerenderSimulate();
     rerenderSchedule();
+    rerenderStats();
   });
 }

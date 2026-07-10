@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="./styles/scoreboard.css" />
     <link rel="stylesheet" href="./styles/draft.css" />
     <link rel="stylesheet" href="./styles/schedule.css" />
+    <link rel="stylesheet" href="./styles/stats.css" />
     <script type="module" src="./src/app.ts"></script>
   </head>
 
@@ -26,6 +27,8 @@
         <button id="tab-play" class="tab-btn">Play</button>
         <button id="tab-simulate" class="tab-btn">Simulate</button>
         <button id="tab-schedule" class="tab-btn">Season</button>
+        <button id="tab-stats" class="tab-btn">Stats</button>
+        <button id="tab-training" class="tab-btn">Training</button>
       </div>
 
       <div id="draft-tab" class="tab-panel">
@@ -53,6 +56,17 @@
         <div id="sim-grid"></div>
         <h3 class="draft-heading">Standings</h3>
         <div id="sim-rankings"></div>
+      </div>
+
+      <div id="stats-tab" class="tab-panel">
+        <div id="stats-root"></div>
+      </div>
+
+      <div id="training-tab" class="tab-panel">
+        <div class="training-placeholder">
+          <h3>Training</h3>
+          <p>Coming soon — weekly point budget, player development, and scheme tuning.</p>
+        </div>
       </div>
 
       <div id="play-tab" class="tab-panel">
@@ -182,7 +196,10 @@
           </div>
         </div>
 
-        <canvas id="field"></canvas>
+        <div class="play-field-row">
+          <div id="hl-panel" class="hl-panel" style="display:none"></div>
+          <canvas id="field"></canvas>
+        </div>
 
         <div id="player-dashboard"></div>
       </div>
