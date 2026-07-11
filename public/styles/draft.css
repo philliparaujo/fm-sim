@@ -474,6 +474,12 @@
   gap: 2px;
   font-size: 10px;
 }
+.pool-all-attrs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  min-width: 140px;
+}
 .slot-grade {
   font-weight: bold;
   font-size: 10px;

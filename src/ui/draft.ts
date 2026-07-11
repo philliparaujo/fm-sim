@@ -1,10 +1,10 @@
 import { DraftProspect, draftPlayer, draftPool, getRecentPicks, hasLabel } from "../core/draft";
 import { bestOverall, scoreProspect } from "../core/draftEval";
-import { getLetterGrade } from "../core/ratings";
+import { getLetterGrade, getProximity } from "../core/ratings";
 import { LEAGUE } from "../core/state";
 import { Label, PLAYER_LABELS, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
-import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
+import { ATTR_LABELS, ATTR_SHORT_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
 import { playerOvrDisplay } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
 import { showTabs } from "./tabs";
@@ -538,7 +538,7 @@ function renderPool() {
     `<th class="dash-th">OVR</th>` +
     (showAll ? `<th class="dash-th">POS</th>` : "") +
     `<th class="dash-th dash-th-label">Name</th>` +
-    attrs.map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`).join("") +
+    (showAll ? `<th class="dash-th"></th>` : attrs.map((a) => `<th class="dash-th">${ATTR_LABELS[a] ?? a}</th>`).join("")) +
     `<th class="dash-th"></th>`;
   thead.appendChild(headerRow);
   table.appendChild(thead);
@@ -585,14 +585,38 @@ function renderPool() {
     nameCell.textContent = prospect.name;
     row.appendChild(nameCell);
 
-    // Attributes (label-specific mode only)
-    for (const attr of attrs) {
+    // Attributes
+    if (showAll) {
+      const role = labelToRole(prospectLabel);
+      const roleAttrs = (ROLE_ATTRIBUTES[role] ?? []) as (keyof typeof ATTR_SHORT_LABELS)[];
+      const sorted = roleAttrs
+        .map((attr) => ({
+          attr,
+          proximity: getProximity(attr, prospect.ratings[attr] ?? 0),
+          ratingPct: Math.round((prospect.ratings[attr] ?? 0) * 100),
+        }))
+        .sort((a, b) => b.proximity - a.proximity);
       const td = document.createElement("td");
       td.className = "dash-td";
-      const ratingPct = Math.round((prospect.ratings[attr] ?? 0.5) * 100);
-      const { grade, color } = getLetterGrade(attr, ratingPct);
-      td.innerHTML = `<span class="dash-grade-badge" style="color:${color}">${grade}</span><span class="draft-rating-num">${ratingPct}</span>`;
+      const inner = document.createElement("div");
+      inner.className = "pool-all-attrs";
+      inner.innerHTML = sorted
+        .map(({ attr, ratingPct }) => {
+          const { grade, color } = getLetterGrade(attr, ratingPct);
+          return `<span class="slot-attr-chip"><span class="slot-grade" style="color:${color}">${grade}</span><span class="slot-attr-name">${ATTR_SHORT_LABELS[attr] ?? attr}</span></span>`;
+        })
+        .join("");
+      td.appendChild(inner);
       row.appendChild(td);
+    } else {
+      for (const attr of attrs) {
+        const td = document.createElement("td");
+        td.className = "dash-td";
+        const ratingPct = Math.round((prospect.ratings[attr] ?? 0.5) * 100);
+        const { grade, color } = getLetterGrade(attr, ratingPct);
+        td.innerHTML = `<span class="dash-grade-badge" style="color:${color}">${grade}</span><span class="draft-rating-num">${ratingPct}</span>`;
+        row.appendChild(td);
+      }
     }
 
     // Draft button
