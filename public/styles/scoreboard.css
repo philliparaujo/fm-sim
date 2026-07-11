@@ -2,12 +2,6 @@
   box-sizing: border-box;
 }
 
-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
 .reset-btn {
   background: #c0392b;
   color: white;
@@ -22,9 +16,7 @@ header {
   background: #e74c3c;
 }
 
-/* Global ratings/rankings toggle — sits at the right of the header. */
 .header-toggle-btn {
-  margin-left: auto;
   background: #1a1a2e;
   color: #60a5fa;
   border: 1px solid #3b82f6;
@@ -35,6 +27,12 @@ header {
 .header-toggle-btn.active {
   background: #3b82f6;
   color: #fff;
+}
+
+.sched-tab-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px 0;
 }
 
 .replay-btn {

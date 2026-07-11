@@ -7,7 +7,6 @@ import { setupRatingsToggle } from "./ui/ratingsToggle";
 import { setupSchedule } from "./ui/schedule";
 import { setupStats } from "./ui/stats";
 import { setupTraining } from "./ui/training";
-import { setupSimulate } from "./ui/simulate";
 import { setupPlaybookSliders } from "./ui/playbookSliders";
 import { setupReplayControls } from "./ui/replayControls";
 import { setupResetButton } from "./ui/resetButton";
@@ -29,7 +28,6 @@ async function init() {
 
   setupTabs();
   setupDraft();
-  setupSimulate();
   setupSchedule();
   setupStats();
   setupTraining();

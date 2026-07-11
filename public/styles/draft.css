@@ -1,113 +1,29 @@
-/* --- Tabs --- */
-.tab-bar {
+/* --- Tabs in global top bar --- */
+#gtb-tabs {
   display: flex;
-  gap: 4px;
-  background: #111;
-  padding: 8px 8px 0;
+  gap: 2px;
+  align-items: stretch;
+  margin-left: auto;
 }
 
 .tab-btn {
-  padding: 8px 20px;
-  background: #333;
-  color: #ccc;
-  border: none;
-  cursor: pointer;
-  border-radius: 6px 6px 0 0;
-  font-weight: bold;
-  font-size: 15px;
-}
-.tab-btn.active {
-  background: #22c55e;
-  color: white;
-}
-
-/* --- Simulate tab --- */
-.sim-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.sim-seasons-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #374151;
-}
-.sim-clear-btn {
-  background: #1a1a2e;
-  color: #f87171;
-  border-color: #f87171;
-}
-.sim-clear-btn:hover {
-  background: #f87171;
-  color: #000;
-}
-.sim-grid-wrap {
-  overflow-x: auto;
-  margin-bottom: 16px;
-}
-.sim-grid-table {
-  border-collapse: collapse;
-}
-.sim-corner {
-  min-width: 0;
-}
-.sim-col-header {
-  font-size: 11px;
-  min-width: 90px;
-  white-space: nowrap;
-}
-.sim-row-header {
-  font-weight: bold;
-  font-size: 11px;
-  white-space: nowrap;
-  padding-right: 8px;
-}
-.sim-cell {
-  vertical-align: middle;
-  text-align: center;
-  min-width: 90px;
-  padding: 4px 6px;
-  font-size: 12px;
-}
-.sim-diagonal {
-  color: #333;
-  background: #0d0d0d;
-}
-.sim-blackout {
-  background: #0a0a0a;
-  border-color: #111;
-}
-.sim-record {
-  font-weight: bold;
-  font-size: 12px;
-  color: #e5e7eb;
-}
-.sim-avg-score {
-  font-size: 10px;
-  color: #6b7280;
-  margin-bottom: 2px;
-}
-.sim-play-btn {
-  background: none;
-  border: 1px solid #374151;
-  border-radius: 3px;
+  padding: 0 18px;
+  background: transparent;
   color: #9ca3af;
-  font-size: 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
-  padding: 1px 5px;
-  margin-top: 2px;
+  font-weight: bold;
+  font-size: 14px;
+  line-height: 36px;
+  white-space: nowrap;
 }
-.sim-play-btn:hover {
-  background: #374151;
+.tab-btn:hover:not(.active) { color: #e5e7eb; }
+.tab-btn.active {
   color: #fff;
+  border-bottom-color: #22c55e;
 }
 
-/* Standings table */
 /* Shared roster card role breakdown */
 .roster-card-breakdown {
   display: flex;
@@ -142,107 +58,6 @@
   font-weight: normal;
   opacity: 0.8;
 }
-
-.sim-rankings-wrap {
-  background: #111827;
-  border-radius: 8px;
-  overflow: hidden;
-  display: inline-block;
-  min-width: 400px;
-}
-.sim-rank-head {
-  background: #1f2937;
-}
-.sim-rank-th {
-  padding: 7px 12px;
-  text-align: center;
-  font-size: 12px;
-  font-weight: bold;
-  color: #d1d5db;
-  letter-spacing: 0.06em;
-  border-bottom: 2px solid #374151;
-  white-space: nowrap;
-}
-.sim-rank-th-team {
-  text-align: left;
-  min-width: 80px;
-}
-.sim-rank-th-num {
-  min-width: 28px;
-  color: #9ca3af;
-}
-.sim-rank-row {
-  border-bottom: 1px solid #1f2937;
-  background: #111827;
-}
-.sim-rank-row:nth-child(even) {
-  background: #161d2b;
-}
-.sim-rank-row:hover {
-  background: #1e2d40;
-}
-.sim-rank-td {
-  padding: 6px 12px;
-  text-align: center;
-  font-size: 13px;
-  color: #f3f4f6;
-}
-.sim-rank-td-team {
-  text-align: left;
-  font-weight: bold;
-}
-.sim-rank-td-num {
-  color: #9ca3af;
-  font-size: 11px;
-}
-.sim-rank-pts {
-  font-weight: bold;
-  color: #f3f4f6;
-}
-.sim-league-ppg {
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: bold;
-  color: #e5e7eb;
-  background: #1f2937;
-  border-top: 2px solid #374151;
-  text-align: center;
-  letter-spacing: 0.04em;
-}
-.sim-rank-ovr {
-  font-size: 11px;
-  font-weight: normal;
-  opacity: 0.65;
-  margin-left: 5px;
-}
-.sim-rank-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 3px;
-}
-.sim-rank-role-chip {
-  display: inline-flex;
-  gap: 3px;
-  font-size: 10px;
-  background: #1f2937;
-  border-radius: 3px;
-  padding: 1px 4px;
-  white-space: nowrap;
-}
-.sim-rank-role-name {
-  color: #6b7280;
-}
-.sim-rank-role-val {
-  color: #d1d5db;
-  font-weight: bold;
-}
-.sim-rank-side-inline {
-  font-size: 10px;
-  margin-left: 6px;
-  opacity: 0.85;
-  white-space: nowrap;
-}
 .roster-card-side-row {
   display: flex;
   gap: 6px;
@@ -260,10 +75,121 @@
   white-space: nowrap;
 }
 
-/* --- Draft tab --- */
-#draft-tab {
+/* --- Draft main two-column layout --- */
+#draft-main {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+#draft-left-col {
+  width: 260px;
+  flex-shrink: 0;
+}
+
+#draft-right-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Roster nav (prev/next team) */
+.draft-roster-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.draft-roster-nav-label {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Best Prospects Remaining cards */
+.best-prospects-cards {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.best-prospect-card {
+  flex: 1;
+  min-width: 140px;
+  background: #111827;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bp-tag {
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  color: #fbbf24;
+  text-transform: uppercase;
+}
+.bp-sub {
+  font-size: 10px;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+.bp-pos-name {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+}
+.bp-pos {
+  font-size: 11px;
+  font-weight: bold;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+.bp-name {
+  font-size: 12px;
+  color: #e5e7eb;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-ovr {
+  font-size: 13px;
+  color: #4ade80;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+/* --- Draft screen --- */
+#draft-screen {
   color: #111827;
   font-family: "Arial", sans-serif;
+}
+
+#draft-recap-rosters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.draft-advance-btn {
+  display: block;
+  margin: 0 auto;
+  padding: 12px 40px;
+  background: #22c55e;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.draft-advance-btn:hover {
+  background: #16a34a;
 }
 
 .draft-controls {
@@ -436,7 +362,7 @@
   border: 1px solid #333;
   border-radius: 6px;
   padding: 10px;
-  width: 220px;
+  width: 240px;
   flex-shrink: 0;
 }
 .draft-roster-header {
@@ -487,53 +413,193 @@
 }
 .draft-roster-slot {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 0;
+  border-bottom: 1px solid #222;
+}
+.draft-roster-slot:last-child { border-bottom: none; }
+.draft-slot-recent {
+  background: #1c2d3a;
+  border-radius: 3px;
+  padding: 3px 3px;
+  font-style: italic;
+}
+.draft-slot-recent .draft-slot-name { font-weight: bold; }
+
+/* Slot row 1: label · name · ovr */
+.slot-row1 {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   font-size: 12px;
-  padding: 1px 0;
 }
 .draft-slot-label {
   width: 28px;
+  flex-shrink: 0;
   color: #9ca3af;
   font-weight: bold;
+  font-size: 11px;
 }
 .draft-slot-name {
   color: #e5e7eb;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.slot-empty { color: #4b5563; }
 .draft-starred-name {
   color: #ffd700;
   font-weight: bold;
 }
-.draft-slot-recent {
-  background: #23303f;
-  border-radius: 3px;
-  font-style: italic;
-}
-.draft-slot-recent .draft-slot-name {
-  font-weight: bold;
+.slot-ovr {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #6b7280;
+  margin-left: auto;
 }
 
-/* --- Frozen snake-draft status bar --- */
-.snake-bar {
-  position: fixed;
+/* Slot row 2: attr chips or see-prospects btn */
+.slot-row2 {
+  display: flex;
+  gap: 7px;
+  padding-left: 33px;
+  flex-wrap: wrap;
+  min-height: 14px;
+}
+.slot-attr-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 10px;
+}
+.slot-grade {
+  font-weight: bold;
+  font-size: 10px;
+}
+.slot-attr-name {
+  color: #6b7280;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+.slot-see-btn {
+  font-size: 10px;
+  padding: 1px 7px;
+  background: none;
+  border: 1px solid #2d3748;
+  color: #60a5fa;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.slot-see-btn:hover {
+  border-color: #60a5fa;
+  background: #1e2d3d;
+}
+
+/* --- Global top/bottom bars --- */
+#global-top-bar {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 14px;
+  background: #0b1220;
+  border-bottom: 2px solid #1f2937;
+  color: #e5e7eb;
+  font-size: 13px;
+  min-height: 40px;
+}
+
+#gtb-team-select {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#gtb-snake-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+#gtb-status {
   display: none;
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  background: #0b1220;
-  border-bottom: 2px solid #22c55e;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
-  padding: 8px 16px;
-  color: #e5e7eb;
+  flex: 1;
+}
+
+.gtb-btn {
+  padding: 4px 14px;
+  background: #1e3a2f;
+  color: #4ade80;
+  border: 1px solid #22c55e;
+  border-radius: 4px;
+  cursor: pointer;
   font-size: 13px;
+  font-weight: bold;
+  white-space: nowrap;
 }
-/* Push the page down so the fixed bar doesn't cover content. */
-body.snake-bar-active {
-  padding-top: 52px;
+.gtb-btn:hover:not(:disabled) { background: #22c55e; color: #000; }
+.gtb-btn:disabled { opacity: 0.5; cursor: default; }
+
+.gtb-btn-advance {
+  background: #22c55e;
+  color: #000;
+  font-size: 15px;
+  padding: 5px 20px;
 }
+.gtb-btn-advance:hover { background: #16a34a; }
+
+.gtb-delay-label {
+  font-size: 12px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#global-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 5px 14px;
+  background: #0b1220;
+  border-top: 2px solid #1f2937;
+  min-height: 36px;
+}
+
+#gbb-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gbb-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.gbb-ratings-btn {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 3px 12px;
+}
+
+/* keep bottom bar from overlapping content */
+body { padding-bottom: 46px; }
 .snake-bar-onclock {
   display: flex;
   align-items: center;

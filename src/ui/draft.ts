@@ -1,4 +1,4 @@
-import { draftPlayer, draftPool, getRecentPicks, hasLabel } from "../core/draft";
+import { DraftProspect, draftPlayer, draftPool, getRecentPicks, hasLabel } from "../core/draft";
 import { bestOverall, scoreProspect } from "../core/draftEval";
 import { getLetterGrade } from "../core/ratings";
 import { LEAGUE } from "../core/state";
@@ -7,16 +7,20 @@ import { labelToRole } from "../utils/roster";
 import { ATTR_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
 import { playerOvrDisplay } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
+import { showTabs } from "./tabs";
 
 /** Set to true to auto-draft every team's full roster at startup. */
 export const AUTO_DRAFTED = false;
 
 let selectedTeamColor = "";
 let snakePickResolve: (() => void) | null = null;
+let rosterViewIdx = 0;
+let humanTurnActive = true; // false only while an AI team is picking in snake draft
 
 const POOL_FILTERS: (Label | "ALL")[] = ["ALL", ...PLAYER_LABELS];
 let poolFilter: Label | "ALL" = "ALL";
 let rosterSort: "pos" | "ovr" | "draft" = "pos";
+
 
 /** The team color currently focused in the "Drafting for" dropdown ("" = NONE). */
 export function getSelectedTeamColor(): string {
@@ -32,8 +36,7 @@ function resolveSnakePick() {
   }
 }
 
-/** Builds the draft tab: a team selector, the available-player pool, and every
- * team's roster. Re-renders after each pick. */
+/** Builds the draft screen. Re-renders after each pick. */
 export function setupDraft() {
   const teamSelect = document.getElementById(
     "draft-team-select",
@@ -56,9 +59,19 @@ export function setupDraft() {
   teamSelect.value = selectedTeamColor;
   teamSelect.addEventListener("change", () => {
     selectedTeamColor = teamSelect.value;
+    if (selectedTeamColor) {
+      const idx = LEAGUE.findIndex((t) => t.color === selectedTeamColor);
+      if (idx >= 0) rosterViewIdx = idx;
+    }
     render();
   });
 
+  // Move the "Drafting for" control block into the global top bar
+  const draftControls = document.querySelector<HTMLElement>(".draft-controls");
+  const gtbTeamSelect = document.getElementById("gtb-team-select");
+  if (draftControls && gtbTeamSelect) gtbTeamSelect.appendChild(draftControls);
+
+  // Snake draft controls → global top bar
   const delayInput = document.createElement("input");
   delayInput.type = "number";
   delayInput.min = "0";
@@ -69,14 +82,13 @@ export function setupDraft() {
   delayInput.title = "Delay between snake draft picks (ms)";
 
   const delayLabel = document.createElement("label");
+  delayLabel.className = "gtb-delay-label";
   delayLabel.textContent = "Pick delay (ms)";
-  delayLabel.style.cssText =
-    "font-size:13px;color:#9ca3af;display:flex;align-items:center;gap:6px;";
   delayLabel.appendChild(delayInput);
 
   const snakeBtn = document.createElement("button");
-  snakeBtn.className = "draft-auto-btn";
-  snakeBtn.style.whiteSpace = "nowrap";
+  snakeBtn.id = "gtb-snake-draft-btn";
+  snakeBtn.className = "gtb-btn";
   snakeBtn.textContent = "Snake Draft All";
   snakeBtn.addEventListener("click", async () => {
     snakeBtn.disabled = true;
@@ -86,9 +98,18 @@ export function setupDraft() {
     snakeBtn.textContent = "Snake Draft All";
   });
 
-  const controls = document.querySelector(".draft-controls");
-  controls?.appendChild(delayLabel);
-  controls?.appendChild(snakeBtn);
+  const snakeBtnArea = document.getElementById("gtb-snake-btn");
+  snakeBtnArea?.append(snakeBtn, delayLabel);
+
+  // Sort buttons → global bottom bar
+  const sortBtns = document.querySelectorAll<HTMLButtonElement>("#gbb-sort .draft-sort-btn");
+  sortBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      rosterSort = btn.dataset.sort as typeof rosterSort;
+      syncSortButtons();
+      render();
+    });
+  });
 
   if (AUTO_DRAFTED) {
     for (const team of LEAGUE) autoDraftTeam(team.color);
@@ -97,14 +118,60 @@ export function setupDraft() {
   render();
 }
 
+function syncSortButtons() {
+  document.querySelectorAll<HTMLButtonElement>("#gbb-sort .draft-sort-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.sort === rosterSort);
+  });
+}
+
 /** Re-renders the draft tab (e.g. after the global ratings/rankings toggle). */
 export function rerenderDraft() {
   render();
 }
 
+/** True when every team has a full 16-player roster. */
+function isDraftComplete(): boolean {
+  return LEAGUE.every((t) => t.roster.length === PLAYER_LABELS.length);
+}
+
 function render() {
+  if (isDraftComplete()) {
+    showRecap();
+    return;
+  }
+  renderBestProspects();
   renderPool();
   renderRosters();
+}
+
+function showRecap() {
+  document.getElementById("draft-main")!.style.display = "none";
+  document.querySelector<HTMLElement>(".draft-controls")!.style.display = "none";
+  const recap = document.getElementById("draft-recap")!;
+  recap.style.display = "";
+
+  const grid = document.getElementById("draft-recap-rosters")!;
+  grid.innerHTML = "";
+  syncSortButtons();
+  for (const team of LEAGUE) {
+    grid.appendChild(buildRosterCard(team, { slotSort: rosterSort }));
+  }
+
+  // Move "Start Season" into the global top bar, replacing the snake draft button
+  const snakeBtnArea = document.getElementById("gtb-snake-btn");
+  if (snakeBtnArea) snakeBtnArea.style.display = "none";
+
+  const statusArea = document.getElementById("gtb-status");
+  if (statusArea) {
+    statusArea.style.display = "flex";
+    statusArea.innerHTML =
+      `<button id="draft-advance-btn" class="gtb-btn gtb-btn-advance">Start Season →</button>`;
+    document.getElementById("draft-advance-btn")?.addEventListener("click", () => {
+      document.getElementById("draft-screen")!.style.display = "none";
+      statusArea.style.display = "none";
+      showTabs("tab-schedule");
+    }, { once: true });
+  }
 }
 
 /** True if a team still has an open slot it can fill from the remaining pool. */
@@ -133,10 +200,11 @@ async function snakeDraftAll(delayMs: number) {
         const isHuman = !!selectedTeamColor && team.color === selectedTeamColor;
         updateSnakeBar(team, upcoming, isHuman);
         if (isHuman) {
-          // Human's turn — highlight and wait for them to make a pick
+          humanTurnActive = true;
           render();
           await new Promise<void>((resolve) => { snakePickResolve = resolve; });
         } else {
+          humanTurnActive = false;
           const pick = bestOverall(team, draftPool);
           if (pick) draftPlayer(team.color, pick.prospect.id);
           render();
@@ -148,31 +216,27 @@ async function snakeDraftAll(delayMs: number) {
     }
   } finally {
     snakePickResolve = null;
+    humanTurnActive = true;
     hideSnakeBar();
   }
 }
 
-// ── Frozen snake-draft status bar ───────────────────────────────────────────
-
-let snakeBar: HTMLDivElement | null = null;
+// ── Snake-draft status — rendered inside #gtb-status in the global top bar ──
 
 function showSnakeBar() {
-  if (!snakeBar) {
-    snakeBar = document.createElement("div");
-    snakeBar.className = "snake-bar";
-    document.body.appendChild(snakeBar);
-  }
-  snakeBar.style.display = "flex";
-  document.body.classList.add("snake-bar-active");
+  const status = document.getElementById("gtb-status");
+  if (status) status.style.display = "flex";
 }
 
 function hideSnakeBar() {
-  if (snakeBar) snakeBar.style.display = "none";
-  document.body.classList.remove("snake-bar-active");
+  if (isDraftComplete()) return; // showRecap() owns the status area now
+  const status = document.getElementById("gtb-status");
+  if (status) status.style.display = "none";
 }
 
 function updateSnakeBar(current: Team, upcoming: Team[], isHuman: boolean) {
-  if (!snakeBar) return;
+  const status = document.getElementById("gtb-status");
+  if (!status) return;
 
   const onClock =
     `<div class="snake-bar-onclock${isHuman ? " snake-bar-you" : ""}">` +
@@ -184,30 +248,26 @@ function updateSnakeBar(current: Team, upcoming: Team[], isHuman: boolean) {
   const next = upcoming.slice(0, 3);
   const nextUp = next.length
     ? `<div class="snake-bar-next"><span class="snake-bar-label">Next</span>` +
-      next
-        .map((t) => `<span class="snake-bar-chip" style="color:${t.color}">${t.name}</span>`)
-        .join("") +
+      next.map((t) => `<span class="snake-bar-chip" style="color:${t.color}">${t.name}</span>`).join("") +
       `</div>`
     : "";
 
   const picks = getRecentPicks(5);
   const recent = picks.length
     ? `<div class="snake-bar-recent"><span class="snake-bar-label">Last picks</span>` +
-      picks
-        .map((p) => {
-          const team = LEAGUE.find((t) => t.color === p.color);
-          return (
-            `<span class="snake-bar-pick">` +
-            `<span class="snake-bar-pick-label">${p.label}</span> ` +
-            `<span style="color:${team?.color ?? "#fff"}">${p.name}</span>` +
-            `</span>`
-          );
-        })
-        .join("") +
+      picks.map((p) => {
+        const team = LEAGUE.find((t) => t.color === p.color);
+        return (
+          `<span class="snake-bar-pick">` +
+          `<span class="snake-bar-pick-label">${p.label}</span> ` +
+          `<span style="color:${team?.color ?? "#fff"}">${p.name}</span>` +
+          `</span>`
+        );
+      }).join("") +
       `</div>`
     : "";
 
-  snakeBar.innerHTML = onClock + nextUp + recent;
+  status.innerHTML = onClock + nextUp + recent;
 }
 
 /** Fills all open label slots for a team with random available prospects. */
@@ -220,6 +280,182 @@ function autoDraftTeam(teamColor: string) {
     const pick = available[Math.floor(Math.random() * available.length)];
     draftPlayer(teamColor, pick.id);
   }
+}
+
+/** Three distinct "best prospect" cards: top OVR, top position rank, biggest positional drop. */
+function renderBestProspects() {
+  const container = document.getElementById("draft-best-prospects");
+  if (!container) return;
+  container.innerHTML = "";
+  if (draftPool.length === 0) return;
+
+  // Rank each pool player against ALL players at their position (pool + already drafted),
+  // so a #2 QB stays #2 even after the #1 QB is picked.
+  const globalRankOf = (p: DraftProspect): number => {
+    const everyone = [
+      ...draftPool.filter((q) => q.label === p.label),
+      ...LEAGUE.flatMap((t) => t.roster.filter((r) => r.label === p.label)),
+    ];
+    const myScore = scoreProspect(p);
+    return everyone.filter((q) => scoreProspect(q) > myScore).length + 1;
+  };
+
+  type Ranked = { prospect: DraftProspect; posRank: number; score: number };
+  const poolRanked: Ranked[] = draftPool.map((p) => ({
+    prospect: p,
+    posRank: globalRankOf(p),
+    score: scoreProspect(p),
+  }));
+
+  // TOP TALENT: highest OVR remaining in pool
+  const byOvr = [...poolRanked].sort((a, b) => b.score - a.score);
+
+  // TOP RANKED: lowest posRank remaining (posRank ASC, score DESC tiebreak)
+  const byPosRank = [...poolRanked].sort((a, b) =>
+    a.posRank !== b.posRank ? a.posRank - b.posRank : b.score - a.score,
+  );
+
+  const used = new Set<number>();
+  const picks: Array<{ prospect: DraftProspect; tag: string; sub: string }> = [];
+
+  const pickFirst = (sorted: Ranked[], tag: string, sub: string) => {
+    const c = sorted.find((x) => !used.has(x.prospect.id));
+    if (c) { picks.push({ prospect: c.prospect, tag, sub }); used.add(c.prospect.id); }
+  };
+
+  pickFirst(byOvr,     "TOP TALENT",   "Highest overall");
+  pickFirst(byPosRank, "TOP RANKED",   "Best position rank");
+
+  // NOW OR NEVER: computed on what remains after TOP TALENT and TOP RANKED are set aside.
+  // For each remaining player, gap = their score minus the next-lower-ranked remaining
+  // player at the same position. Pick the player with the biggest such gap.
+  // NOW OR NEVER: for each position, take only its top remaining player and compute
+  // the gap to the next remaining player at that position. The position with the
+  // biggest such gap wins — and the card shows that position's top player.
+  const remaining = poolRanked.filter((r) => !used.has(r.prospect.id));
+  const remByLabel = new Map<Label, Ranked[]>();
+  for (const r of remaining) {
+    const l = r.prospect.label as Label;
+    if (!remByLabel.has(l)) remByLabel.set(l, []);
+    remByLabel.get(l)!.push(r);
+  }
+  const nowOrNeverCands: (Ranked & { gap: number })[] = [];
+  for (const grp of remByLabel.values()) {
+    grp.sort((a, b) => a.posRank - b.posRank);
+    const top = grp[0];
+    const gap = grp.length > 1 ? top.score - grp[1].score : 0;
+    nowOrNeverCands.push({ ...top, gap });
+  }
+  const byGap = nowOrNeverCands.sort((a, b) => b.gap - a.gap);
+  pickFirst(byGap, "NOW OR NEVER", "Biggest position drop");
+
+  const heading = document.createElement("h3");
+  heading.className = "draft-heading";
+  heading.textContent = "Best Prospects Remaining";
+  container.appendChild(heading);
+
+  const cards = document.createElement("div");
+  cards.className = "best-prospects-cards";
+
+  const selectedTeam = LEAGUE.find((t) => t.color === selectedTeamColor) ?? null;
+
+  for (const { prospect, tag, sub } of picks) {
+    const card = document.createElement("div");
+    card.className = "best-prospect-card";
+
+    const tagEl = document.createElement("div");
+    tagEl.className = "bp-tag";
+    tagEl.textContent = tag;
+
+    const subEl = document.createElement("div");
+    subEl.className = "bp-sub";
+    subEl.textContent = sub;
+
+    const posNameEl = document.createElement("div");
+    posNameEl.className = "bp-pos-name";
+    posNameEl.innerHTML =
+      `<span class="bp-pos">${prospect.label}</span>` +
+      `<span class="bp-name">${prospect.name}</span>`;
+
+    const ovrEl = document.createElement("div");
+    ovrEl.className = "bp-ovr";
+    ovrEl.innerHTML = playerOvrDisplay(prospect);
+
+    const btn = document.createElement("button");
+    btn.className = "draft-prospect-btn";
+    btn.textContent = "Draft";
+    btn.disabled = !selectedTeamColor || !humanTurnActive || (selectedTeam ? hasLabel(selectedTeam, prospect.label as Label) : false);
+    btn.addEventListener("click", () => {
+      if (draftPlayer(selectedTeamColor, prospect.id)) { render(); resolveSnakePick(); }
+    });
+
+    card.append(tagEl, subEl, posNameEl, ovrEl, btn);
+    cards.appendChild(card);
+  }
+
+  container.appendChild(cards);
+}
+
+/** Single-team roster view with prev/next navigation across all 8 teams. */
+function renderRosters() {
+  const container = document.getElementById("draft-rosters")!;
+  container.innerHTML = "";
+  syncSortButtons();
+
+  const team = LEAGUE[rosterViewIdx];
+
+  // Navigation row
+  const nav = document.createElement("div");
+  nav.className = "draft-roster-nav";
+
+  const prevBtn = document.createElement("button");
+  prevBtn.className = "draft-carousel-btn";
+  prevBtn.textContent = "‹";
+  prevBtn.addEventListener("click", () => {
+    rosterViewIdx = (rosterViewIdx - 1 + LEAGUE.length) % LEAGUE.length;
+    render();
+  });
+
+  const teamLabel = document.createElement("span");
+  teamLabel.className = "draft-roster-nav-label";
+  teamLabel.style.color = team.color;
+  teamLabel.textContent = `${team.name} (${rosterViewIdx + 1}/${LEAGUE.length})`;
+
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "draft-carousel-btn";
+  nextBtn.textContent = "›";
+  nextBtn.addEventListener("click", () => {
+    rosterViewIdx = (rosterViewIdx + 1) % LEAGUE.length;
+    render();
+  });
+
+  nav.append(prevBtn, teamLabel, nextBtn);
+  container.appendChild(nav);
+
+  const autoBtn = document.createElement("button");
+  autoBtn.className = "draft-auto-btn";
+  autoBtn.textContent = "Randomly select all";
+  autoBtn.addEventListener("click", () => { autoDraftTeam(team.color); render(); });
+
+  const bestBtn = document.createElement("button");
+  bestBtn.className = "draft-auto-btn";
+  bestBtn.textContent = "Best single pick";
+  bestBtn.addEventListener("click", () => {
+    const pick = bestOverall(team, draftPool);
+    if (pick) draftPlayer(team.color, pick.prospect.id);
+    render();
+  });
+
+  const card = buildRosterCard(team, {
+    actionButtons: [autoBtn, bestBtn],
+    slotSort: rosterSort,
+    onSeeProspects: (label) => {
+      poolFilter = label;
+      render();
+      document.getElementById("draft-pool")?.scrollIntoView({ behavior: "smooth" });
+    },
+  });
+  container.appendChild(card);
 }
 
 /** Available prospects with a position carousel filter at the top. */
@@ -365,7 +601,7 @@ function renderPool() {
     const btn = document.createElement("button");
     btn.className = "draft-prospect-btn";
     btn.textContent = "Draft";
-    btn.disabled = prospectSlotFilled || !selectedTeamColor;
+    btn.disabled = !selectedTeamColor || !humanTurnActive || prospectSlotFilled;
     btn.addEventListener("click", () => {
       if (draftPlayer(selectedTeamColor, prospect.id)) {
         render();
@@ -381,51 +617,3 @@ function renderPool() {
   container.appendChild(table);
 }
 
-/** All 8 rosters, one card per team, with every label slot shown. */
-function renderRosters() {
-  const container = document.getElementById("draft-rosters")!;
-  container.innerHTML = "";
-
-  // ── Sort toggle ───────────────────────────────────────────────────────────
-  const sortBar = document.createElement("div");
-  sortBar.className = "draft-sort-bar";
-  const sortLabel = document.createElement("span");
-  sortLabel.className = "draft-sort-label";
-  sortLabel.textContent = "Sort:";
-  sortBar.appendChild(sortLabel);
-
-  for (const mode of ["pos", "ovr", "draft"] as const) {
-    const btn = document.createElement("button");
-    btn.className = "draft-sort-btn" + (rosterSort === mode ? " active" : "");
-    btn.textContent = mode === "pos" ? "Pos" : mode === "ovr" ? "OVR" : "Draft";
-    btn.addEventListener("click", () => { rosterSort = mode; render(); });
-    sortBar.appendChild(btn);
-  }
-  container.appendChild(sortBar);
-
-  // ── Cards ─────────────────────────────────────────────────────────────────
-  const grid = document.createElement("div");
-  grid.id = "draft-rosters-grid";
-  for (const team of LEAGUE) {
-    const autoBtn = document.createElement("button");
-    autoBtn.className = "draft-auto-btn";
-    autoBtn.textContent = "Randomly select all";
-    autoBtn.addEventListener("click", () => { autoDraftTeam(team.color); render(); });
-
-    const bestBtn = document.createElement("button");
-    bestBtn.className = "draft-auto-btn";
-    bestBtn.textContent = "Best single pick";
-    bestBtn.addEventListener("click", () => {
-      const pick = bestOverall(team, draftPool);
-      if (pick) draftPlayer(team.color, pick.prospect.id);
-      render();
-    });
-
-    const card = buildRosterCard(team, {
-      actionButtons: [autoBtn, bestBtn],
-      slotSort: rosterSort,
-    });
-    grid.appendChild(card);
-  }
-  container.appendChild(grid);
-}

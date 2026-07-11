@@ -15,61 +15,61 @@
   </head>
 
   <body>
-    <header>
-      <h2>Football Sim</h2>
-      <button id="btn-ratings-toggle" class="reset-btn header-toggle-btn">Show Rankings</button>
-      <button id="btn-reset-game" class="reset-btn">Reset Game</button>
-    </header>
-
-    <main id="root">
-      <div class="tab-bar">
-        <button id="tab-draft" class="tab-btn">Draft</button>
+    <div id="global-top-bar">
+      <div id="gtb-team-select"></div>
+      <div id="gtb-snake-btn"></div>
+      <div id="gtb-status"></div>
+      <nav id="gtb-tabs" style="display:none">
         <button id="tab-play" class="tab-btn">Play</button>
-        <button id="tab-simulate" class="tab-btn">Simulate</button>
         <button id="tab-schedule" class="tab-btn">Season</button>
         <button id="tab-stats" class="tab-btn">Stats</button>
         <button id="tab-training" class="tab-btn">Training</button>
-      </div>
+      </nav>
+    </div>
 
-      <div id="draft-tab" class="tab-panel">
+    <main id="root">
+      <!-- Draft screen: shown on load, hidden once draft is complete -->
+      <div id="draft-screen">
         <div class="draft-controls">
           <label for="draft-team-select">Drafting for:</label>
           <select id="draft-team-select"></select>
         </div>
-        <h3 class="draft-heading">Rosters</h3>
-        <div id="draft-rosters"></div>
-        <h3 class="draft-heading">Available Players</h3>
-        <div id="draft-pool"></div>
+        <div id="draft-main">
+          <div id="draft-left-col">
+            <div id="draft-rosters"></div>
+          </div>
+          <div id="draft-right-col">
+            <div id="draft-best-prospects"></div>
+            <div id="draft-pool"></div>
+          </div>
+        </div>
+        <div id="draft-recap" style="display:none">
+          <div id="draft-recap-rosters"></div>
+        </div>
       </div>
 
-      <div id="schedule-tab" class="tab-panel">
+<div id="schedule-tab" class="tab-panel" style="display:none">
+        <div class="sched-tab-toolbar">
+          <button id="btn-ratings-toggle-schedule" class="reset-btn header-toggle-btn">Show Rankings</button>
+        </div>
         <div id="schedule-root"></div>
       </div>
 
-      <div id="simulate-tab" class="tab-panel">
-        <div class="sim-controls">
-          <button id="sim-season-btn" class="draft-auto-btn">Simulate Season</button>
-          <label class="sim-seasons-label">×<input id="sim-seasons-input" type="number" class="dash-inline-number" min="1" max="1000" value="1" /></label>
-          <button id="sim-clear-btn" class="draft-auto-btn sim-clear-btn">Clear Results</button>
-        </div>
-        <h3 class="draft-heading">Matchup Grid</h3>
-        <div id="sim-grid"></div>
-        <h3 class="draft-heading">Standings</h3>
-        <div id="sim-rankings"></div>
-      </div>
-
-      <div id="stats-tab" class="tab-panel">
+      <div id="stats-tab" class="tab-panel" style="display:none">
         <div id="stats-root"></div>
       </div>
 
-      <div id="training-tab" class="tab-panel">
+      <div id="training-tab" class="tab-panel" style="display:none">
         <div class="training-placeholder">
           <h3>Training</h3>
-          <p>Coming soon — weekly point budget, player development, and scheme tuning.</p>
+          <p>
+            Coming soon — weekly point budget, player development, and scheme
+            tuning.
+          </p>
         </div>
       </div>
 
-      <div id="play-tab" class="tab-panel">
+      <div id="play-tab" class="tab-panel" style="display:none">
         <div class="controls-container">
           <div class="control-row">
             <div class="slider-group">
@@ -96,6 +96,7 @@
               <label for="team-select-1">Team 2</label>
               <select id="team-select-1" class="team-select"></select>
             </div>
+            <button id="btn-reset-game" class="reset-btn">Reset Game</button>
           </div>
 
           <div class="control-row playbook-row" id="playbook-controls">
@@ -197,12 +198,22 @@
         </div>
 
         <div class="play-field-row">
-          <div id="hl-panel" class="hl-panel" style="display:none"></div>
+          <div id="hl-panel" style="display:none"></div>
           <canvas id="field"></canvas>
         </div>
 
         <div id="player-dashboard"></div>
       </div>
     </main>
+
+    <div id="global-bottom-bar">
+      <div id="gbb-sort">
+        <span class="gbb-label">Sort:</span>
+        <button class="draft-sort-btn active" data-sort="pos">Pos</button>
+        <button class="draft-sort-btn" data-sort="ovr">OVR</button>
+        <button class="draft-sort-btn" data-sort="draft">Draft</button>
+      </div>
+      <button id="btn-ratings-toggle-draft" class="header-toggle-btn gbb-ratings-btn">Show Rankings</button>
+    </div>
   </body>
 </html>

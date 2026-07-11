@@ -34,6 +34,29 @@ export const ROLE_ATTRIBUTES: Record<string, Attribute[]> = {
   ],
 };
 
+export const ATTR_SHORT_LABELS: Partial<Record<Attribute, string>> = {
+  SPEED: "SPD",
+  SIZE: "SIZE",
+  THROWPOWER: "THRP",
+  POCKETPRESENCE: "PKT",
+  DECISIONMAKING: "DEC",
+  SHORTACCURACY: "SACC",
+  DEEPACCURACY: "DACC",
+  ROUTERUNNING: "RTE",
+  CATCHACCELERATION: "CACC",
+  CATCHRADIUS: "CRAD",
+  PASSBLOCK: "PBK",
+  RUNBLOCK: "RBK",
+  BLOCKSHEDDING: "SHED",
+  BEND: "BEND",
+  MANCOVERAGE: "MAN",
+  ZONECOVERAGE: "ZONE",
+  TACKLING: "TAC",
+  POWER: "POW",
+  VISION: "VIS",
+  PURSUIT: "PURS",
+};
+
 export const ATTR_LABELS: Partial<Record<Attribute, string>> = {
   SPEED: "Speed",
   SIZE: "Size",

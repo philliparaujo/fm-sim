@@ -1,6 +1,8 @@
+import { Attribute, getLetterGrade, getProximity } from "../core/ratings";
 import { scoreProspect } from "../core/draftEval";
-import { PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
+import { Label, PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
+import { ATTR_SHORT_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
 import { playerOvrDisplay, roleOvrDisplay, sideOvrDisplay, teamOvrDisplay } from "./displayMode";
 
 const ROLE_ORDER = ["passer", "runner", "catcher", "blocker", "rusher", "coverer"] as const;
@@ -12,6 +14,8 @@ export type RosterCardOptions = {
   actionButtons?: HTMLElement[];
   /** Sort order for the player slot list. Default: position order (PLAYER_LABELS). */
   slotSort?: "pos" | "ovr" | "draft";
+  /** If provided, empty slots show a "See prospects" button that calls this with the slot's label. */
+  onSeeProspects?: (label: Label) => void;
 };
 
 /** Computes per-role average OVR (0–100) for a roster. */
@@ -30,13 +34,30 @@ export function roleBreakdown(roster: RosterPlayer[]): Map<string, number> {
   return out;
 }
 
+/** Returns up to `count` role-relevant attributes sorted by proximity (highest first). */
+function topAttrs(rp: RosterPlayer, count = 3): { attr: Attribute; grade: string; color: string }[] {
+  const role = labelToRole(rp.label);
+  const attrs = (ROLE_ATTRIBUTES[role] ?? []) as Attribute[];
+  return attrs
+    .map((attr) => {
+      const ratingPct = Math.round((rp.ratings[attr] ?? 0) * 100);
+      return {
+        attr,
+        proximity: getProximity(attr, rp.ratings[attr] ?? 0),
+        ...getLetterGrade(attr, ratingPct),
+      };
+    })
+    .sort((a, b) => b.proximity - a.proximity)
+    .slice(0, count);
+}
+
 /**
  * Builds a fixed-width roster card element showing:
- *   - Header: team name + OVR avg + optional suffix (e.g. possession badge)
+ *   - Header: team name + OVR avg + optional suffix
  *   - Role breakdown row
- *   - All 16 label slots with player name and score
- *
- * The caller may append action buttons via `options.actionButtons`.
+ *   - All 16 label slots, each with a two-row layout:
+ *       Row 1: label · name · OVR
+ *       Row 2: top-3 attribute grade chips (or "See prospects" button if empty)
  */
 export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HTMLDivElement {
   const card = document.createElement("div");
@@ -84,38 +105,74 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
     null,
   );
 
-  // Build ordered slot list based on slotSort option.
-  type Slot = { label: string; rp: RosterPlayer | undefined };
+  type Slot = { label: Label; rp: RosterPlayer | undefined };
+  const allSlots: Slot[] = PLAYER_LABELS.map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }));
   let slots: Slot[];
   if (options.slotSort === "ovr") {
-    const drafted = PLAYER_LABELS
-      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
-      .filter((s) => s.rp)
-      .sort((a, b) => scoreProspect(b.rp!) - scoreProspect(a.rp!));
-    const empty = PLAYER_LABELS
-      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
-      .filter((s) => !s.rp);
-    slots = [...drafted, ...empty];
+    const drafted = allSlots.filter((s) => !!s.rp).sort((a, b) => scoreProspect(b.rp!) - scoreProspect(a.rp!));
+    slots = [...drafted, ...allSlots.filter((s) => !s.rp)];
   } else if (options.slotSort === "draft") {
-    const drafted = PLAYER_LABELS
-      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
-      .filter((s) => s.rp)
-      .sort((a, b) => (a.rp!.pickOrder ?? 0) - (b.rp!.pickOrder ?? 0));
-    const empty = PLAYER_LABELS
-      .map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }))
-      .filter((s) => !s.rp);
-    slots = [...drafted, ...empty];
+    const drafted = allSlots.filter((s) => !!s.rp).sort((a, b) => (a.rp!.pickOrder ?? 0) - (b.rp!.pickOrder ?? 0));
+    slots = [...drafted, ...allSlots.filter((s) => !s.rp)];
   } else {
-    slots = PLAYER_LABELS.map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }));
+    slots = allSlots;
   }
 
   for (const { label, rp } of slots) {
     const slot = document.createElement("div");
     slot.className = "draft-roster-slot";
     if (rp && rp === lastPick) slot.classList.add("draft-slot-recent");
-    const nameClass = rp?.starred ? "draft-slot-name draft-starred-name" : "draft-slot-name";
-    const nameText = rp ? `${rp.name} (${playerOvrDisplay(rp)})` : "—";
-    slot.innerHTML = `<span class="draft-slot-label">${label}</span><span class="${nameClass}">${nameText}</span>`;
+
+    // Row 1: label · name · OVR
+    const row1 = document.createElement("div");
+    row1.className = "slot-row1";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "draft-slot-label";
+    labelSpan.textContent = label;
+    row1.appendChild(labelSpan);
+
+    if (rp) {
+      const nameSpan = document.createElement("span");
+      nameSpan.className = rp.starred ? "draft-slot-name draft-starred-name" : "draft-slot-name";
+      nameSpan.textContent = rp.name;
+      row1.appendChild(nameSpan);
+
+      const ovrSpan = document.createElement("span");
+      ovrSpan.className = "slot-ovr";
+      ovrSpan.innerHTML = playerOvrDisplay(rp);
+    row1.appendChild(ovrSpan);
+    } else {
+      const emptySpan = document.createElement("span");
+      emptySpan.className = "draft-slot-name slot-empty";
+      emptySpan.textContent = "—";
+      row1.appendChild(emptySpan);
+    }
+
+    slot.appendChild(row1);
+
+    // Row 2: top-3 attr chips OR "See prospects" button
+    const row2 = document.createElement("div");
+    row2.className = "slot-row2";
+
+    if (rp) {
+      for (const { attr, grade, color } of topAttrs(rp)) {
+        const chip = document.createElement("span");
+        chip.className = "slot-attr-chip";
+        chip.innerHTML =
+          `<span class="slot-grade" style="color:${color}">${grade}</span>` +
+          `<span class="slot-attr-name">${ATTR_SHORT_LABELS[attr] ?? attr}</span>`;
+        row2.appendChild(chip);
+      }
+    } else if (options.onSeeProspects) {
+      const btn = document.createElement("button");
+      btn.className = "slot-see-btn";
+      btn.textContent = "See prospects";
+      btn.addEventListener("click", () => options.onSeeProspects!(label));
+      row2.appendChild(btn);
+    }
+
+    slot.appendChild(row2);
     card.appendChild(slot);
   }
 

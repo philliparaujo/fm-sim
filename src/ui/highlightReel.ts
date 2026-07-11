@@ -60,6 +60,8 @@ function hide() {
 function highlightActiveRow() {
   const p = panel();
   if (!p) return;
+  const cnt = p.querySelector(".hl-nav-count");
+  if (cnt) cnt.textContent = `${index + 1} / ${reel.length}`;
   p.querySelectorAll(".hl-row").forEach((el, i) => {
     el.classList.toggle("hl-row-active", i === index);
     if (i === index) (el as HTMLElement).scrollIntoView({ block: "nearest" });
