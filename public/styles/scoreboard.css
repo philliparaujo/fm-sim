@@ -2,6 +2,12 @@
   box-sizing: border-box;
 }
 
+html, body {
+  background: #0d1117;
+  color: #e5e7eb;
+  margin: 0;
+}
+
 .reset-btn {
   background: #c0392b;
   color: white;
@@ -36,12 +42,12 @@
 }
 
 .replay-btn {
-  border: none;
+  border: 1px solid #374151;
   padding: 6px 12px;
   cursor: pointer;
   border-radius: 4px;
-  background: #ddd;
-  color: #222;
+  background: #1f2937;
+  color: #d1d5db;
 }
 .replay-btn:disabled {
   cursor: default;

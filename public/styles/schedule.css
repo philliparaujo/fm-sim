@@ -1,6 +1,6 @@
 /* --- Season / Schedule tab --- */
 #schedule-tab {
-  color: #111827;
+  color: #e5e7eb;
   font-family: "Arial", sans-serif;
 }
 
@@ -57,7 +57,7 @@
   align-items: baseline;
   gap: 6px;
   padding: 4px 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #2d3748;
   font-size: 13px;
   flex-wrap: wrap;
 }
@@ -100,8 +100,8 @@
 .sched-heading {
   margin: 0 0 10px;
   font-size: 18px;
-  color: #111827;
-  border-bottom: 2px solid #d1d5db;
+  color: #e5e7eb;
+  border-bottom: 2px solid #374151;
   padding-bottom: 4px;
 }
 .sched-heading-toggle {
@@ -164,7 +164,7 @@
 .sched-week-name {
   font-size: 22px;
   font-weight: bold;
-  color: #111827;
+  color: #e5e7eb;
 }
 .sched-week-current {
   background: #22c55e;
@@ -458,7 +458,9 @@
   border-radius: 4px;
   cursor: pointer;
 }
-.hl-nav-btn:hover { border-color: #9ca3af; }
+.hl-nav-btn:hover {
+  border-color: #9ca3af;
+}
 .hl-nav-count {
   font-size: 11px;
   font-weight: bold;
@@ -474,7 +476,9 @@
   cursor: pointer;
   padding: 2px 4px;
 }
-.hl-close-btn:hover { color: #fca5a5; }
+.hl-close-btn:hover {
+  color: #fca5a5;
+}
 .hl-list {
   flex: 1;
   overflow-y: auto;
@@ -489,11 +493,27 @@
   border-bottom: 1px solid #1f2937;
   flex-wrap: wrap;
 }
-.hl-row:hover { background: #1f2937; }
-.hl-row-active { background: #1a2535; border-left: 3px solid #fbbf24; }
-.hl-row-icon { font-size: 13px; flex-shrink: 0; }
-.hl-row-when { font-size: 10px; color: #6b7280; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.hl-row-desc { font-size: 12px; font-weight: bold; }
+.hl-row:hover {
+  background: #1f2937;
+}
+.hl-row-active {
+  background: #1a2535;
+  border-left: 3px solid #fbbf24;
+}
+.hl-row-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.hl-row-when {
+  font-size: 10px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.hl-row-desc {
+  font-size: 12px;
+  font-weight: bold;
+}
 
 /* ── Players of the week ── */
 .sched-awards {
@@ -932,7 +952,7 @@
 .sched-roster-div {
   font-size: 14px;
   font-weight: bold;
-  color: #374151;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 12px 0 8px;
@@ -940,5 +960,5 @@
 .sched-roster-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 7px;
 }

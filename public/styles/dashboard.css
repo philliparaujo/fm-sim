@@ -25,8 +25,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 22px; /* Identical font scaling for all modules */
-  color: black;
+  font-size: 22px;
+  color: #e5e7eb;
 }
 
 .slider-group label {
