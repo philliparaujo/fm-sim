@@ -74,7 +74,7 @@ export function perSecondToPerTick(unitsPerSecond: number): number {
 /** Length of one quarter, in game-clock seconds */
 export const QUARTER_SECONDS = 900;
 /** Game-clock seconds that run off between plays (real game only) */
-export const PLAY_CLOCK_RUNOFF = 32;
+export const PLAY_CLOCK_RUNOFF = 40;
 /** Clock threshold (s) that triggers the two-minute warning in Q2/Q4 */
 export const TWO_MINUTE_WARNING_SECONDS = 120;
 

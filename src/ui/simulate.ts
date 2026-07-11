@@ -5,6 +5,7 @@ import {
   getTeamRecord,
   recordResult,
 } from "../core/leagueResults";
+import { getSeasonStats } from "../core/seasonStats";
 import { LEAGUE } from "../core/state";
 import { Team } from "../core/types";
 import { workerGame } from "../sim/runGame";
@@ -297,14 +298,23 @@ function renderRankings() {
   table.appendChild(tbody);
   wrap.appendChild(table);
 
-  // League-wide PPG summary
+  // League-wide avg stats summary
   const totalPF = ranked.reduce((s, { rec }) => s + rec.pointsFor, 0);
   const totalTeamGames = ranked.reduce((s, { rec }) => s + rec.wins + rec.losses + rec.ties, 0);
   if (totalTeamGames > 0) {
-    const leaguePPG = totalPF / totalTeamGames;
+    let passYds = 0, passAtts = 0, rushYds = 0, rushCarries = 0;
+    for (const players of Object.values(getSeasonStats())) {
+      for (const line of Object.values(players)) {
+        if (line?.passing) { passYds += line.passing.yards; passAtts += line.passing.attempts; }
+        if (line?.rushing) { rushYds += line.rushing.yards; rushCarries += line.rushing.rushes; }
+      }
+    }
+    const lines = [`League avg: ${(totalPF / totalTeamGames).toFixed(1)} PPG`];
+    if (passAtts > 0) lines.push(`${(passYds / passAtts).toFixed(1)} YPA`);
+    if (rushCarries > 0) lines.push(`${(rushYds / rushCarries).toFixed(1)} YPC`);
     const summary = document.createElement("div");
     summary.className = "sim-league-ppg";
-    summary.textContent = `League avg: ${leaguePPG.toFixed(1)} PPG`;
+    summary.textContent = lines.join(" · ");
     wrap.appendChild(summary);
   }
 

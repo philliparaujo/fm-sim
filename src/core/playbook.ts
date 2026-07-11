@@ -34,7 +34,7 @@ const COVERERS_INCLUDED = CATCHERS_INCLUDED && true;
 const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
-  passPercent: 0.5, // Offensive playcall
+  passPercent: 0.55, // Offensive playcall
   manPercent: 0.4, // Defensive underneath coverage
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
@@ -218,6 +218,7 @@ function generateDefensivePlaycall(
     : covererCoverage;
 
   const catchers = offensivePlayers.filter((p) => p.role === "catcher");
+  const catcherByLabel = Object.fromEntries(catchers.map((c) => [c.label, c]));
 
   const zoneMargin = H * 0.1;
   const availableSpace = H - zoneMargin * 2;
@@ -225,13 +226,14 @@ function generateDefensivePlaycall(
     catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
 
   const COVERER_X = LOS + yardsToPx(10);
+  // CB→XR, NB→ZR, LB→TE — fixed positional matchups regardless of roster/draft order
   const covererIndexMap: Record<string, number> = { CB: 0, NB: 1, LB: 2 };
   const covererYPositions =
     covererCoverage === "man"
       ? [
-          catchers[0]?.loc.y ?? CENTER_Y - 0.325 * H,
-          catchers[1]?.loc.y ?? CENTER_Y + 0.325 * H,
-          catchers[2]?.loc.y ?? CENTER_Y,
+          catcherByLabel["XR"]?.loc.y ?? CENTER_Y - 0.325 * H,
+          catcherByLabel["ZR"]?.loc.y ?? CENTER_Y + 0.325 * H,
+          catcherByLabel["TE"]?.loc.y ?? CENTER_Y,
         ]
       : [zoneMargin, zoneMargin + 2 * zoneStep, zoneMargin + zoneStep];
 

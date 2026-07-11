@@ -2,7 +2,9 @@ import { lerp } from "../utils/math";
 import { FIELD_SCALE } from "../utils/units";
 import { Player } from "./types";
 
-function s(px: number) { return px * FIELD_SCALE; }
+function s(px: number) {
+  return px * FIELD_SCALE;
+}
 
 type GradeThreshold = {
   peak: number; // Optimal rating value
@@ -192,7 +194,7 @@ const ATTRIBUTE_CONFIG = {
 
   /* Defenders */
   TACKLING: (r: number) => ({
-    defenderTackle: lerp(r, 0.7, 0.95),
+    defenderTackle: lerp(r, 0.75, 0.99),
     tackleAttemptChance: lerp(r, 0.1, 0.4),
   }),
 } as const;

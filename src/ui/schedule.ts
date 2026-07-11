@@ -81,6 +81,36 @@ function leagueAvgPPG(): number | null {
   return teamGames > 0 ? totalPoints / teamGames : null;
 }
 
+/** League-wide average yards per passing attempt across all season stats. */
+function leagueAvgYPA(): number | null {
+  let totalYards = 0;
+  let totalAttempts = 0;
+  for (const players of Object.values(getSeasonStats())) {
+    for (const line of Object.values(players)) {
+      if (line?.passing) {
+        totalYards += line.passing.yards;
+        totalAttempts += line.passing.attempts;
+      }
+    }
+  }
+  return totalAttempts > 0 ? totalYards / totalAttempts : null;
+}
+
+/** League-wide average yards per carry across all season stats. */
+function leagueAvgYPC(): number | null {
+  let totalYards = 0;
+  let totalCarries = 0;
+  for (const players of Object.values(getSeasonStats())) {
+    for (const line of Object.values(players)) {
+      if (line?.rushing) {
+        totalYards += line.rushing.yards;
+        totalCarries += line.rushing.rushes;
+      }
+    }
+  }
+  return totalCarries > 0 ? totalYards / totalCarries : null;
+}
+
 export function setupSchedule() {
   document.getElementById("tab-schedule")?.addEventListener("click", render);
   render();
@@ -737,12 +767,17 @@ function renderSidebar(): HTMLElement {
   wrap.className = "sched-standings-wrap sched-standings-sidebar";
   getDivisions().forEach((div, i) => wrap.appendChild(renderDivisionTable(div, i)));
   standSection.appendChild(wrap);
-  const avg = leagueAvgPPG();
-  if (avg !== null) {
-    const ppg = document.createElement("div");
-    ppg.className = "sched-league-ppg";
-    ppg.textContent = `League avg: ${avg.toFixed(1)} PPG`;
-    standSection.appendChild(ppg);
+  const avgPPG = leagueAvgPPG();
+  const avgYPA = leagueAvgYPA();
+  const avgYPC = leagueAvgYPC();
+  if (avgPPG !== null) {
+    const stats = document.createElement("div");
+    stats.className = "sched-league-ppg";
+    const lines = [`League avg: ${avgPPG.toFixed(1)} PPG`];
+    if (avgYPA !== null) lines.push(`${avgYPA.toFixed(1)} YPA`);
+    if (avgYPC !== null) lines.push(`${avgYPC.toFixed(1)} YPC`);
+    stats.textContent = lines.join(" · ");
+    standSection.appendChild(stats);
   }
   sidebar.appendChild(standSection);
 

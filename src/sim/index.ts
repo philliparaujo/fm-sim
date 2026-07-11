@@ -165,6 +165,17 @@ function stepSimulation() {
     }
   }
 
+  // Hard cap: no player can exceed their own max speed regardless of collision jitter
+  for (const player of state.players) {
+    const { maxSpeed } = getConstants("SPEED", player);
+    const speed = Math.sqrt(player.vel.x ** 2 + player.vel.y ** 2);
+    if (speed > maxSpeed) {
+      const scale = maxSpeed / speed;
+      player.vel.x *= scale;
+      player.vel.y *= scale;
+    }
+  }
+
   // Move entities
   triggerMove(state.ball);
   for (const player of state.players) {
