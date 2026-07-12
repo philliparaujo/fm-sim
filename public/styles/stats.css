@@ -3,44 +3,38 @@
   color: #e5e7eb;
 }
 
-/* ── Top row: standings (left) + league leaders (right) ── */
-.stats-top-row {
+/* ── Two-column layout ── */
+.stats-main-row {
   display: flex;
   gap: 24px;
-  flex-wrap: wrap;
   align-items: flex-start;
+}
+.stats-left-col {
+  flex: 1;
+  min-width: 0;
+}
+.stats-right-col {
+  flex: 0 0 420px;
+  min-width: 360px;
+}
+
+/* ── League leaders 2×2 grid ── */
+.stats-leaders-2x2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   margin-bottom: 24px;
 }
 
-.stats-standings-col {
-  flex: 1;
-  min-width: 320px;
-}
-
-.stats-leaders-col {
-  flex: 1;
-  min-width: 260px;
-}
-
-/* ── Bottom row: player stats (left) + season awards (right) ── */
-.stats-bottom-row {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-
+/* ── Player stats section (needs horizontal scroll) ── */
 .stats-player-col {
-  flex: 2;
-  min-width: 320px;
   overflow-x: auto;
 }
 
+/* ── Season awards stacked in right col ── */
 .stats-awards-col {
-  flex: 1;
-  min-width: 260px;
+  min-width: 0;
 }
-
 .stats-awards-grid {
   display: flex;
   flex-direction: column;

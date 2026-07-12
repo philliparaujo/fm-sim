@@ -38,17 +38,8 @@
   min-width: 0;
 }
 .sched-sidebar {
-  flex: 0 0 300px;
-  min-width: 260px;
-}
-/* Sidebar standings tables stack vertically instead of side-by-side */
-.sched-standings-sidebar {
-  flex-direction: column;
-  gap: 12px;
-}
-.sched-standings-sidebar .sched-division {
-  min-width: unset;
-  width: 100%;
+  flex: 0 0 360px;
+  min-width: 320px;
 }
 
 /* ── MVP race sidebar widget ── */
@@ -515,6 +506,11 @@
   font-weight: bold;
 }
 
+/* ── Award favorites sidebar (stacked vertically) ── */
+.sched-award-favorites {
+  flex-direction: column;
+}
+
 /* ── Players of the week ── */
 .sched-awards {
   margin-top: 16px;
@@ -681,10 +677,11 @@
 }
 .sched-division {
   flex: 1;
-  min-width: 340px;
+  min-width: 280px;
   background: #111827;
   border-radius: 8px;
   overflow: hidden;
+  margin-bottom: 12px;
 }
 .sched-table {
   width: 100%;
@@ -750,7 +747,6 @@
 }
 
 .sched-league-ppg {
-  margin-top: 12px;
   padding: 8px 16px;
   display: inline-block;
   font-size: 13px;
@@ -949,6 +945,15 @@
 }
 
 /* ── Rosters ── */
+.sched-rosters-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sched-roster-div-col {
+  flex: 1;
+  min-width: 300px;
+}
 .sched-roster-div {
   font-size: 14px;
   font-weight: bold;

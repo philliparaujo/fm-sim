@@ -14,7 +14,7 @@ const LABEL: Record<OvrMode, string> = {
   both: "Show Ratings",
 };
 
-const BTN_IDS = ["btn-ratings-toggle-draft", "btn-ratings-toggle-schedule"];
+const BTN_IDS = ["btn-ratings-toggle-draft"];
 
 function syncButtons() {
   for (const id of BTN_IDS) {

@@ -50,33 +50,37 @@ function render() {
     return;
   }
 
-  // ── Top row: compact standings + league leaders ──────────────────────────
-  const topRow = document.createElement("div");
-  topRow.className = "stats-top-row";
+  const mainRow = document.createElement("div");
+  mainRow.className = "stats-main-row";
 
-  const standingsCol = document.createElement("div");
-  standingsCol.className = "stats-standings-col";
+  // ── Left column: standings + team stats + player stats ────────────────────
+  const leftCol = document.createElement("div");
+  leftCol.className = "stats-left-col";
+
+  const standSection = document.createElement("div");
+  standSection.className = "sched-section";
   const standHeading = document.createElement("h3");
   standHeading.className = "sched-heading";
   standHeading.textContent = "Standings";
-  standingsCol.appendChild(standHeading);
+  standSection.appendChild(standHeading);
   const divWrap = document.createElement("div");
   divWrap.className = "sched-standings-wrap";
   getDivisions().forEach((div, i) => divWrap.appendChild(renderDivisionTable(div, i)));
-  standingsCol.appendChild(divWrap);
-  topRow.appendChild(standingsCol);
-  topRow.appendChild(renderLeagueLeaders());
-  root.appendChild(topRow);
+  standSection.appendChild(divWrap);
+  leftCol.appendChild(standSection);
 
-  // ── Team stats ────────────────────────────────────────────────────────────
-  root.appendChild(renderTeamStats());
+  leftCol.appendChild(renderTeamStats());
+  leftCol.appendChild(renderPlayerStats());
 
-  // ── Player stats + season awards ─────────────────────────────────────────
-  const bottomRow = document.createElement("div");
-  bottomRow.className = "stats-bottom-row";
-  bottomRow.appendChild(renderPlayerStats());
-  bottomRow.appendChild(renderSeasonAwards());
-  root.appendChild(bottomRow);
+  // ── Right column: league leaders (2×2) + season awards ───────────────────
+  const rightCol = document.createElement("div");
+  rightCol.className = "stats-right-col";
+  rightCol.appendChild(renderLeagueLeaders());
+  rightCol.appendChild(renderSeasonAwards());
+
+  mainRow.appendChild(leftCol);
+  mainRow.appendChild(rightCol);
+  root.appendChild(mainRow);
 }
 
 // ── League leaders ────────────────────────────────────────────────────────────
@@ -102,7 +106,7 @@ function renderLeagueLeaders(): HTMLElement {
   }
 
   const grid = document.createElement("div");
-  grid.className = "sched-leaders";
+  grid.className = "sched-leaders stats-leaders-2x2";
 
   const leader = (
     title: string,
@@ -629,6 +633,8 @@ function awardLeaderboard(
 
   top.forEach((c, i) => {
     const team = teamByColor(c.color);
+    const rp = team.roster.find((p) => p.label === c.label);
+    const ovr = rp ? ` · ${playerOvrDisplay(rp)}` : "";
     const summary = c.side === "offense" ? offAwardSummary(c.stats) : defAwardSummary(c.stats);
     const row = document.createElement("div");
     row.className = "sched-award-rank" + (i === 0 ? " leader" : "");
@@ -637,7 +643,7 @@ function awardLeaderboard(
       `<div class="sched-award-rank-top">` +
       `<span class="sched-award-rank-n">${i === 0 ? "👑" : i + 1}</span>` +
       `<span class="sched-award-rank-name" style="color:${team.color}">${c.name}</span>` +
-      `<span class="sched-award-rank-meta">${c.label} · ${team.name}</span>` +
+      `<span class="sched-award-rank-meta">${c.label} · ${team.name}${ovr}</span>` +
       `<span class="sched-award-rank-grade">${c.grade.toFixed(1)}</span>` +
       `</div>` +
       `<div class="sched-award-rank-stat">${summary}</div>`;

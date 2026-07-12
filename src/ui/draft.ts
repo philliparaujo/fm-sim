@@ -20,7 +20,10 @@ let humanTurnActive = true; // false only while an AI team is picking in snake d
 const POOL_FILTERS: (Label | "ALL")[] = ["ALL", ...PLAYER_LABELS];
 let poolFilter: Label | "ALL" = "ALL";
 let rosterSort: "pos" | "ovr" | "draft" = "pos";
+let onRosterSortChange: (() => void) | null = null;
 
+export function getRosterSort(): "pos" | "ovr" | "draft" { return rosterSort; }
+export function onRosterSort(cb: () => void) { onRosterSortChange = cb; }
 
 /** The team color currently focused in the "Drafting for" dropdown ("" = NONE). */
 export function getSelectedTeamColor(): string {
@@ -108,6 +111,7 @@ export function setupDraft() {
       rosterSort = btn.dataset.sort as typeof rosterSort;
       syncSortButtons();
       render();
+      onRosterSortChange?.();
     });
   });
 
@@ -135,6 +139,9 @@ function isDraftComplete(): boolean {
 }
 
 function render() {
+  // Once we've transitioned to the season tabs, the draft screen is hidden.
+  // Don't re-run showRecap() (which would re-inject the Start Season button).
+  if (document.getElementById("draft-screen")?.style.display === "none") return;
   if (isDraftComplete()) {
     showRecap();
     return;

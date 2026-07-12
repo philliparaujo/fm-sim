@@ -9,6 +9,7 @@ import {
   getCurrentWeek,
   getDivisions,
   getDivisionStandings,
+  getGames,
   getGamesForWeek,
   getRecord,
   getSeeds,
@@ -31,6 +32,7 @@ import {
 import {
   Award,
   defensiveGrade,
+  hasOffense,
   mvpGrade,
   offensiveGrade,
   receivingGrade,
@@ -43,8 +45,8 @@ import { Highlight } from "../core/highlights";
 import { loadGame } from "../sim";
 import { workerGame } from "../sim/runGame";
 import { openReel } from "./highlightReel";
-import { teamOvrDisplay } from "./displayMode";
-import { getSelectedTeamColor } from "./draft";
+import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
+import { getSelectedTeamColor, getRosterSort, onRosterSort } from "./draft";
 import { initDashboard, updateDashboardValues } from "./dashboard";
 import { buildRosterCard } from "./rosterCard";
 
@@ -113,6 +115,7 @@ function leagueAvgYPC(): number | null {
 
 export function setupSchedule() {
   document.getElementById("tab-schedule")?.addEventListener("click", render);
+  onRosterSort(() => render());
   render();
 }
 
@@ -200,7 +203,6 @@ function render() {
   const leftCol = document.createElement("div");
   leftCol.className = "sched-left-col";
   leftCol.appendChild(renderWeekView());
-  if (regSeasonComplete()) leftCol.appendChild(renderPlayoffs());
   mainRow.appendChild(leftCol);
 
   mainRow.appendChild(renderSidebar());
@@ -369,6 +371,23 @@ function renderWeekView(): HTMLElement {
   return section;
 }
 
+function getStreak(color: string): string {
+  const played = getGames()
+    .filter((g) => (g.homeColor === color || g.awayColor === color) && g.played)
+    .sort((a, b) => a.week - b.week);
+  if (played.length === 0) return "—";
+  const result = (g: Game): "W" | "L" | "T" => {
+    const myScore = g.homeColor === color ? g.homeScore : g.awayScore;
+    const oppScore = g.homeColor === color ? g.awayScore : g.homeScore;
+    return myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T";
+  };
+  const results = played.map(result);
+  const last = results[results.length - 1];
+  let count = 0;
+  for (let i = results.length - 1; i >= 0 && results[i] === last; i--) count++;
+  return `${last}${count}`;
+}
+
 /** Player-of-the-week award cards (per division, offense & defense). */
 function renderAwards(awards: Award[]): HTMLElement {
   const box = document.createElement("div");
@@ -389,7 +408,9 @@ function renderAwards(awards: Award[]): HTMLElement {
 
 function renderAwardCard(a: Award): HTMLElement {
   const team = teamByColor(a.color);
-  const name = team.roster.find((p) => p.label === a.label)?.name ?? a.label;
+  const rp = team.roster.find((p) => p.label === a.label);
+  const name = rp?.name ?? a.label;
+  const ovr = rp ? ` · ${playerOvrDisplay(rp)}` : "";
   const summary =
     a.side === "offense" ? offAwardSummary(a.stats) : defAwardSummary(a.stats);
 
@@ -399,7 +420,7 @@ function renderAwardCard(a: Award): HTMLElement {
     `<div class="sched-award-head">${a.divisionName} · ${a.side === "offense" ? "Offense" : "Defense"}</div>` +
     `<div class="sched-award-player" style="color:${team.color}">${name}` +
     `<span class="sched-award-grade">${a.grade.toFixed(1)}</span></div>` +
-    `<div class="sched-award-meta">${a.label} · <span style="color:${team.color}">${team.name}</span></div>` +
+    `<div class="sched-award-meta">${a.label} · <span style="color:${team.color}">${team.name}</span>${ovr}</div>` +
     `<div class="sched-award-stat">${summary}</div>`;
   return card;
 }
@@ -752,21 +773,70 @@ function topBy(
   return best;
 }
 
+function renderCompactDivisionTable(div: Division, divIndex: number): HTMLElement {
+  const standings = getDivisionStandings(divIndex);
+  const seeds = getSeeds();
+
+  const box = document.createElement("div");
+  box.className = "sched-division";
+
+  const table = document.createElement("table");
+  table.className = "sched-table";
+  table.innerHTML =
+    `<thead><tr>` +
+    `<th class="sched-th sched-th-team">${div.name}</th>` +
+    `<th class="sched-th">W-L</th>` +
+    `<th class="sched-th">STRK</th>` +
+    `</tr></thead>`;
+
+  const tbody = document.createElement("tbody");
+  standings.forEach((rec, rank) => {
+    const team = teamByColor(rec.color);
+    const seed = seeds ? seedOf(rec.color) : null;
+    const isLeader = rank === 0;
+
+    const tr = document.createElement("tr");
+    tr.className = "sched-row";
+    if (seed) tr.classList.add("sched-row-playoff");
+    else if (isLeader && !seeds) tr.classList.add("sched-row-leader");
+    if (rec.color === getSelectedTeamColor()) tr.classList.add("sched-row-focus");
+
+    const marker = seed
+      ? `<span class="sched-seed">${seed}</span>`
+      : isLeader && !seeds
+        ? `<span class="sched-leader-dot">◆</span>`
+        : "";
+
+    const wl = rec.ties > 0
+      ? `${rec.wins}-${rec.losses}-${rec.ties}`
+      : `${rec.wins}-${rec.losses}`;
+    const streak = getStreak(rec.color);
+    const streakColor = streak.startsWith("W") ? "#4ade80" : streak.startsWith("L") ? "#f87171" : "#9ca3af";
+
+    tr.innerHTML =
+      `<td class="sched-td sched-td-team" style="color:${team.color}">${marker}${team.name}` +
+      `<span class="sched-td-ovr">${teamOvrDisplay(team)}</span></td>` +
+      `<td class="sched-td">${wl}</td>` +
+      `<td class="sched-td" style="color:${streakColor};font-weight:bold">${streak}</td>`;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  box.appendChild(table);
+  return box;
+}
+
 function renderSidebar(): HTMLElement {
   const sidebar = document.createElement("div");
   sidebar.className = "sched-sidebar";
 
-  // Compact standings
   const standSection = document.createElement("div");
   standSection.className = "sched-section";
   const standHead = document.createElement("h3");
   standHead.className = "sched-heading";
   standHead.textContent = "Standings";
   standSection.appendChild(standHead);
-  const wrap = document.createElement("div");
-  wrap.className = "sched-standings-wrap sched-standings-sidebar";
-  getDivisions().forEach((div, i) => wrap.appendChild(renderDivisionTable(div, i)));
-  standSection.appendChild(wrap);
+  getDivisions().forEach((div, i) => standSection.appendChild(renderCompactDivisionTable(div, i)));
+
   const avgPPG = leagueAvgPPG();
   const avgYPA = leagueAvgYPA();
   const avgYPC = leagueAvgYPC();
@@ -779,46 +849,97 @@ function renderSidebar(): HTMLElement {
     stats.textContent = lines.join(" · ");
     standSection.appendChild(stats);
   }
-  sidebar.appendChild(standSection);
 
-  // MVP Race — top 3 by mvpGrade
-  if (hasSeasonStats()) {
-    const mvpSection = document.createElement("div");
-    mvpSection.className = "sched-section";
-    const mvpHead = document.createElement("h3");
-    mvpHead.className = "sched-heading";
-    mvpHead.textContent = "MVP Race";
-    mvpSection.appendChild(mvpHead);
-
-    const candidates: { color: string; label: Label; name: string; grade: number }[] = [];
-    for (const [color, players] of Object.entries(getSeasonStats())) {
-      const team = teamByColor(color);
-      for (const [label, stats] of Object.entries(players)) {
-        if (!stats) continue;
-        const off = offensiveGrade(stats);
-        const def = defensiveGrade(stats);
-        if (off === 0 && def === 0) continue;
-        const name = team.roster.find((p) => p.label === label)?.name ?? label;
-        candidates.push({ color, label: label as Label, name, grade: mvpGrade(stats) });
-      }
-    }
-    candidates.sort((a, b) => b.grade - a.grade);
-
-    for (const [i, c] of candidates.slice(0, 3).entries()) {
-      const team = teamByColor(c.color);
-      const row = document.createElement("div");
-      row.className = "sched-mvp-row";
-      row.innerHTML =
-        `<span class="sched-mvp-rank">${i + 1}</span>` +
-        `<span class="sched-mvp-name" style="color:${team.color}">${c.name}</span>` +
-        `<span class="sched-mvp-meta">${c.label} · ${team.name}</span>` +
-        `<span class="sched-mvp-grade">${c.grade.toFixed(1)}</span>`;
-      mvpSection.appendChild(row);
-    }
-    sidebar.appendChild(mvpSection);
+  // Seed chips once playoffs are seeded
+  const seeds = getSeeds();
+  if (seeds) {
+    const seedList = document.createElement("div");
+    seedList.className = "sched-seedlist";
+    seedList.style.marginTop = "10px";
+    seeds.forEach((rec, i) => {
+      const team = teamByColor(rec.color);
+      const chip = document.createElement("span");
+      chip.className = "sched-seed-chip";
+      chip.innerHTML =
+        `<span class="sched-seed">${i + 1}</span>` +
+        `<span style="color:${team.color}">${team.name}</span>` +
+        `<span class="sched-seed-rec">${rec.wins}-${rec.losses}${rec.ties ? "-" + rec.ties : ""}</span>`;
+      seedList.appendChild(chip);
+    });
+    standSection.appendChild(seedList);
   }
 
+  sidebar.appendChild(standSection);
+  sidebar.appendChild(renderAwardFavorites());
   return sidebar;
+}
+
+type AwardCand = { color: string; label: Label; name: string; grade: number; stats: PlayerStats; side: "offense" | "defense" };
+
+function renderAwardFavorites(): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "sched-section";
+
+  const head = document.createElement("h3");
+  head.className = "sched-heading";
+  head.textContent = "Award Favorites";
+  section.appendChild(head);
+
+  if (!hasSeasonStats()) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent = "Play games to see award leaders.";
+    section.appendChild(p);
+    return section;
+  }
+
+  const opoy: AwardCand[] = [], dpoy: AwardCand[] = [], mvp: AwardCand[] = [];
+  for (const [color, players] of Object.entries(getSeasonStats())) {
+    const team = teamByColor(color);
+    for (const [label, stats] of Object.entries(players)) {
+      if (!stats) continue;
+      const name = team.roster.find((p) => p.label === label)?.name ?? label;
+      const base = { color, label: label as Label, name, stats };
+      const off = offensiveGrade(stats);
+      const def = defensiveGrade(stats);
+      const isOff = hasOffense(stats);
+      if (isOff) opoy.push({ ...base, grade: off, side: "offense" });
+      if (stats.defense && def > 0) dpoy.push({ ...base, grade: def, side: "defense" });
+      if (off !== 0 || def > 0) mvp.push({ ...base, grade: mvpGrade(stats), side: isOff ? "offense" : "defense" });
+    }
+  }
+  opoy.sort((a, b) => b.grade - a.grade);
+  dpoy.sort((a, b) => b.grade - a.grade);
+  mvp.sort((a, b) => b.grade - a.grade);
+
+  const grid = document.createElement("div");
+  grid.className = "sched-awards-grid sched-award-favorites";
+
+  const renderFav = (title: string, c: AwardCand | undefined) => {
+    const card = document.createElement("div");
+    card.className = `sched-award sched-award-${c?.side ?? "offense"}`;
+    if (!c) {
+      card.innerHTML = `<div class="sched-award-head">${title}</div><div class="sched-award-stat">No candidates yet.</div>`;
+      return card;
+    }
+    const team = teamByColor(c.color);
+    const rp = team.roster.find((p) => p.label === c.label);
+    const ovr = rp ? ` · ${playerOvrDisplay(rp)}` : "";
+    const summary = c.side === "offense" ? offAwardSummary(c.stats) : defAwardSummary(c.stats);
+    card.innerHTML =
+      `<div class="sched-award-head">${title}</div>` +
+      `<div class="sched-award-player" style="color:${team.color}">${c.name}` +
+      `<span class="sched-award-grade">${c.grade.toFixed(1)}</span></div>` +
+      `<div class="sched-award-meta">${c.label} · <span style="color:${team.color}">${team.name}</span>${ovr}</div>` +
+      `<div class="sched-award-stat">${summary}</div>`;
+    return card;
+  };
+
+  grid.appendChild(renderFav("MVP", mvp[0]));
+  grid.appendChild(renderFav("OPOY", opoy[0]));
+  grid.appendChild(renderFav("DPOY", dpoy[0]));
+  section.appendChild(grid);
+  return section;
 }
 
 export function renderDivisionTable(div: Division, divIndex: number): HTMLElement {
@@ -836,6 +957,7 @@ export function renderDivisionTable(div: Division, divIndex: number): HTMLElemen
     `<th class="sched-th">W</th><th class="sched-th">L</th><th class="sched-th">T</th>` +
     `<th class="sched-th">PCT</th>` +
     `<th class="sched-th">PF</th><th class="sched-th">PA</th><th class="sched-th">DIFF</th>` +
+    `<th class="sched-th">STRK</th>` +
     `</tr></thead>`;
 
   const tbody = document.createElement("tbody");
@@ -864,6 +986,8 @@ export function renderDivisionTable(div: Division, divIndex: number): HTMLElemen
         ? `<span class="sched-leader-dot">◆</span>`
         : "";
 
+    const streak = getStreak(rec.color);
+    const streakColor = streak.startsWith("W") ? "#4ade80" : streak.startsWith("L") ? "#f87171" : "#9ca3af";
     tr.innerHTML =
       `<td class="sched-td sched-td-team" style="color:${team.color}">${marker}${team.name}` +
       `<span class="sched-td-ovr">${teamOvrDisplay(team)}</span></td>` +
@@ -873,73 +997,14 @@ export function renderDivisionTable(div: Division, divIndex: number): HTMLElemen
       `<td class="sched-td">${pct}</td>` +
       `<td class="sched-td">${rec.pointsFor}</td>` +
       `<td class="sched-td">${rec.pointsAgainst}</td>` +
-      `<td class="sched-td">${diff >= 0 ? "+" : ""}${diff}</td>`;
+      `<td class="sched-td">${diff >= 0 ? "+" : ""}${diff}</td>` +
+      `<td class="sched-td" style="color:${streakColor};font-weight:bold">${streak}</td>`;
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   box.appendChild(table);
   return box;
 }
-
-function renderPlayoffs(): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "sched-section";
-
-  const heading = document.createElement("h3");
-  heading.className = "sched-heading";
-  heading.textContent = "Playoff Bracket";
-  section.appendChild(heading);
-
-  const seeds = getSeeds();
-  if (seeds) {
-    const seedList = document.createElement("div");
-    seedList.className = "sched-seedlist";
-    seeds.forEach((rec, i) => {
-      const team = teamByColor(rec.color);
-      const chip = document.createElement("span");
-      chip.className = "sched-seed-chip";
-      chip.innerHTML =
-        `<span class="sched-seed">${i + 1}</span>` +
-        `<span style="color:${team.color}">${team.name}</span>` +
-        `<span class="sched-seed-rec">${rec.wins}-${rec.losses}${rec.ties ? "-" + rec.ties : ""}</span>`;
-      seedList.appendChild(chip);
-    });
-    section.appendChild(seedList);
-  }
-
-  const bracket = document.createElement("div");
-  bracket.className = "sched-bracket";
-
-  const semis = getGamesForWeek(SEMIFINAL_WEEK);
-  const finals = getGamesForWeek(FINAL_WEEK);
-
-  const col = (label: string, games: Game[]) => {
-    const c = document.createElement("div");
-    c.className = "sched-bracket-col";
-    const h = document.createElement("div");
-    h.className = "sched-bracket-label";
-    h.textContent = label;
-    c.appendChild(h);
-    if (games.length === 0) {
-      const p = document.createElement("p");
-      p.className = "sched-empty";
-      p.textContent = "Awaiting semifinal results.";
-      c.appendChild(p);
-    } else {
-      for (const g of games) c.appendChild(renderGameCard(g));
-    }
-    return c;
-  };
-
-  bracket.appendChild(col("Semifinals", semis));
-  bracket.appendChild(col("Championship", finals));
-  section.appendChild(bracket);
-
-  return section;
-}
-
-
-
 
 function renderRosters(): HTMLElement {
   const section = document.createElement("div");
@@ -956,20 +1021,25 @@ function renderRosters(): HTMLElement {
 
   if (!showRosters) return section;
 
+  const grid = document.createElement("div");
+  grid.className = "sched-rosters-grid";
+
   getDivisions().forEach((div, i) => {
+    const col = document.createElement("div");
+    col.className = "sched-roster-div-col";
     const divHeading = document.createElement("div");
     divHeading.className = "sched-roster-div";
     divHeading.textContent = `${div.name} Division`;
-    section.appendChild(divHeading);
-
+    col.appendChild(divHeading);
     const row = document.createElement("div");
     row.className = "sched-roster-row";
-    // Order by current standings within the division.
     for (const rec of getDivisionStandings(i)) {
-      row.appendChild(buildRosterCard(teamByColor(rec.color)));
+      row.appendChild(buildRosterCard(teamByColor(rec.color), { slotSort: getRosterSort() }));
     }
-    section.appendChild(row);
+    col.appendChild(row);
+    grid.appendChild(col);
   });
 
+  section.appendChild(grid);
   return section;
 }
