@@ -177,6 +177,8 @@ type QBStats = {
   tds: number;
   ints: number;
   sacks: number;
+  /** Completed passing yards thrown to each route, keyed by route name. */
+  routeYards: Record<string, number>;
 };
 
 type RBStats = {
@@ -193,6 +195,8 @@ type ReceivingStats = {
   catches: number;
   yards: number;
   tds: number;
+  /** Receiving yards earned on each route run, keyed by route name. */
+  routeYards: Record<string, number>;
 };
 
 // Defensive line for rushers (LE/DT/RE) and coverers (CB/NB/LB/FS/SS).

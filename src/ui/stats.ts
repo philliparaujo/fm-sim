@@ -1,5 +1,6 @@
 import {
   getDivisions,
+  getGames,
   getRecord,
   isSeasonGenerated,
   teamByColor,
@@ -151,32 +152,75 @@ type TeamStatRow = {
   gp: number;
   ppg: number;
   ppga: number;
+  diff: number;
   ypg: number;
   passYpg: number;
   rushYpg: number;
+  ypgAgainst: number;
+  passYpgAgainst: number;
+  rushYpgAgainst: number;
+  ints: number;
+  sacks: number;
 };
 
 const TEAM_STAT_COLS: TeamStatCol[] = [
-  { header: "Team",    get: (r) => r.name,     numeric: false },
-  { header: "GP",      get: (r) => r.gp,       numeric: true },
-  { header: "PPG",     get: (r) => r.ppg,      fmt: (v) => v.toFixed(1), numeric: true },
-  { header: "PPG/A",   get: (r) => r.ppga,     fmt: (v) => v.toFixed(1), numeric: true },
-  { header: "YPG",     get: (r) => r.ypg,      fmt: (v) => v.toFixed(1), numeric: true },
-  { header: "PASS",    get: (r) => r.passYpg,  fmt: (v) => v.toFixed(1), numeric: true },
-  { header: "RUSH",    get: (r) => r.rushYpg,  fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "Team",    get: (r) => r.name,            numeric: false },
+  { header: "GP",      get: (r) => r.gp,              numeric: true },
+  { header: "PPG",     get: (r) => r.ppg,             fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "PPG/A",   get: (r) => r.ppga,            fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "DIFF",    get: (r) => r.diff,            fmt: (v) => (v >= 0 ? "+" : "") + v.toFixed(1), numeric: true },
+  { header: "YPG",     get: (r) => r.ypg,             fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "PASS",    get: (r) => r.passYpg,         fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "RUSH",    get: (r) => r.rushYpg,         fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "YPG/A",   get: (r) => r.ypgAgainst,      fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "PASS/A",  get: (r) => r.passYpgAgainst,  fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "RUSH/A",  get: (r) => r.rushYpgAgainst,  fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "INT",     get: (r) => r.ints,            numeric: true },
+  { header: "SACK",    get: (r) => r.sacks,           numeric: true },
 ];
+
+/** Regular-season pass/rush yards allowed per team, summed from the opposing
+ * team's per-game offensive output (season stats only track each team's own
+ * offense, not what it gave up). */
+function buildYardsAgainst(): Record<string, { pass: number; rush: number }> {
+  const against: Record<string, { pass: number; rush: number }> = {};
+  const sumOffense = (players: ReturnType<typeof getSeasonStats>[string]) => {
+    let pass = 0, rush = 0;
+    for (const stats of Object.values(players)) {
+      pass += stats?.passing?.yards ?? 0;
+      rush += stats?.rushing?.yards ?? 0;
+    }
+    return { pass, rush };
+  };
+  for (const g of getGames()) {
+    if (g.round !== "regular" || !g.played || !g.playerStats) continue;
+    const homeOff = sumOffense(g.playerStats[g.homeColor] ?? {});
+    const awayOff = sumOffense(g.playerStats[g.awayColor] ?? {});
+    against[g.homeColor] ??= { pass: 0, rush: 0 };
+    against[g.awayColor] ??= { pass: 0, rush: 0 };
+    against[g.homeColor].pass += awayOff.pass;
+    against[g.homeColor].rush += awayOff.rush;
+    against[g.awayColor].pass += homeOff.pass;
+    against[g.awayColor].rush += homeOff.rush;
+  }
+  return against;
+}
 
 function buildTeamStatRows(): TeamStatRow[] {
   const seasonStats = getSeasonStats();
+  const yardsAgainst = buildYardsAgainst();
   return LEAGUE.map((t) => {
     const gp = getGamesPlayed(t.color);
     const rec = getRecord(t.color);
     const teamPlayers = seasonStats[t.color] ?? {};
-    let passYds = 0, rushYds = 0;
+    let passYds = 0, rushYds = 0, ints = 0, sacks = 0;
     for (const stats of Object.values(teamPlayers)) {
       passYds += stats?.passing?.yards ?? 0;
       rushYds += stats?.rushing?.yards ?? 0;
+      ints += stats?.defense?.interceptions ?? 0;
+      sacks += stats?.defense?.sacks ?? 0;
     }
+    const against = yardsAgainst[t.color] ?? { pass: 0, rush: 0 };
     const div = gp > 0 ? 1 / gp : 0;
     return {
       color: t.color,
@@ -184,9 +228,15 @@ function buildTeamStatRows(): TeamStatRow[] {
       gp,
       ppg: rec.pointsFor * div,
       ppga: rec.pointsAgainst * div,
+      diff: (rec.pointsFor - rec.pointsAgainst) * div,
       passYpg: passYds * div,
       rushYpg: rushYds * div,
       ypg: (passYds + rushYds) * div,
+      passYpgAgainst: against.pass * div,
+      rushYpgAgainst: against.rush * div,
+      ypgAgainst: (against.pass + against.rush) * div,
+      ints,
+      sacks,
     };
   });
 }
@@ -285,6 +335,35 @@ type StatColumn = {
   fmt?: (v: number) => string;
 };
 
+/** Capitalizes a route key for display (e.g. "slant" -> "Slant"). */
+function formatRouteName(route: string): string {
+  return route.charAt(0).toUpperCase() + route.slice(1);
+}
+
+/** The route with the most accumulated yards in a route → yards map. */
+function bestRouteFromMap(routeYards: Record<string, number> | undefined): string {
+  if (!routeYards) return "—";
+  let best: string | null = null;
+  let bestYds = -Infinity;
+  for (const [route, yds] of Object.entries(routeYards)) {
+    if (yds > bestYds) {
+      bestYds = yds;
+      best = route;
+    }
+  }
+  return best ? formatRouteName(best) : "—";
+}
+
+/** The route this player earned the most receiving yards on this season. */
+function bestRoute(s: PlayerStats): string {
+  return bestRouteFromMap(s.receiving?.routeYards);
+}
+
+/** The route this QB threw for the most completed yards to this season. */
+function bestPassRoute(s: PlayerStats): string {
+  return bestRouteFromMap(s.passing?.routeYards);
+}
+
 const STAT_TABS: {
   key: StatTab;
   label: string;
@@ -292,6 +371,7 @@ const STAT_TABS: {
   sortBy: (s: PlayerStats) => number;
   columns: StatColumn[];
   yardsFor?: (s: PlayerStats) => number;
+  bestRouteFor?: (s: PlayerStats) => string;
 }[] = [
   {
     key: "passing",
@@ -299,6 +379,7 @@ const STAT_TABS: {
     has: (s) => !!s.passing,
     sortBy: (s) => s.passing?.yards ?? 0,
     yardsFor: (s) => s.passing!.yards,
+    bestRouteFor: bestPassRoute,
     columns: [
       { header: "ATT",  get: (s) => s.passing!.attempts },
       { header: "CMP",  get: (s) => s.passing!.completions },
@@ -329,6 +410,7 @@ const STAT_TABS: {
     has: (s) => !!s.receiving,
     sortBy: (s) => s.receiving?.yards ?? 0,
     yardsFor: (s) => s.receiving!.yards,
+    bestRouteFor: bestRoute,
     columns: [
       { header: "TGT", get: (s) => s.receiving!.targets },
       { header: "REC", get: (s) => s.receiving!.catches },
@@ -455,6 +537,15 @@ function renderStatTable(cfg: (typeof STAT_TABS)[number]): HTMLElement {
     const yardsFor = cfg.yardsFor;
     const ypg = (r: StatRow) => { const gp = getGamesPlayed(r.color); return gp ? yardsFor(r.stats) / gp : 0; };
     statColumns.push({ header: "YPG", cell: (r) => ypg(r).toFixed(1), sortVal: ypg });
+  }
+
+  if (cfg.bestRouteFor) {
+    const bestRouteFor = cfg.bestRouteFor;
+    statColumns.push({
+      header: "Best Route",
+      cell: (r) => bestRouteFor(r.stats),
+      sortVal: (r) => bestRouteFor(r.stats),
+    });
   }
 
   const grade = cfg.key === "defense" ? defensiveGrade : offensiveGrade;

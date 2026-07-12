@@ -106,6 +106,7 @@ function emptyQBStats(): QBStats {
     tds: 0,
     ints: 0,
     sacks: 0,
+    routeYards: {},
   };
 }
 
@@ -114,7 +115,7 @@ function emptyRBStats(): RBStats {
 }
 
 function emptyReceivingStats(): ReceivingStats {
-  return { targets: 0, catches: 0, yards: 0, tds: 0 };
+  return { targets: 0, catches: 0, yards: 0, tds: 0, routeYards: {} };
 }
 
 function emptyDefensiveStats(): DefensiveStats {

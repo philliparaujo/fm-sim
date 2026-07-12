@@ -56,6 +56,7 @@ function mergePlayerStats(dest: PlayerStats, src: PlayerStats): void {
       tds: 0,
       ints: 0,
       sacks: 0,
+      routeYards: {},
     });
     d.attempts += src.passing.attempts;
     d.completions += src.passing.completions;
@@ -65,6 +66,9 @@ function mergePlayerStats(dest: PlayerStats, src: PlayerStats): void {
     d.sacks += src.passing.sacks;
     d.cmp = d.attempts ? d.completions / d.attempts : 0;
     d.ypa = d.attempts ? d.yards / d.attempts : 0;
+    for (const [route, yds] of Object.entries(src.passing.routeYards)) {
+      d.routeYards[route] = (d.routeYards[route] ?? 0) + yds;
+    }
   }
   if (src.rushing) {
     const d = (dest.rushing ??= { rushes: 0, yards: 0, ypc: 0, tds: 0, tfls: 0 });
@@ -75,11 +79,14 @@ function mergePlayerStats(dest: PlayerStats, src: PlayerStats): void {
     d.ypc = d.rushes ? d.yards / d.rushes : 0;
   }
   if (src.receiving) {
-    const d = (dest.receiving ??= { targets: 0, catches: 0, yards: 0, tds: 0 });
+    const d = (dest.receiving ??= { targets: 0, catches: 0, yards: 0, tds: 0, routeYards: {} });
     d.targets += src.receiving.targets;
     d.catches += src.receiving.catches;
     d.yards += src.receiving.yards;
     d.tds += src.receiving.tds;
+    for (const [route, yds] of Object.entries(src.receiving.routeYards)) {
+      d.routeYards[route] = (d.routeYards[route] ?? 0) + yds;
+    }
   }
   if (src.defense) {
     const d = (dest.defense ??= {

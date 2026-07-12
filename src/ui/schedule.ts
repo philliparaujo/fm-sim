@@ -135,7 +135,8 @@ async function simOneGame(game: Game): Promise<void> {
   recordGame(game, offenseScore, defenseScore);
   game.playerStats = playerStats;
   game.highlights = highlights;
-  addGamePlayerStats(playerStats);
+  // Playoff games don't count toward cumulative season stats or award races.
+  if (game.round === "regular") addGamePlayerStats(playerStats);
 }
 
 async function simWeek(week: number): Promise<void> {
@@ -786,6 +787,8 @@ function renderCompactDivisionTable(div: Division, divIndex: number): HTMLElemen
     `<thead><tr>` +
     `<th class="sched-th sched-th-team">${div.name}</th>` +
     `<th class="sched-th">W-L</th>` +
+    `<th class="sched-th">PPG</th>` +
+    `<th class="sched-th">PPG/A</th>` +
     `<th class="sched-th">STRK</th>` +
     `</tr></thead>`;
 
@@ -810,6 +813,9 @@ function renderCompactDivisionTable(div: Division, divIndex: number): HTMLElemen
     const wl = rec.ties > 0
       ? `${rec.wins}-${rec.losses}-${rec.ties}`
       : `${rec.wins}-${rec.losses}`;
+    const gp = rec.wins + rec.losses + rec.ties;
+    const ppg = gp > 0 ? (rec.pointsFor / gp).toFixed(1) : "—";
+    const ppga = gp > 0 ? (rec.pointsAgainst / gp).toFixed(1) : "—";
     const streak = getStreak(rec.color);
     const streakColor = streak.startsWith("W") ? "#4ade80" : streak.startsWith("L") ? "#f87171" : "#9ca3af";
 
@@ -817,6 +823,8 @@ function renderCompactDivisionTable(div: Division, divIndex: number): HTMLElemen
       `<td class="sched-td sched-td-team" style="color:${team.color}">${marker}${team.name}` +
       `<span class="sched-td-ovr">${teamOvrDisplay(team)}</span></td>` +
       `<td class="sched-td">${wl}</td>` +
+      `<td class="sched-td">${ppg}</td>` +
+      `<td class="sched-td">${ppga}</td>` +
       `<td class="sched-td" style="color:${streakColor};font-weight:bold">${streak}</td>`;
     tbody.appendChild(tr);
   });

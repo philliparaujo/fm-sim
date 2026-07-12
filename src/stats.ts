@@ -91,7 +91,9 @@ function updateStatsAfterPlay(
     if (isPassAttempt || isSack) {
       // Update yards once for the route, and then update counts for all routes
       if (isComplete && ballCarrierRoute) {
-        next.routes[routeKey(ballCarrierRoute)].yards += netYards;
+        const key = routeKey(ballCarrierRoute);
+        next.routes[key].yards += netYards;
+        qb.routeYards[key] = (qb.routeYards[key] ?? 0) + netYards;
       }
       for (const route of play.routes) {
         updateCountYards(next.routes[routeKey(route)], 0);
@@ -240,6 +242,10 @@ function updateStatsAfterPlay(
         rec.catches++;
         rec.yards += netYards;
         if (isTouchdown) rec.tds++;
+        if (catcher?.route) {
+          const key = routeKey(catcher.route);
+          rec.routeYards[key] = (rec.routeYards[key] ?? 0) + netYards;
+        }
       }
     }
   }
