@@ -1,6 +1,8 @@
 import { Highlight, HIGHLIGHT_FRAME_STRIDE } from "../core/highlights";
 import { teamByColor } from "../core/schedule";
+import { loadGame } from "../sim";
 import { playHighlight, setReplayMode } from "../sim/replay";
+import { initDashboard, updateDashboardValues } from "./dashboard";
 
 const HIGHLIGHT_ICON: Record<Highlight["kind"], string> = {
   score: "🏈",
@@ -19,13 +21,26 @@ function panel(): HTMLElement | null {
 }
 
 /**
- * Opens a game's highlights as a playable reel. The Play tab's left panel
- * (#hl-panel) becomes visible with a list of all highlights; clicking one
- * plays it on the field canvas.
+ * Opens a game's highlights as a playable reel. Loads that game's two teams
+ * into the Play tab (same as watching live) so the roster panel matches the
+ * game being watched, then shows the left panel (#hl-panel) with a list of
+ * all highlights; clicking one plays it on the field canvas.
  */
-export function openReel(highlights: Highlight[], start?: Highlight) {
-  reel = highlights.filter((h) => h.frames.length > 0);
-  if (reel.length === 0) return;
+export function openReel(
+  highlights: Highlight[],
+  teamColors: [string, string],
+  start?: Highlight,
+) {
+  const filtered = highlights.filter((h) => h.frames.length > 0);
+  if (filtered.length === 0) return;
+
+  // Loading the matchup resets the live game, which dismisses any active reel
+  // via the "liveGameLoaded" listener — so build the reel state after this.
+  loadGame(teamColors[0], teamColors[1]);
+  initDashboard();
+  updateDashboardValues();
+
+  reel = filtered;
   index = start ? Math.max(0, reel.indexOf(start)) : 0;
 
   document.getElementById("tab-play")?.click();

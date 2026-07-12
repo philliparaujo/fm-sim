@@ -579,7 +579,7 @@ function renderGameCard(game: Game): HTMLElement {
     card.appendChild(renderBoxScore(game));
   }
   if (game.played && game.highlights && expandedHighlights.has(gameKey(game))) {
-    card.appendChild(renderHighlightList(game.highlights));
+    card.appendChild(renderHighlightList(game));
   }
 
   return card;
@@ -595,7 +595,8 @@ const HIGHLIGHT_ICON: Record<Highlight["kind"], string> = {
 };
 
 /** Expandable list of a game's highlights, each playable in the Play tab. */
-function renderHighlightList(highlights: Highlight[]): HTMLElement {
+function renderHighlightList(game: Game): HTMLElement {
+  const highlights = game.highlights ?? [];
   const box = document.createElement("div");
   box.className = "sched-hl-list";
 
@@ -617,7 +618,9 @@ function renderHighlightList(highlights: Highlight[]): HTMLElement {
       watch.className = "sched-hl-watch";
       watch.textContent = "▶";
       watch.title = "Watch on the Play tab (use the reel bar for next/prev)";
-      watch.addEventListener("click", () => openReel(highlights, h));
+      watch.addEventListener("click", () =>
+        openReel(highlights, [game.homeColor, game.awayColor], h),
+      );
       row.appendChild(watch);
     }
 
