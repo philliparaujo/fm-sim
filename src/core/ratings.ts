@@ -229,7 +229,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
 const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   // Passers
   QB: createBaseRatings({
-    SPEED: 0.75,
+    SPEED: 0.72,
     SIZE: 0.3,
     POCKETPRESENCE: 0.5,
     DECISIONMAKING: 0.5,
@@ -250,21 +250,21 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     PASSBLOCK: 0.1,
   }),
   XR: createBaseRatings({
-    SPEED: 0.91,
+    SPEED: 0.89,
     SIZE: 0.13,
     ROUTERUNNING: 0.5,
     CATCHACCELERATION: 0.45,
     CATCHRADIUS: 0.75,
   }),
   ZR: createBaseRatings({
-    SPEED: 0.89,
+    SPEED: 0.87,
     SIZE: 0.1,
     ROUTERUNNING: 0.65,
     CATCHACCELERATION: 0.65,
     CATCHRADIUS: 0.55,
   }),
   TE: createBaseRatings({
-    SPEED: 0.7,
+    SPEED: 0.68,
     SIZE: 0.47,
     CATCHACCELERATION: 0.5,
     ROUTERUNNING: 0.4,
@@ -309,7 +309,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
 
   // Coverers/Defenders
   CB: createBaseRatings({
-    SPEED: 0.9,
+    SPEED: 0.88,
     SIZE: 0.08,
     TACKLING: 0.45,
     CATCHRADIUS: 0.6,
@@ -317,7 +317,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     ZONECOVERAGE: 0.45,
   }),
   NB: createBaseRatings({
-    SPEED: 0.87,
+    SPEED: 0.85,
     SIZE: 0.07,
     TACKLING: 0.5,
     CATCHRADIUS: 0.6,
@@ -325,7 +325,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     ZONECOVERAGE: 0.45,
   }),
   LB: createBaseRatings({
-    SPEED: 0.7,
+    SPEED: 0.69,
     SIZE: 0.4,
     TACKLING: 0.8,
     CATCHRADIUS: 0.4,
@@ -334,7 +334,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     BLOCKSHEDDING: 0.3,
   }),
   SS: createBaseRatings({
-    SPEED: 0.77,
+    SPEED: 0.75,
     SIZE: 0.2,
     TACKLING: 0.65,
     PURSUIT: 0.7,
@@ -345,10 +345,10 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     ZONECOVERAGE: 0.35,
   }),
   FS: createBaseRatings({
-    SPEED: 0.83,
+    SPEED: 0.81,
     SIZE: 0.1,
     TACKLING: 0.65,
-    PURSUIT: 0.6,
+    PURSUIT: 0.5,
     CATCHRADIUS: 0.7,
     MANCOVERAGE: 0.45,
     ZONECOVERAGE: 0.5,

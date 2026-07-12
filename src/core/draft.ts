@@ -29,23 +29,23 @@ function gaussianRandom(): number {
 // Physical/body attributes cluster tightly; technique/skill attrs spread wider.
 const ATTR_SPREAD: Partial<Record<keyof Ratings, number>> = {
   // Body — low variation within a position archetype
-  SIZE: 0.04,
-  SPEED: 0.09,
+  SIZE: 0.035,
+  SPEED: 0.075,
   // Mixed physical/technique
   THROWPOWER: 0.13,
   CATCHACCELERATION: 0.11,
-  TACKLING: 0.11,
-  PURSUIT: 0.11,
+  TACKLING: 0.09,
+  PURSUIT: 0.13,
   POWER: 0.16,
   BEND: 0.15,
   // Pure technique — highest variation
-  VISION: 0.2,
+  VISION: 0.22,
   POCKETPRESENCE: 0.18,
   DECISIONMAKING: 0.2,
   SHORTACCURACY: 0.18,
   DEEPACCURACY: 0.2,
   ROUTERUNNING: 0.17,
-  CATCHRADIUS: 0.14,
+  CATCHRADIUS: 0.12,
   PASSBLOCK: 0.17,
   RUNBLOCK: 0.17,
   BLOCKSHEDDING: 0.17,
