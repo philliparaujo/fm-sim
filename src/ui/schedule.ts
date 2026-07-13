@@ -43,7 +43,7 @@ import {
 import { LEAGUE } from "../core/state";
 import { Label, PlayerStats, PlayerStatsByLabel } from "../core/types";
 import { Highlight } from "../core/highlights";
-import { loadGame } from "../sim";
+import { getLiveGameResult, loadGame, onGameOver } from "../sim";
 import { workerGame } from "../sim/runGame";
 import { openReel } from "./highlightReel";
 import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
@@ -58,6 +58,8 @@ const AUTO_ADVANCE_WEEK = false;
 let viewWeek = 1;
 let busy = false;
 let showRosters = false;
+/** The unplayed game currently being watched live, recorded once it ends. */
+let pendingWatch: Game | null = null;
 /** Keys of game cards whose box score is expanded. */
 const expandedGames = new Set<string>();
 /** Keys of game cards whose highlight list is expanded. */
@@ -117,6 +119,7 @@ function leagueAvgYPC(): number | null {
 export function setupSchedule() {
   document.getElementById("tab-schedule")?.addEventListener("click", render);
   onRosterSort(() => render());
+  onGameOver(recordWatchedGame);
   render();
 }
 
@@ -160,11 +163,40 @@ async function simThroughWeek(lastWeek: number): Promise<void> {
   }
 }
 
+/** Loads a matchup live in the Play tab. Unlike a headless sim, the result is
+ * recorded to the season only once the game finishes (see recordWatchedGame). */
 function watchGame(game: Game) {
+  pendingWatch = game.played ? null : game;
   loadGame(game.homeColor, game.awayColor);
   initDashboard();
   updateDashboardValues();
   document.getElementById("tab-play")?.click();
+}
+
+/** Fired when a live game ends: folds the game the viewer just watched into the
+ * season standings and stats, exactly as a headless sim would have. */
+function recordWatchedGame() {
+  const game = pendingWatch;
+  pendingWatch = null;
+  if (!game || game.played) return;
+
+  const { scoreByColor, playerStats, defensivePlaycalls } = getLiveGameResult();
+  // Guard against a stale pointer: only record if the game that just ended is
+  // actually the matchup we were watching (both teams present in the result).
+  if (
+    scoreByColor[game.homeColor] === undefined ||
+    scoreByColor[game.awayColor] === undefined
+  ) {
+    return;
+  }
+  recordGame(game, scoreByColor[game.homeColor], scoreByColor[game.awayColor]);
+  game.playerStats = playerStats;
+  // A live-watched game keeps no saved highlight reel — watching it was the reel.
+  if (game.round === "regular") {
+    addGamePlayerStats(playerStats);
+    addGameDefensiveStats(defensivePlaycalls);
+  }
+  render();
 }
 
 async function withBusy(action: () => Promise<void>) {
@@ -557,24 +589,43 @@ function renderGameCard(game: Game): HTMLElement {
     status.innerHTML = `<span class="sched-status-icon sched-status-open">○</span>`;
     actions.appendChild(status);
 
-    const playBtn = document.createElement("button");
-    playBtn.className = "sched-play-btn";
-    playBtn.textContent = "Play ▶";
-    playBtn.disabled = busy || !allDrafted();
-    playBtn.addEventListener("click", () =>
+    const simBtn = document.createElement("button");
+    simBtn.className = "sched-play-btn";
+    simBtn.textContent = "Sim ▶";
+    simBtn.disabled = busy || !allDrafted();
+    simBtn.title = "Simulate instantly and record the result";
+    simBtn.addEventListener("click", () =>
       withBusy(async () => {
         await simOneGame(game);
       }),
     );
-    actions.appendChild(playBtn);
+    actions.appendChild(simBtn);
 
     const watchBtn = document.createElement("button");
     watchBtn.className = "sched-watch-btn";
     watchBtn.textContent = "Watch";
     watchBtn.disabled = busy || !allDrafted();
-    watchBtn.title = "Load this matchup live in the Play tab";
+    watchBtn.title = "Watch live in the Play tab — the result counts once it ends";
     watchBtn.addEventListener("click", () => watchGame(game));
     actions.appendChild(watchBtn);
+
+    const hlBtn = document.createElement("button");
+    hlBtn.className = "sched-watch-btn";
+    hlBtn.textContent = "Highlights";
+    hlBtn.disabled = busy || !allDrafted();
+    hlBtn.title = "Sim the game, then watch its highlights back-to-back like a broadcast";
+    hlBtn.addEventListener("click", () =>
+      withBusy(async () => {
+        await simOneGame(game);
+        openReel(
+          game.highlights ?? [],
+          [game.homeColor, game.awayColor],
+          undefined,
+          true,
+        );
+      }),
+    );
+    actions.appendChild(hlBtn);
   }
 
   card.appendChild(actions);

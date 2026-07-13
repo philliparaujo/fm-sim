@@ -494,6 +494,9 @@ function resetSimulation(reason: PlayEndReason) {
   if (!simulatingMode) {
     updateScoreboardUI(state.scoreboard);
     onPlayResetCallback?.();
+    // The final play just ran: notify once so a watched game can be recorded.
+    // The tick loop stops advancing after gameOver, so this fires exactly once.
+    if (gameOver) onGameOverCallback?.();
   }
 }
 
@@ -552,6 +555,44 @@ function loadGame(offenseColor: string, defenseColor: string) {
 let onPlayResetCallback: (() => void) | null = null;
 function onPlayReset(cb: () => void) {
   onPlayResetCallback = cb;
+}
+
+let onGameOverCallback: (() => void) | null = null;
+/** Registers a callback fired once when a live (watched) game reaches its end.
+ * Harvest the result with `getLiveGameResult()` inside it. */
+function onGameOver(cb: () => void) {
+  onGameOverCallback = cb;
+}
+
+/** True once the live game has ended (4th-quarter clock expired). */
+function isGameOver(): boolean {
+  return gameOver;
+}
+
+/**
+ * Harvests the just-finished live game's result from the current state: each
+ * team's final score, per-label box score, and defensive coverage-call
+ * breakdown, all keyed by team color. Mirrors the harvest in simulateFullGame
+ * but reads the live game the viewer just watched. (A watched game captures no
+ * highlight reel — watching it live is the highlight.)
+ */
+function getLiveGameResult(): {
+  scoreByColor: Record<string, number>;
+  playerStats: Record<string, PlayerStatsByLabel>;
+  defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
+} {
+  const scoreByColor: Record<string, number> = {};
+  const playerStats: Record<string, PlayerStatsByLabel> = {};
+  const defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats> = {};
+  for (const t of state.scoreboard.teams) {
+    scoreByColor[t.color] = t.score;
+    const s = state.stats[t.name];
+    if (s) {
+      playerStats[t.color] = s.players;
+      defensivePlaycalls[t.color] = s.specificPlaycallCoverage;
+    }
+  }
+  return { scoreByColor, playerStats, defensivePlaycalls };
 }
 
 /**
@@ -613,7 +654,10 @@ function simulateFullGame(
 }
 
 export {
+  getLiveGameResult,
+  isGameOver,
   loadGame,
+  onGameOver,
   onPlayReset,
   resetGame,
   resetSimulation,

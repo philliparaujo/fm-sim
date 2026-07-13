@@ -16,14 +16,21 @@ let highlightFrames: ReplayFrame[] | null = null;
 let highlightIndex = 0;
 let highlightStride = 1;
 let highlightTick = 0;
+/** Fired when the current clip reaches its last frame. If set, it runs instead
+ * of the default single-clip loop — letting a caller chain to the next clip
+ * for continuous, live-feeling playback. */
+let highlightEndCallback: (() => void) | null = null;
 
 /** Plays an externally supplied set of frames (e.g. a simulated-game highlight),
- * advancing one frame every `stride` ticks to match the capture downsampling. */
-function playHighlight(frames: ReplayFrame[], stride = 1) {
+ * advancing one frame every `stride` ticks to match the capture downsampling.
+ * Without `onEnd` the clip loops; with it, `onEnd` fires once the clip finishes
+ * (e.g. to advance to the next highlight). */
+function playHighlight(frames: ReplayFrame[], stride = 1, onEnd?: () => void) {
   highlightFrames = frames.length > 0 ? frames : null;
   highlightIndex = 0;
   highlightStride = Math.max(1, stride);
   highlightTick = 0;
+  highlightEndCallback = onEnd ?? null;
 }
 
 function isHighlightPlaying(): boolean {
@@ -33,6 +40,7 @@ function isHighlightPlaying(): boolean {
 /** Selects a specific replay index or to watch live; also exits highlight mode. */
 function setReplayMode(mode: "live" | number) {
   highlightFrames = null;
+  highlightEndCallback = null;
   replayMode = mode;
   replayFrameIndex = 0; // Reset animation playhead on switch
 }
@@ -105,7 +113,17 @@ function incrementReplay(): void {
   if (highlightFrames) {
     highlightTick++;
     if (highlightTick % highlightStride === 0) {
-      highlightIndex = (highlightIndex + 1) % highlightFrames.length;
+      if (highlightIndex + 1 >= highlightFrames.length) {
+        // Clip finished: hand off to the end callback (which typically starts
+        // the next clip) or, absent one, loop this clip.
+        if (highlightEndCallback) {
+          highlightEndCallback();
+          return;
+        }
+        highlightIndex = 0;
+      } else {
+        highlightIndex++;
+      }
     }
     return;
   }

@@ -15,6 +15,9 @@ const HIGHLIGHT_ICON: Record<Highlight["kind"], string> = {
 
 let reel: Highlight[] = [];
 let index = 0;
+/** Cinematic mode: the highlight list is hidden and clips auto-advance so the
+ * game plays back like a live broadcast rather than a pick-from-a-list reel. */
+let cinematic = false;
 
 function panel(): HTMLElement | null {
   return document.getElementById("hl-panel");
@@ -25,11 +28,15 @@ function panel(): HTMLElement | null {
  * into the Play tab (same as watching live) so the roster panel matches the
  * game being watched, then shows the left panel (#hl-panel) with a list of
  * all highlights; clicking one plays it on the field canvas.
+ *
+ * In `cinematic` mode the list is hidden and clips play back-to-back on their
+ * own, so the game feels live rather than picked from a menu.
  */
 export function openReel(
   highlights: Highlight[],
   teamColors: [string, string],
   start?: Highlight,
+  cinematicMode = false,
 ) {
   const filtered = highlights.filter((h) => h.frames.length > 0);
   if (filtered.length === 0) return;
@@ -41,6 +48,7 @@ export function openReel(
   updateDashboardValues();
 
   reel = filtered;
+  cinematic = cinematicMode;
   index = start ? Math.max(0, reel.indexOf(start)) : 0;
 
   document.getElementById("tab-play")?.click();
@@ -50,8 +58,21 @@ export function openReel(
 
 function playCurrent() {
   const h = reel[index];
-  if (h.frames.length > 0) playHighlight(h.frames, HIGHLIGHT_FRAME_STRIDE);
+  if (!h || h.frames.length === 0) return;
+  // Cinematic clips chain into the next one automatically; a normal reel loops
+  // the single selected clip until the viewer picks another.
+  playHighlight(h.frames, HIGHLIGHT_FRAME_STRIDE, cinematic ? advanceCinematic : undefined);
   highlightActiveRow();
+}
+
+/** Auto-advance to the next clip (wrapping), invoked when the current one ends
+ * in cinematic mode. */
+function advanceCinematic() {
+  index = (index + 1) % reel.length;
+  const h = reel[index];
+  if (h && h.frames.length > 0) {
+    playHighlight(h.frames, HIGHLIGHT_FRAME_STRIDE, advanceCinematic);
+  }
 }
 
 function step(delta: number) {
@@ -68,6 +89,7 @@ function close() {
 function hide() {
   reel = [];
   index = 0;
+  cinematic = false;
   const p = panel();
   if (p) p.style.display = "none";
 }
@@ -83,9 +105,41 @@ function highlightActiveRow() {
   });
 }
 
+/** Cinematic panel: no list and no clip counter (both would spoil the game) —
+ * just a live badge and a way back out. */
+function renderCinematicPanel(p: HTMLElement) {
+  p.style.display = "flex";
+  p.classList.add("hl-panel-cinematic");
+  p.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "hl-panel-header";
+
+  const live = document.createElement("span");
+  live.className = "hl-live-badge";
+  live.textContent = "🔴 LIVE";
+  header.appendChild(live);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "hl-close-btn";
+  closeBtn.textContent = "✕";
+  closeBtn.title = "Back to live";
+  closeBtn.addEventListener("click", close);
+  header.appendChild(closeBtn);
+
+  p.appendChild(header);
+}
+
 function renderPanel() {
   const p = panel();
   if (!p) return;
+
+  if (cinematic) {
+    renderCinematicPanel(p);
+    return;
+  }
+  p.classList.remove("hl-panel-cinematic");
+
   p.style.display = "flex";
   p.innerHTML = "";
 

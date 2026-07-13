@@ -470,6 +470,18 @@
   min-width: 36px;
   text-align: center;
 }
+.hl-live-badge {
+  font-size: 12px;
+  font-weight: bold;
+  color: #f87171;
+  letter-spacing: 0.05em;
+}
+#hl-panel.hl-panel-cinematic {
+  width: auto;
+  min-width: 0;
+  max-height: none;
+  align-self: flex-start;
+}
 .hl-close-btn {
   background: none;
   border: none;
