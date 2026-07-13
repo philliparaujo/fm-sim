@@ -1,4 +1,4 @@
-import { Label, PlayerStats, PlayerStatsByLabel } from "./types";
+import { Label, PlayerStats, PlayerStatsByLabel, SpecificPlaycallCoverageStats } from "./types";
 
 /**
  * Season-long accumulation of individual player stats, keyed by team color then
@@ -11,9 +11,15 @@ const store: Record<string, PlayerStatsByLabel> = {};
  * which can differ across teams once playoff games are added. */
 const gamesByColor: Record<string, number> = {};
 
+/** Season-long accumulation of each team's defensive coverage calls, keyed by
+ * team color then `${offense}_${coverage structure name}` (see
+ * utils/stats.ts's specificPlaycallCoverageKey). */
+const defensivePlaycallStore: Record<string, SpecificPlaycallCoverageStats> = {};
+
 export function clearSeasonStats(): void {
   for (const k of Object.keys(store)) delete store[k];
   for (const k of Object.keys(gamesByColor)) delete gamesByColor[k];
+  for (const k of Object.keys(defensivePlaycallStore)) delete defensivePlaycallStore[k];
 }
 
 export function getSeasonStats(): Record<string, PlayerStatsByLabel> {
@@ -43,6 +49,30 @@ export function addGamePlayerStats(
       mergePlayerStats(dest, line);
     }
   }
+}
+
+/** Folds one game's per-team defensive coverage-call breakdown into the
+ * season totals. */
+export function addGameDefensiveStats(
+  byColor: Record<string, SpecificPlaycallCoverageStats>,
+): void {
+  for (const [color, entries] of Object.entries(byColor)) {
+    const dest = (defensivePlaycallStore[color] ??= {});
+    for (const [key, cy] of Object.entries(entries)) {
+      const d = (dest[key] ??= { count: 0, yards: 0, avg: 0 });
+      d.count += cy.count;
+      d.yards += cy.yards;
+      d.avg = d.count ? d.yards / d.count : 0;
+    }
+  }
+}
+
+/** A team's season-long defensive coverage-call breakdown, keyed by
+ * `${offense}_${coverage structure name}`. Empty if the team hasn't played. */
+export function getDefensivePlaycallStats(
+  color: string,
+): SpecificPlaycallCoverageStats {
+  return defensivePlaycallStore[color] ?? {};
 }
 
 function mergePlayerStats(dest: PlayerStats, src: PlayerStats): void {

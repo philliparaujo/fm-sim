@@ -165,6 +165,12 @@ type CountYards = {
 type PlaycallStats = Record<OffensivePlayType, CountYards>;
 type PlaycallCoverageYards = Record<PlaycallCoverageKey, CountYards>;
 type CoverageStats = Record<DefensiveCoverageType, CountYards>;
+/** Per-structure-name granularity beneath the coarse man/zone/blitz buckets
+ * above — one entry per specific coverage structure (see core/coverage.ts). */
+type SpecificCoverageStats = Record<string, CountYards>;
+/** Same granularity as SpecificCoverageStats, but split by offensive playcall
+ * too — keyed by `${offense}_${specific coverage name}`. */
+type SpecificPlaycallCoverageStats = Record<string, CountYards>;
 
 type PlayCallCoverageStats = Record<PlaycallCoverageKey, QBStats | RBStats>;
 
@@ -256,6 +262,8 @@ type AdvancedStats = {
 type Stats = {
   playcalls: PlaycallStats;
   coverage: CoverageStats;
+  specificCoverage: SpecificCoverageStats;
+  specificPlaycallCoverage: SpecificPlaycallCoverageStats;
   playcallCoverage: PlaycallCoverageYards;
   playcallCoverageStats: PlayCallCoverageStats;
   players: PlayerStatsByLabel;
@@ -266,6 +274,8 @@ type Stats = {
 type CurrentPlay = {
   offense: OffensivePlayType;
   defense: DefensiveCoverageType;
+  /** The specific coverage structure name called this play (e.g. "Cover 2 Man"). */
+  defenseSpecific: string;
   special: SpecialPlayType;
   runAngle?: Vector;
   routes: Route[];
@@ -359,6 +369,8 @@ export type {
   Scoreboard,
   Side,
   SpecialPlayType,
+  SpecificCoverageStats,
+  SpecificPlaycallCoverageStats,
   State,
   Stats,
   Team,

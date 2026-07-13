@@ -102,6 +102,17 @@
 .sched-heading-toggle:hover {
   color: #2563eb;
 }
+.sched-subheading {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sched-subheading:first-of-type {
+  margin-top: 4px;
+}
 
 /* ── Champion banner ── */
 .sched-champion {

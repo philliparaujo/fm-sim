@@ -17,6 +17,7 @@ import {
   getFinalBallX,
   playcallCoverageKey,
   routeKey,
+  specificPlaycallCoverageKey,
   updateAverage,
   updateCountYards,
 } from "./utils/stats";
@@ -73,9 +74,18 @@ function updateStatsAfterPlay(
   const _yards = pxToYards((isTouchdown ? W + ENDZONE_W : finalBallX) - los);
   const netYards = isInterception ? 0 : _yards;
 
-  // 2) Playcall/coverage yard stats
+  // 2) Playcall/coverage yard stats. The defensive coverage call belongs to
+  // the defense, not the offense — it's the defense's own playcall, and
+  // "yards given up" only makes sense attributed to whoever called it.
   updateCountYards(next.playcalls[play.offense], netYards);
-  updateCountYards(next.coverage[play.defense], netYards);
+  updateCountYards(defenseNext.coverage[play.defense], netYards);
+  updateCountYards(defenseNext.specificCoverage[play.defenseSpecific], netYards);
+  updateCountYards(
+    defenseNext.specificPlaycallCoverage[
+      specificPlaycallCoverageKey(play.offense, play.defenseSpecific)
+    ],
+    netYards,
+  );
   updateCountYards(next.playcallCoverage[matchupKey], netYards);
 
   // 3) QB/RB stats, playcallCoverage stats, route yard stats

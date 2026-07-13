@@ -20,6 +20,7 @@ import {
   State,
   Stats,
 } from "../core/types";
+import { COVERAGE_STRUCTURE_NAMES } from "../core/coverage";
 import { labelToRole } from "./roster";
 import { isCarryingBall } from "./field";
 import { round2 } from "./math";
@@ -191,6 +192,17 @@ export function createEmptyStats(): Stats {
       zone: { ...EMPTY_COUNT_YARDS },
       zoneBlitz: { ...EMPTY_COUNT_YARDS },
     },
+    specificCoverage: Object.fromEntries(
+      COVERAGE_STRUCTURE_NAMES.map((name) => [name, { ...EMPTY_COUNT_YARDS }]),
+    ),
+    specificPlaycallCoverage: Object.fromEntries(
+      (["run", "pass"] as OffensivePlayType[]).flatMap((offense) =>
+        COVERAGE_STRUCTURE_NAMES.map((name) => [
+          specificPlaycallCoverageKey(offense, name),
+          { ...EMPTY_COUNT_YARDS },
+        ]),
+      ),
+    ),
     playcallCoverage: { ...emptyPlaycallCoverageYards() },
     playcallCoverageStats: { ...emptyPlaycallCoverageStats() },
     players: emptyPlayerStatsByLabel(),
@@ -231,6 +243,15 @@ export function playcallCoverageKey(
     zoneBlitz: "ZoneBlitz",
   };
   return `${offense}${suffix[defense]}` as PlaycallCoverageKey;
+}
+
+/** Converts an offense playcall + specific coverage structure name (e.g.
+ * "Cover 2 Man") into a Record key for specificPlaycallCoverage. */
+export function specificPlaycallCoverageKey(
+  offense: OffensivePlayType,
+  coverageName: string,
+): string {
+  return `${offense}_${coverageName}`;
 }
 
 /* Helpers to update and mutate stats */

@@ -1,10 +1,11 @@
 import { Highlight } from "../core/highlights";
-import { PlayerStatsByLabel, Team } from "../core/types";
+import { PlayerStatsByLabel, SpecificPlaycallCoverageStats, Team } from "../core/types";
 
 /**
  * Runs a full headless game in a Web Worker and resolves with the final scores,
- * each team's per-label player stat lines (keyed by team color), and the game's
- * highlight reel. The `offenseTeam` starts the game with the ball (home team).
+ * each team's per-label player stat lines (keyed by team color), each team's
+ * defensive coverage-call breakdown, and the game's highlight reel. The
+ * `offenseTeam` starts the game with the ball (home team).
  */
 export function workerGame(
   offenseTeam: Team,
@@ -13,6 +14,7 @@ export function workerGame(
   offenseScore: number;
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
+  defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
   highlights: Highlight[];
 }> {
   return new Promise((resolve, reject) => {

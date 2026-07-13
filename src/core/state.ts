@@ -41,6 +41,7 @@ const recreateState = (
     currentPlay: {
       offense: offensePlay.playType,
       defense: defensePlay.coverage,
+      defenseSpecific: defensePlay.coverageName,
       special: specialPlay,
       runAngle: offensePlay.runAngle,
       routes: offensePlay.routes,

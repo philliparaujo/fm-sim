@@ -24,6 +24,7 @@ import {
   TeamRecord,
 } from "../core/schedule";
 import {
+  addGameDefensiveStats,
   addGamePlayerStats,
   clearSeasonStats,
   getSeasonStats,
@@ -130,13 +131,16 @@ async function simOneGame(game: Game): Promise<void> {
   const home = teamByColor(game.homeColor);
   const away = teamByColor(game.awayColor);
   // Home team starts with the ball → passed as the "offense" team.
-  const { offenseScore, defenseScore, playerStats, highlights } =
+  const { offenseScore, defenseScore, playerStats, defensivePlaycalls, highlights } =
     await workerGame(home, away);
   recordGame(game, offenseScore, defenseScore);
   game.playerStats = playerStats;
   game.highlights = highlights;
   // Playoff games don't count toward cumulative season stats or award races.
-  if (game.round === "regular") addGamePlayerStats(playerStats);
+  if (game.round === "regular") {
+    addGamePlayerStats(playerStats);
+    addGameDefensiveStats(defensivePlaycalls);
+  }
 }
 
 async function simWeek(week: number): Promise<void> {

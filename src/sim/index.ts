@@ -11,7 +11,14 @@ import {
 } from "../core/highlights";
 import { getConstants } from "../core/ratings";
 import { LEAGUE, recreateState, state } from "../core/state";
-import { Ball, PlayEndReason, Player, PlayerStatsByLabel, Team } from "../core/types";
+import {
+  Ball,
+  PlayEndReason,
+  Player,
+  PlayerStatsByLabel,
+  SpecificPlaycallCoverageStats,
+  Team,
+} from "../core/types";
 import { stepAsPlayer } from "../behavior";
 import { render } from "../render";
 import { updateScoreboardUI } from "../scoreboard";
@@ -558,6 +565,7 @@ function simulateFullGame(
   offenseScore: number;
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
+  defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
   highlights: Highlight[];
 } {
   const restoredOffenseColor = openingOffenseColor;
@@ -578,12 +586,17 @@ function simulateFullGame(
   const offenseScore = teams.find((t) => t.color === offenseColor)?.score ?? 0;
   const defenseScore = teams.find((t) => t.color === defenseColor)?.score ?? 0;
 
-  // Harvest each team's per-label player stat lines, keyed by team color, before
-  // the restore below wipes state.stats.
+  // Harvest each team's per-label player stat lines and defensive
+  // coverage-call breakdown, keyed by team color, before the restore below
+  // wipes state.stats.
   const playerStats: Record<string, PlayerStatsByLabel> = {};
+  const defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats> = {};
   for (const t of teams) {
     const s = state.stats[t.name];
-    if (s) playerStats[t.color] = s.players;
+    if (s) {
+      playerStats[t.color] = s.players;
+      defensivePlaycalls[t.color] = s.specificPlaycallCoverage;
+    }
   }
 
   const highlights = endHighlightCapture();
@@ -596,7 +609,15 @@ function simulateFullGame(
   }
   simulatingMode = false;
 
-  return { offenseScore, defenseScore, playerStats, highlights };
+  return { offenseScore, defenseScore, playerStats, defensivePlaycalls, highlights };
 }
 
-export { loadGame, onPlayReset, resetGame, resetSimulation, simulateFullGame, state, tick };
+export {
+  loadGame,
+  onPlayReset,
+  resetGame,
+  resetSimulation,
+  simulateFullGame,
+  state,
+  tick,
+};

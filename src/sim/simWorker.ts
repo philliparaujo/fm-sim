@@ -1,6 +1,6 @@
 import { Highlight } from "../core/highlights";
 import { LEAGUE } from "../core/state";
-import { PlayerStatsByLabel, Team } from "../core/types";
+import { PlayerStatsByLabel, SpecificPlaycallCoverageStats, Team } from "../core/types";
 import { simulateFullGame } from "./index";
 
 type WorkerInput = { offenseTeam: Team; defenseTeam: Team };
@@ -8,6 +8,7 @@ type WorkerOutput = {
   offenseScore: number;
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
+  defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
   highlights: Highlight[];
 };
 

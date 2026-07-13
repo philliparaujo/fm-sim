@@ -52,7 +52,7 @@ export function defensiveGrade(s: PlayerStats): number {
   const d = s.defense;
   if (!d) return 0;
   return (
-    d.tackles * 0.7 +
+    d.tackles * 0.4 +
     d.tfls * 1.5 +
     d.sacks * 7 +
     d.interceptions * 7 +

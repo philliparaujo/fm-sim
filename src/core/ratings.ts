@@ -156,10 +156,10 @@ const ATTRIBUTE_CONFIG = {
     antiBlockShed: lerp(r, 2, 2.5),
   }),
   RUNBLOCK: (r: number) => ({
-    runBlockDampingFactor: lerp(r, 0.9, 0.55),
-    covererDampingFactor: lerp(r, 0.75, 0.35),
-    runBlockPushStrength: lerp(r, 0.5, 1.9),
-    antiBlockShed: lerp(r, 0.3, 1.5),
+    runBlockDampingFactor: lerp(r, 0.87, 0.52),
+    covererDampingFactor: lerp(r, 0.71, 0.31),
+    runBlockPushStrength: lerp(r, 0.55, 1.95),
+    antiBlockShed: lerp(r, 0.5, 1.6),
   }),
 
   /* Rushers */
@@ -179,9 +179,9 @@ const ATTRIBUTE_CONFIG = {
     manCushion: lerp(r, 0, 0),
   }),
   ZONECOVERAGE: (r: number) => ({
-    zonePull: lerp(r, 0, 0.4),
+    zonePull: lerp(r, 0.05, 0.45),
     zoneReactionDelay: lerp(r, 25, 5),
-    zoneStartDelay: lerp(r, 45, 25),
+    zoneStartDelay: lerp(r, 40, 15),
   }),
   // Best = ~0.5
   PURSUIT: (r: number) => ({
@@ -219,7 +219,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   BLOCKSHEDDING: 0.15,
   BEND: 0.3,
   MANCOVERAGE: 0.48,
-  ZONECOVERAGE: 0.48,
+  ZONECOVERAGE: 0.52,
   PURSUIT: 0.3,
   TACKLING: 0.65,
   ...overrides,
@@ -269,26 +269,26 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     CATCHACCELERATION: 0.5,
     ROUTERUNNING: 0.4,
     CATCHRADIUS: 0.66,
-    RUNBLOCK: 0.3,
+    RUNBLOCK: 0.32,
   }),
 
   // Blockers
   LT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.93,
-    RUNBLOCK: 0.43,
+    RUNBLOCK: 0.45,
     PASSBLOCK: 0.5,
   }),
   C: createBaseRatings({
     SPEED: 0.43,
     SIZE: 0.87,
-    RUNBLOCK: 0.48,
+    RUNBLOCK: 0.49,
     PASSBLOCK: 0.4,
   }),
   RT: createBaseRatings({
     SPEED: 0.45,
     SIZE: 0.96,
-    RUNBLOCK: 0.48,
+    RUNBLOCK: 0.5,
     PASSBLOCK: 0.45,
   }),
 
@@ -314,7 +314,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     TACKLING: 0.45,
     CATCHRADIUS: 0.6,
     MANCOVERAGE: 0.55,
-    ZONECOVERAGE: 0.45,
+    ZONECOVERAGE: 0.47,
   }),
   NB: createBaseRatings({
     SPEED: 0.85,
@@ -322,7 +322,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     TACKLING: 0.5,
     CATCHRADIUS: 0.6,
     MANCOVERAGE: 0.5,
-    ZONECOVERAGE: 0.45,
+    ZONECOVERAGE: 0.47,
   }),
   LB: createBaseRatings({
     SPEED: 0.69,
@@ -330,7 +330,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     TACKLING: 0.8,
     CATCHRADIUS: 0.4,
     MANCOVERAGE: 0.35,
-    ZONECOVERAGE: 0.45,
+    ZONECOVERAGE: 0.47,
     BLOCKSHEDDING: 0.3,
   }),
   SS: createBaseRatings({
@@ -342,7 +342,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     BEND: 0.4,
     CATCHRADIUS: 0.65,
     MANCOVERAGE: 0.35,
-    ZONECOVERAGE: 0.35,
+    ZONECOVERAGE: 0.37,
   }),
   FS: createBaseRatings({
     SPEED: 0.81,
@@ -351,7 +351,7 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
     PURSUIT: 0.5,
     CATCHRADIUS: 0.7,
     MANCOVERAGE: 0.45,
-    ZONECOVERAGE: 0.5,
+    ZONECOVERAGE: 0.52,
   }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {

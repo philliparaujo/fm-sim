@@ -7,6 +7,7 @@ import {
   TeamRecord,
 } from "../core/schedule";
 import {
+  getDefensivePlaycallStats,
   getGamesPlayed,
   getSeasonStats,
   hasSeasonStats,
@@ -17,9 +18,11 @@ import {
   mvpGrade,
   offensiveGrade,
 } from "../core/awards";
+import { COVERAGE_STRUCTURE_INFO, COVERAGE_STRUCTURE_NAMES } from "../core/coverage";
 import { LEAGUE } from "../core/state";
-import { Label, PlayerStats } from "../core/types";
+import { Label, PlayerStats, Team } from "../core/types";
 import { scoreProspect } from "../core/draftEval";
+import { specificPlaycallCoverageKey } from "../utils/stats";
 import { playerOvrDisplay } from "./displayMode";
 import { renderDivisionTable } from "./schedule";
 import { getSelectedTeamColor } from "./draft";
@@ -29,6 +32,11 @@ type StatTab = "passing" | "rushing" | "receiving" | "defense";
 let statTab: StatTab = "passing";
 let statSort: { col: number; dir: "asc" | "desc" } | null = null;
 let teamStatSort: { col: number; dir: "asc" | "desc" } | null = null;
+
+type PlaycallTabKey = "defense";
+let playcallTab: PlaycallTabKey = "defense";
+let playcallStatSort: { col: number; dir: "asc" | "desc" } | null = null;
+let leagueCoverageSort: { col: number; dir: "asc" | "desc" } | null = null;
 
 export function setupStats() {
   document.getElementById("tab-stats")?.addEventListener("click", render);
@@ -72,6 +80,7 @@ function render() {
 
   leftCol.appendChild(renderTeamStats());
   leftCol.appendChild(renderPlayerStats());
+  leftCol.appendChild(renderPlaycalls());
 
   // ── Right column: league leaders (2×2) + season awards ───────────────────
   const rightCol = document.createElement("div");
@@ -608,6 +617,370 @@ function renderStatTable(cfg: (typeof STAT_TABS)[number]): HTMLElement {
     tr.innerHTML =
       `<td class="sched-stat-td sched-stat-td-rank">${i + 1}</td>` +
       columns.map((c) => `<td class="sched-stat-td${c.tdClass ? " " + c.tdClass : ""}">${c.cell(row)}</td>`).join("");
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+// ── Playcalls (defensive coverage breakdown) ─────────────────────────────────
+// A team's specific defensive coverage calls (see core/coverage.ts), broken
+// out by run vs. pass — surfaces which coverages a defense leans on and
+// whether it's actually stopping the run or the pass with them.
+
+type PlaycallRow = {
+  color: string;
+  team: Team;
+  coverage: string;
+  plays: number;
+  yards: number;
+  avg: number;
+  runPct: number;
+  runPlays: number;
+  runYards: number;
+  runAvg: number;
+  passPlays: number;
+  passYards: number;
+  passAvg: number;
+  /** This row's Avg minus the league-wide Avg for the same coverage —
+   * negative means this team gives up fewer yards than average calling it
+   * (a specialty), positive means more (a weakness). Filled in at render
+   * time once the league averages below are known. */
+  vsLeagueAvg: number;
+};
+
+type PlaycallCol = {
+  header: string;
+  get: (r: PlaycallRow) => number | string;
+  fmt?: (v: number) => string;
+  numeric: boolean;
+};
+
+const PLAYCALL_COLS: PlaycallCol[] = [
+  { header: "Team",        get: (r) => r.team.name,     numeric: false },
+  { header: "Coverage",    get: (r) => r.coverage,      numeric: false },
+  { header: "Scheme",      get: (r) => COVERAGE_STRUCTURE_INFO[r.coverage]?.scheme ?? "—",   numeric: false },
+  { header: "Pressure",    get: (r) => COVERAGE_STRUCTURE_INFO[r.coverage]?.pressure ?? "—", numeric: false },
+  { header: "Plays",       get: (r) => r.plays,         numeric: true },
+  { header: "Yds",         get: (r) => r.yards,         fmt: (v) => v.toFixed(0), numeric: true },
+  { header: "Avg",         get: (r) => r.avg,           fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "vs Lg Avg",   get: (r) => r.vsLeagueAvg,   fmt: (v) => (v >= 0 ? "+" : "") + v.toFixed(1), numeric: true },
+  { header: "Run%",        get: (r) => r.runPct,        fmt: (v) => v.toFixed(0) + "%", numeric: true },
+  { header: "Run Plays",   get: (r) => r.runPlays,      numeric: true },
+  { header: "Run Avg",     get: (r) => r.runAvg,        fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "Pass Plays",  get: (r) => r.passPlays,     numeric: true },
+  { header: "Pass Avg",    get: (r) => r.passAvg,       fmt: (v) => v.toFixed(1), numeric: true },
+];
+const VS_LEAGUE_AVG_COL = PLAYCALL_COLS.findIndex((c) => c.header === "vs Lg Avg");
+
+/** Every team's defensive coverage calls this season, one row per
+ * team × coverage structure actually called (zero-play combos are skipped).
+ * vsLeagueAvg is left at 0 here — attachLeagueAvgDiff fills it in once the
+ * league-wide averages (which need every team's rows) are known. */
+function buildDefensePlaycallRows(): PlaycallRow[] {
+  const rows: PlaycallRow[] = [];
+  for (const team of LEAGUE) {
+    const stats = getDefensivePlaycallStats(team.color);
+    for (const name of COVERAGE_STRUCTURE_NAMES) {
+      const run = stats[specificPlaycallCoverageKey("run", name)] ?? { count: 0, yards: 0, avg: 0 };
+      const pass = stats[specificPlaycallCoverageKey("pass", name)] ?? { count: 0, yards: 0, avg: 0 };
+      const plays = run.count + pass.count;
+      if (plays === 0) continue;
+      const yards = run.yards + pass.yards;
+      rows.push({
+        color: team.color,
+        team,
+        coverage: name,
+        plays,
+        yards,
+        avg: yards / plays,
+        runPct: (run.count / plays) * 100,
+        runPlays: run.count,
+        runYards: run.yards,
+        runAvg: run.avg,
+        passPlays: pass.count,
+        passYards: pass.yards,
+        passAvg: pass.avg,
+        vsLeagueAvg: 0,
+      });
+    }
+  }
+  return rows;
+}
+
+/** One tab per side of the ball's playcall breakdown. Only Defense exists so
+ * far — add an Offense entry here (with its own row builder) to extend it. */
+const PLAYCALL_TABS: { key: PlaycallTabKey; label: string; build: () => PlaycallRow[] }[] = [
+  { key: "defense", label: "Defense", build: buildDefensePlaycallRows },
+];
+
+// ── League-wide averages per coverage ────────────────────────────────────
+// Answers "what are the best/worst calls overall" directly — every team's
+// snaps in a given coverage, pooled together.
+
+type LeagueCoverageRow = {
+  coverage: string;
+  plays: number;
+  yards: number;
+  avg: number;
+  runPlays: number;
+  runAvg: number;
+  passPlays: number;
+  passAvg: number;
+  runPct: number;
+};
+
+type LeagueCoverageCol = {
+  header: string;
+  get: (r: LeagueCoverageRow) => number | string;
+  fmt?: (v: number) => string;
+  numeric: boolean;
+};
+
+const LEAGUE_COVERAGE_COLS: LeagueCoverageCol[] = [
+  { header: "Coverage",  get: (r) => r.coverage,  numeric: false },
+  { header: "Scheme",    get: (r) => COVERAGE_STRUCTURE_INFO[r.coverage]?.scheme ?? "—",   numeric: false },
+  { header: "Pressure",  get: (r) => COVERAGE_STRUCTURE_INFO[r.coverage]?.pressure ?? "—", numeric: false },
+  { header: "Plays",     get: (r) => r.plays,     numeric: true },
+  { header: "Yds",       get: (r) => r.yards,     fmt: (v) => v.toFixed(0), numeric: true },
+  { header: "Avg",       get: (r) => r.avg,       fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "Run%",      get: (r) => r.runPct,    fmt: (v) => v.toFixed(0) + "%", numeric: true },
+  { header: "Run Avg",   get: (r) => r.runAvg,    fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "Pass Avg",  get: (r) => r.passAvg,   fmt: (v) => v.toFixed(1), numeric: true },
+];
+const LEAGUE_AVG_COL = LEAGUE_COVERAGE_COLS.findIndex((c) => c.header === "Avg");
+
+/** Pools every team's rows for the same coverage into one league-wide line. */
+function buildLeagueCoverageRows(teamRows: PlaycallRow[]): LeagueCoverageRow[] {
+  const byCoverage = new Map<
+    string,
+    { plays: number; yards: number; runPlays: number; runYards: number; passPlays: number; passYards: number }
+  >();
+  for (const r of teamRows) {
+    const acc = byCoverage.get(r.coverage) ?? {
+      plays: 0, yards: 0, runPlays: 0, runYards: 0, passPlays: 0, passYards: 0,
+    };
+    acc.plays += r.plays;
+    acc.yards += r.yards;
+    acc.runPlays += r.runPlays;
+    acc.runYards += r.runYards;
+    acc.passPlays += r.passPlays;
+    acc.passYards += r.passYards;
+    byCoverage.set(r.coverage, acc);
+  }
+  return [...byCoverage.entries()].map(([coverage, a]) => ({
+    coverage,
+    plays: a.plays,
+    yards: a.yards,
+    avg: a.plays ? a.yards / a.plays : 0,
+    runPlays: a.runPlays,
+    runAvg: a.runPlays ? a.runYards / a.runPlays : 0,
+    passPlays: a.passPlays,
+    passAvg: a.passPlays ? a.passYards / a.passPlays : 0,
+    runPct: a.plays ? (a.runPlays / a.plays) * 100 : 0,
+  }));
+}
+
+/** Stamps each team row's vsLeagueAvg using the pooled league averages —
+ * mutates in place since rows are freshly built each render. */
+function attachLeagueAvgDiff(rows: PlaycallRow[], leagueRows: LeagueCoverageRow[]): void {
+  const avgByCoverage = new Map(leagueRows.map((r) => [r.coverage, r.avg]));
+  for (const row of rows) {
+    row.vsLeagueAvg = row.avg - (avgByCoverage.get(row.coverage) ?? row.avg);
+  }
+}
+
+function renderPlaycalls(): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "sched-section";
+
+  const heading = document.createElement("h3");
+  heading.className = "sched-heading";
+  heading.textContent = "Playcalls";
+  section.appendChild(heading);
+
+  if (!hasSeasonStats()) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent = "Simulate games to break down defensive playcalls.";
+    section.appendChild(p);
+    return section;
+  }
+
+  const tabBar = document.createElement("div");
+  tabBar.className = "sched-stat-tabs";
+  for (const tab of PLAYCALL_TABS) {
+    const btn = document.createElement("button");
+    btn.className = "sched-stat-tab" + (playcallTab === tab.key ? " active" : "");
+    btn.textContent = tab.label;
+    btn.addEventListener("click", () => {
+      playcallTab = tab.key;
+      playcallStatSort = null;
+      leagueCoverageSort = null;
+      render();
+    });
+    tabBar.appendChild(btn);
+  }
+  section.appendChild(tabBar);
+
+  const cfg = PLAYCALL_TABS.find((t) => t.key === playcallTab)!;
+  const rows = cfg.build();
+  const leagueRows = buildLeagueCoverageRows(rows);
+  attachLeagueAvgDiff(rows, leagueRows);
+
+  const leagueSubhead = document.createElement("div");
+  leagueSubhead.className = "sched-subheading";
+  leagueSubhead.textContent = "League Averages by Coverage";
+  section.appendChild(leagueSubhead);
+  section.appendChild(renderLeagueCoverageTable(leagueRows));
+
+  const teamSubhead = document.createElement("div");
+  teamSubhead.className = "sched-subheading";
+  teamSubhead.textContent = "By Team";
+  section.appendChild(teamSubhead);
+  section.appendChild(renderPlaycallTable(rows));
+  return section;
+}
+
+function renderLeagueCoverageTable(rows: LeagueCoverageRow[]): HTMLElement {
+  if (rows.length === 0) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent = "No plays recorded yet.";
+    return p;
+  }
+
+  // Default: sort by Avg (best/stingiest calls first)
+  if (!leagueCoverageSort) leagueCoverageSort = { col: LEAGUE_AVG_COL, dir: "asc" };
+
+  const { col, dir } = leagueCoverageSort;
+  const colDef = LEAGUE_COVERAGE_COLS[col];
+  const sorted = [...rows].sort((a, b) => {
+    const va = colDef.get(a);
+    const vb = colDef.get(b);
+    const cmp =
+      typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb));
+    return dir === "asc" ? cmp : -cmp;
+  });
+
+  const wrap = document.createElement("div");
+  wrap.className = "sched-stat-table-wrap";
+  const table = document.createElement("table");
+  table.className = "sched-stat-table stats-league-coverage-table";
+
+  const thead = document.createElement("thead");
+  const hRow = document.createElement("tr");
+  hRow.innerHTML = `<th class="sched-stat-th sched-stat-th-rank">#</th>`;
+  LEAGUE_COVERAGE_COLS.forEach((c, i) => {
+    const th = document.createElement("th");
+    const active = leagueCoverageSort?.col === i;
+    const arrow = active ? (leagueCoverageSort!.dir === "asc" ? " ▲" : " ▼") : "";
+    th.className = "sched-stat-th sched-stat-th-sortable" + (active ? " active" : "");
+    th.innerHTML = `${c.header}<span class="sched-stat-arrow">${arrow}</span>`;
+    th.addEventListener("click", () => {
+      if (leagueCoverageSort?.col === i) {
+        leagueCoverageSort = { col: i, dir: leagueCoverageSort.dir === "asc" ? "desc" : "asc" };
+      } else {
+        leagueCoverageSort = { col: i, dir: c.numeric ? "desc" : "asc" };
+      }
+      render();
+    });
+    hRow.appendChild(th);
+  });
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  sorted.forEach((row, i) => {
+    const tr = document.createElement("tr");
+    tr.className = "sched-stat-row";
+    tr.innerHTML = `<td class="sched-stat-td sched-stat-td-rank">${i + 1}</td>`;
+    LEAGUE_COVERAGE_COLS.forEach((c) => {
+      const raw = c.get(row);
+      const display = c.fmt && typeof raw === "number" ? c.fmt(raw) : String(raw);
+      tr.innerHTML += `<td class="sched-stat-td">${display}</td>`;
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function renderPlaycallTable(rows: PlaycallRow[]): HTMLElement {
+  if (rows.length === 0) {
+    const p = document.createElement("p");
+    p.className = "sched-empty";
+    p.textContent = "No plays recorded yet.";
+    return p;
+  }
+
+  // Default: sort by vs Lg Avg ascending — biggest specialties (fewest yards
+  // allowed relative to league norm for that coverage) float to the top.
+  if (!playcallStatSort) playcallStatSort = { col: VS_LEAGUE_AVG_COL, dir: "asc" };
+
+  const { col, dir } = playcallStatSort;
+  const colDef = PLAYCALL_COLS[col];
+  const sorted = [...rows].sort((a, b) => {
+    const va = colDef.get(a);
+    const vb = colDef.get(b);
+    const cmp =
+      typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb));
+    return dir === "asc" ? cmp : -cmp;
+  });
+
+  const wrap = document.createElement("div");
+  wrap.className = "sched-stat-table-wrap";
+  const table = document.createElement("table");
+  table.className = "sched-stat-table stats-playcall-table";
+
+  const thead = document.createElement("thead");
+  const hRow = document.createElement("tr");
+  hRow.innerHTML = `<th class="sched-stat-th sched-stat-th-rank">#</th>`;
+  PLAYCALL_COLS.forEach((c, i) => {
+    const th = document.createElement("th");
+    const active = playcallStatSort?.col === i;
+    const arrow = active ? (playcallStatSort!.dir === "asc" ? " ▲" : " ▼") : "";
+    th.className = "sched-stat-th sched-stat-th-sortable" + (active ? " active" : "");
+    th.innerHTML = `${c.header}<span class="sched-stat-arrow">${arrow}</span>`;
+    th.addEventListener("click", () => {
+      if (playcallStatSort?.col === i) {
+        playcallStatSort = { col: i, dir: playcallStatSort.dir === "asc" ? "desc" : "asc" };
+      } else {
+        playcallStatSort = { col: i, dir: c.numeric ? "desc" : "asc" };
+      }
+      render();
+    });
+    hRow.appendChild(th);
+  });
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  sorted.forEach((row, i) => {
+    const tr = document.createElement("tr");
+    tr.className = "sched-stat-row" + (row.color === getSelectedTeamColor() ? " sched-stat-row-focus" : "");
+    tr.innerHTML = `<td class="sched-stat-td sched-stat-td-rank">${i + 1}</td>`;
+    PLAYCALL_COLS.forEach((c, ci) => {
+      const raw = c.get(row);
+      let display: string;
+      if (ci === 0) {
+        display = `<span style="color:${row.team.color};font-weight:bold">${raw}</span>`;
+      } else if (ci === VS_LEAGUE_AVG_COL && typeof raw === "number") {
+        // Fewer yards allowed than league norm (negative) is good defense.
+        const color = raw < 0 ? "#4ade80" : raw > 0 ? "#f87171" : undefined;
+        const text = c.fmt ? c.fmt(raw) : String(raw);
+        display = color ? `<span style="color:${color}">${text}</span>` : text;
+      } else {
+        display = c.fmt && typeof raw === "number" ? c.fmt(raw) : String(raw);
+      }
+      tr.innerHTML += `<td class="sched-stat-td">${display}</td>`;
+    });
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);

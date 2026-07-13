@@ -11,13 +11,17 @@ import {
   yardsToPx,
 } from "../utils/units";
 import { nullVector } from "../utils/vector";
+import {
+  classifyStructure,
+  pickCoverageStructure,
+  resolveCoverage,
+} from "./coverage";
 import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
 import { LEAGUE_TEAMS } from "./teams";
 import {
   Ball,
-  Coverage,
+  DefensiveCoverageType,
   Player,
-  Role,
   Route,
   Scoreboard,
   SpecialPlayType,
@@ -35,7 +39,7 @@ const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
   passPercent: 0.55, // Offensive playcall
-  manPercent: 0.4, // Defensive underneath coverage
+  manPercent: 0.5, // Defensive underneath coverage
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
 
@@ -203,51 +207,34 @@ function generateDefensivePlaycall(
   offensivePlayers: Player[],
 ): {
   players: Player[];
-  coverage: "man" | "manBlitz" | "zone" | "zoneBlitz";
+  coverage: DefensiveCoverageType;
+  coverageName: string;
 } {
   const players: Player[] = [];
   const CENTER_Y = H / 2;
 
-  const covererCoverage =
-    Math.random() < PLAYBOOK_CONFIG.manPercent ? "man" : "zone";
-  const isBlitz = Math.random() < PLAYBOOK_CONFIG.blitzPercent;
-  const coverage = isBlitz
-    ? covererCoverage === "man"
-      ? "manBlitz"
-      : "zoneBlitz"
-    : covererCoverage;
-
   const catchers = offensivePlayers.filter((p) => p.role === "catcher");
   const catcherByLabel = Object.fromEntries(catchers.map((c) => [c.label, c]));
 
-  const zoneMargin = H * 0.1;
-  const availableSpace = H - zoneMargin * 2;
-  const zoneStep =
-    catchers.length > 1 ? availableSpace / (catchers.length - 1) : 0;
-
-  const COVERER_X = LOS + yardsToPx(10);
-  // CB→XR, NB→ZR, LB→TE — fixed positional matchups regardless of roster/draft order
-  const covererIndexMap: Record<string, number> = { CB: 0, NB: 1, LB: 2 };
-  const covererYPositions =
-    covererCoverage === "man"
-      ? [
-          catcherByLabel["XR"]?.loc.y ?? CENTER_Y - 0.325 * H,
-          catcherByLabel["ZR"]?.loc.y ?? CENTER_Y + 0.325 * H,
-          catcherByLabel["TE"]?.loc.y ?? CENTER_Y,
-        ]
-      : [zoneMargin, zoneMargin + 2 * zoneStep, zoneMargin + zoneStep];
-
-  const ssRole: Role = isBlitz ? "rusher" : "coverer";
-  const ssX = LOS + (isBlitz ? yardsToPx(6) : yardsToPx(35));
-  const ssY = isBlitz
-    ? Math.random() < 0.5
-      ? H * 0.25
-      : H * 0.75
-    : (25 / 100) * H;
-  const ssCoverage: Coverage = "zone";
-
-  const fsX = LOS + yardsToPx(35);
-  const fsY = isBlitz ? H / 2 : (75 / 100) * H;
+  // Pick a full coverage call (see core/coverage.ts) and resolve it into
+  // concrete alignment for the 5 non-line defenders. Swap this policy or add
+  // more presets to core/coverage.ts to change what defenses a team shows —
+  // nothing below needs to change.
+  const structure = pickCoverageStructure(
+    PLAYBOOK_CONFIG.manPercent,
+    PLAYBOOK_CONFIG.blitzPercent,
+  );
+  const resolved = resolveCoverage(structure, {
+    los: LOS,
+    centerY: CENTER_Y,
+    fieldHeight: H,
+    catcherY: {
+      XR: catcherByLabel["XR"]?.loc.y,
+      ZR: catcherByLabel["ZR"]?.loc.y,
+      TE: catcherByLabel["TE"]?.loc.y,
+    },
+  });
+  const coverage = classifyStructure(structure);
 
   for (const rp of team.roster) {
     const side = labelToSide(rp.label);
@@ -296,48 +283,26 @@ function generateDefensivePlaycall(
 
       case "CB":
       case "NB":
-      case "LB": {
-        const idx = covererIndexMap[rp.label];
+      case "LB":
+      case "FS":
+      case "SS": {
+        const r = resolved[rp.label];
         players.push(
           fillOutRosterPlayer(
             rp,
-            { x: COVERER_X, y: covererYPositions[idx] },
+            r.loc,
             undefined,
             undefined,
-            covererCoverage,
+            r.coverage,
+            r.role,
           ),
         );
         break;
       }
-
-      case "SS":
-        players.push(
-          fillOutRosterPlayer(
-            rp,
-            { x: ssX, y: ssY },
-            undefined,
-            undefined,
-            ssCoverage,
-            ssRole,
-          ),
-        );
-        break;
-
-      case "FS":
-        players.push(
-          fillOutRosterPlayer(
-            rp,
-            { x: fsX, y: fsY },
-            undefined,
-            undefined,
-            "zone",
-          ),
-        );
-        break;
     }
   }
 
-  return { players, coverage };
+  return { players, coverage, coverageName: structure.name };
 }
 
 function generateSpecialPlaycall(scoreboard: Scoreboard): SpecialPlayType {
