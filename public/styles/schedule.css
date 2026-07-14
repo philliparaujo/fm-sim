@@ -178,6 +178,42 @@
   letter-spacing: 0.06em;
 }
 
+/* ── Weekly training gate ── */
+.sched-training-gate {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.sched-training-gate-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.sched-training-gate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sched-training-gate-row + .sched-training-gate-row {
+  margin-top: 8px;
+}
+.sched-training-gate-msg {
+  font-size: 13px;
+  color: #e5e7eb;
+  font-weight: 600;
+}
+.sched-training-gate-check {
+  color: #4ade80;
+  font-weight: bold;
+  font-size: 14px;
+}
+
 /* ── Game cards ── */
 .sched-games {
   display: flex;

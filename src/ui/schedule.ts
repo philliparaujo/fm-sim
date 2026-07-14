@@ -31,6 +31,12 @@ import {
   hasSeasonStats,
 } from "../core/seasonStats";
 import {
+  autoTrainAll,
+  autoTrainAllExcept,
+  clearTrainingCompletion,
+  isTrainingDoneForWeek,
+} from "../core/training";
+import {
   Award,
   defensiveGrade,
   hasOffense,
@@ -50,10 +56,17 @@ import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { getSelectedTeamColor, getRosterSort, onRosterSort } from "./draft";
 import { initDashboard, updateDashboardValues } from "./dashboard";
 import { buildRosterCard } from "./rosterCard";
+import { focusTrainingTeam } from "./training";
 
 /** When true, the viewed week jumps to the current week after simming games.
  * Off by default so playing a week's games leaves you on that week. */
 const AUTO_ADVANCE_WEEK = false;
+
+/** When true, simming a week (Sim Week / Sim to Playoffs / Sim to End) also
+ * auto-completes that week's training for every team — human-controlled or
+ * CPU — that hasn't already trained it manually, so development never
+ * silently skips a week just because nobody visited the Training tab. */
+const AUTO_TRAIN_ON_SIM = true;
 
 let viewWeek = 1;
 let busy = false;
@@ -147,6 +160,9 @@ async function simOneGame(game: Game): Promise<void> {
 }
 
 async function simWeek(week: number): Promise<void> {
+  // Training happens before that week's games so it can affect them, and only
+  // fills in whoever hasn't already trained manually this week.
+  if (AUTO_TRAIN_ON_SIM) autoTrainAll(week);
   const unplayed = getGamesForWeek(week).filter((g) => !g.played);
   await Promise.all(unplayed.map(simOneGame));
 }
@@ -267,6 +283,7 @@ function renderControls(): HTMLElement {
       return;
     generateSeason();
     clearSeasonStats();
+    clearTrainingCompletion();
     viewWeek = 1;
     render();
   });
@@ -316,6 +333,7 @@ function renderControls(): HTMLElement {
     clearBtn.addEventListener("click", () => {
       clearSeason();
       clearSeasonStats();
+      clearTrainingCompletion();
       render();
     });
     bar.appendChild(clearBtn);
@@ -386,6 +404,9 @@ function renderWeekView(): HTMLElement {
   nav.append(prev, title, next);
   section.appendChild(nav);
 
+  const gate = renderTrainingGate(viewWeek);
+  if (gate) section.appendChild(gate);
+
   const games = getGamesForWeek(viewWeek);
   if (games.length === 0) {
     const note = document.createElement("p");
@@ -406,6 +427,83 @@ function renderWeekView(): HTMLElement {
   }
 
   return section;
+}
+
+/**
+ * Shown above every week's games (not just the current one): prompts the
+ * human to complete their own team's weekly training (never auto-completed
+ * for them) and offers a button to auto-complete every other team's
+ * training. Once a side is done, its row becomes a confirmation instead of
+ * disappearing, so the gate is also a per-week completion record.
+ */
+function renderTrainingGate(week: number): HTMLElement | null {
+  if (!allDrafted()) return null;
+
+  const userColor = getSelectedTeamColor();
+  const cpuTeams = LEAGUE.filter((t) => t.color !== userColor);
+  const cpuDone = cpuTeams.every((t) => isTrainingDoneForWeek(t.color, week));
+  const userDone = !userColor || isTrainingDoneForWeek(userColor, week);
+
+  const gate = document.createElement("div");
+  gate.className = "sched-training-gate";
+
+  const title = document.createElement("div");
+  title.className = "sched-training-gate-title";
+  title.textContent = `Week ${week} Training`;
+  gate.appendChild(title);
+
+  if (userColor) {
+    const team = teamByColor(userColor);
+    const row = document.createElement("div");
+    row.className = "sched-training-gate-row";
+    if (userDone) {
+      row.innerHTML =
+        `<span class="sched-training-gate-check">✓</span>` +
+        `<span class="sched-training-gate-msg" style="color:${team.color}">${team.name}</span>` +
+        `<span class="sched-training-gate-msg">training complete.</span>`;
+    } else {
+      row.innerHTML =
+        `<span class="sched-training-gate-msg" style="color:${team.color}">${team.name}</span>` +
+        `<span class="sched-training-gate-msg">hasn't completed this week's training.</span>`;
+      const goBtn = document.createElement("button");
+      goBtn.className = "draft-auto-btn";
+      goBtn.style.width = "auto";
+      goBtn.textContent = "Go to Training";
+      goBtn.addEventListener("click", () => {
+        focusTrainingTeam(userColor, week);
+        document.getElementById("tab-training")?.click();
+      });
+      row.appendChild(goBtn);
+    }
+    gate.appendChild(row);
+  }
+
+  const cpuRow = document.createElement("div");
+  cpuRow.className = "sched-training-gate-row";
+  if (cpuDone) {
+    cpuRow.innerHTML =
+      `<span class="sched-training-gate-check">✓</span>` +
+      `<span class="sched-training-gate-msg">${userColor ? "CPU teams'" : "All teams'"} training complete.</span>`;
+  } else {
+    const msg = document.createElement("span");
+    msg.className = "sched-training-gate-msg";
+    msg.textContent = userColor
+      ? "CPU teams still need this week's training."
+      : "Teams still need this week's training.";
+    cpuRow.appendChild(msg);
+    const cpuBtn = document.createElement("button");
+    cpuBtn.className = "draft-auto-btn";
+    cpuBtn.style.width = "auto";
+    cpuBtn.textContent = "Simulate CPU Training";
+    cpuBtn.addEventListener("click", () => {
+      autoTrainAllExcept(userColor, week);
+      render();
+    });
+    cpuRow.appendChild(cpuBtn);
+  }
+  gate.appendChild(cpuRow);
+
+  return gate;
 }
 
 function getStreak(color: string): string {

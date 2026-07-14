@@ -1,3 +1,4 @@
+import { getCurrentWeek } from "../core/schedule";
 import { TEAM_PLAYBOOKS } from "../core/playbook";
 import { LEAGUE } from "../core/state";
 import {
@@ -5,8 +6,10 @@ import {
   ensureTrainingBaseline,
   FOCUS_CATEGORIES,
   FocusCategory,
+  isTrainingDoneForWeek,
   playerBaselineRating,
   playerOvrDelta,
+  POINTS_BUDGET,
   roleOvrDelta,
   sideOvrDelta,
   teamOvrDelta,
@@ -18,12 +21,11 @@ import { buildRosterCard } from "./rosterCard";
 
 // ── State ──────────────────────────────────────────────────────────────────
 
-/** Weekly training-point budget per team — a handful of players get singled
- * out for focused development; everyone else still improves a little on their
- * own (see core/training.ts). */
-const POINTS_BUDGET = 3;
-
 let trainingTeamColor = "";
+/** The week currently being trained for. Null = not pinned, so it always
+ * tracks the actual current week; set explicitly when the season tab's
+ * per-week training gate sends the human here for a specific week. */
+let trainingWeek: number | null = null;
 /** The week's active focus category, controlling which attributes points pump. */
 let focusCategory: FocusCategory = "general";
 /** Points a team has tentatively assigned this week, keyed by color → label.
@@ -32,6 +34,10 @@ const pointsByTeam: Record<string, Partial<Record<Label, number>>> = {};
 
 function activeTeam(): Team {
   return LEAGUE.find((t) => t.color === trainingTeamColor) ?? LEAGUE[0];
+}
+
+function activeWeek(): number {
+  return trainingWeek ?? getCurrentWeek();
 }
 
 function teamPoints(color: string): Partial<Record<Label, number>> {
@@ -96,6 +102,15 @@ function render() {
 function renderFocusPanel(): HTMLElement {
   const team = activeTeam();
   const panel = section("Weekly Focus");
+  const week = activeWeek();
+
+  if (isTrainingDoneForWeek(team.color, week)) {
+    const done = document.createElement("p");
+    done.className = "trn-week-done";
+    done.textContent = `✓ Week ${week} training complete.`;
+    panel.appendChild(done);
+    return panel;
+  }
 
   const used = pointsUsed(team.color);
   const remaining = POINTS_BUDGET - used;
@@ -125,7 +140,7 @@ function renderFocusPanel(): HTMLElement {
   confirmBtn.disabled = used === 0;
   confirmBtn.addEventListener("click", () => {
     // Apply the week's points under the active category, then clear the pool.
-    applyTraining(team, teamPoints(team.color), focusCategory);
+    applyTraining(team, teamPoints(team.color), focusCategory, week);
     pointsByTeam[team.color] = {};
     render();
   });
@@ -283,6 +298,17 @@ function renderRosterPanel(): HTMLElement {
   panel.appendChild(cardWrap);
 
   return panel;
+}
+
+/** Pre-selects a team (and, optionally, pins a specific week) on the Training
+ * tab — used when the season tab's per-week training gate sends the human
+ * here to complete that week's training. */
+export function focusTrainingTeam(color: string, week?: number): void {
+  if (LEAGUE.some((t) => t.color === color)) {
+    trainingTeamColor = color;
+    if (week !== undefined) trainingWeek = week;
+    render();
+  }
 }
 
 function cycleTeam(delta: number) {

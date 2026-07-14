@@ -29,6 +29,11 @@ export const FOCUS_CATEGORIES: { key: FocusCategory; label: string }[] = [
   { key: "coverage", label: "Coverage" },
 ];
 
+/** Weekly training-point budget: a handful of players get singled out for
+ * focused development each week; everyone else still improves a little on
+ * their own (see applyTraining below). */
+export const POINTS_BUDGET = 3;
+
 const CATEGORY_ATTRS: Record<Exclude<FocusCategory, "general">, Attribute[]> = {
   running: ["SPEED", "POWER", "VISION"],
   passing: ["THROWPOWER", "POCKETPRESENCE", "DECISIONMAKING", "SHORTACCURACY", "DEEPACCURACY"],
@@ -121,6 +126,27 @@ export function roleOvrDelta(team: Team, role: string): number | null {
   return deltas.reduce((a, b) => a + b, 0) / deltas.length;
 }
 
+// ── Weekly completion tracking ───────────────────────────────────────────────
+// Which weeks each team has already trained for, whether the human confirmed
+// it from the Training tab or it was auto-completed for a CPU team. Keyed by
+// team color → set of completed week numbers.
+
+const completedWeeks: Record<string, Set<number>> = {};
+
+/** True once `color`'s training for `week` has been applied (by human or CPU). */
+export function isTrainingDoneForWeek(color: string, week: number): boolean {
+  return completedWeeks[color]?.has(week) ?? false;
+}
+
+function markTrainingDone(color: string, week: number): void {
+  (completedWeeks[color] ??= new Set()).add(week);
+}
+
+/** Resets weekly-training completion — call whenever the season restarts. */
+export function clearTrainingCompletion(): void {
+  for (const k of Object.keys(completedWeeks)) delete completedWeeks[k];
+}
+
 // ── Applying training ────────────────────────────────────────────────────────
 //
 // Every rostered player develops a little each week: players with focus points
@@ -153,12 +179,13 @@ function developmentRate(proximity: number): number {
 /**
  * Applies a week's assigned points to a team's roster: players with points
  * develop the active category's attributes; everyone else gets a small
- * general bump. Mutates ratings in place.
+ * general bump. Mutates ratings in place and marks `week` complete for `team`.
  */
 export function applyTraining(
   team: Team,
   points: Partial<Record<Label, number>>,
   category: FocusCategory,
+  week: number,
 ): void {
   ensureTrainingBaseline();
   for (const rp of team.roster) {
@@ -169,6 +196,7 @@ export function applyTraining(
       trainAttrs(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH);
     }
   }
+  markTrainingDone(team.color, week);
 }
 
 /** The trainable (non-physical) attributes a category develops for a given
@@ -192,4 +220,79 @@ function trainAttrs(rp: RosterPlayer, attrs: Attribute[], strength: number): voi
     const dProx = strength * developmentRate(getProximity(attr, rating));
     rp.ratings[attr] = raiseRatingProximity(attr, rating, dProx);
   }
+}
+
+// ── CPU auto-training ────────────────────────────────────────────────────────
+// An extremely basic stand-in for a human setting the week's focus: train
+// whichever position group is weakest, and put the points on the players who
+// need the reps most (the lowest-overall ones).
+
+const ROLE_TO_CATEGORY: Partial<Record<string, FocusCategory>> = {
+  passer: "passing",
+  runner: "running",
+  catcher: "receiving",
+  blocker: "blocking",
+  rusher: "passRush",
+  coverer: "coverage",
+};
+
+/** The focus category matching the team's lowest-average-overall role. */
+function weakestRoleCategory(team: Team): FocusCategory {
+  const totals = new Map<string, { sum: number; n: number }>();
+  for (const rp of team.roster) {
+    const role = labelToRole(rp.label);
+    const t = totals.get(role) ?? { sum: 0, n: 0 };
+    t.sum += ovrOf(rp);
+    t.n += 1;
+    totals.set(role, t);
+  }
+
+  let worstRole: string | null = null;
+  let worstAvg = Infinity;
+  for (const [role, { sum, n }] of totals) {
+    const avg = sum / n;
+    if (avg < worstAvg) {
+      worstAvg = avg;
+      worstRole = role;
+    }
+  }
+  return (worstRole && ROLE_TO_CATEGORY[worstRole]) || "general";
+}
+
+/** Puts one point each on the `n` lowest-overall players — a simple stand-in
+ * for a human choosing who needs the reps most. */
+function autoAssignPoints(team: Team, n: number): Partial<Record<Label, number>> {
+  const neediest = [...team.roster].sort((a, b) => ovrOf(a) - ovrOf(b)).slice(0, n);
+  const points: Partial<Record<Label, number>> = {};
+  for (const rp of neediest) points[rp.label] = 1;
+  return points;
+}
+
+/** Auto-completes one team's weekly training if it hasn't been done yet:
+ * focuses the weakest position group and assigns points to the neediest
+ * players. */
+export function autoTrainTeam(team: Team, week: number): void {
+  if (team.roster.length === 0) return;
+  if (isTrainingDoneForWeek(team.color, week)) return;
+  const category = weakestRoleCategory(team);
+  const points = autoAssignPoints(team, POINTS_BUDGET);
+  applyTraining(team, points, category, week);
+}
+
+/** Auto-completes weekly training for every league team except `excludeColor`
+ * (typically the human's team, if any) that hasn't already trained this week. */
+export function autoTrainAllExcept(excludeColor: string, week: number): void {
+  for (const team of LEAGUE) {
+    if (team.color === excludeColor) continue;
+    autoTrainTeam(team, week);
+  }
+}
+
+/** Auto-completes weekly training for every league team that hasn't already
+ * trained this week — including a human-controlled one. Used as a fallback
+ * when simming a week forward (see AUTO_TRAIN_ON_SIM), so a team's
+ * development never silently skips a week just because nobody visited the
+ * Training tab; a team that already trained manually is left untouched. */
+export function autoTrainAll(week: number): void {
+  for (const team of LEAGUE) autoTrainTeam(team, week);
 }

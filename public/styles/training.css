@@ -42,6 +42,13 @@
   font-size: 13px;
 }
 
+.trn-week-done {
+  color: #4ade80;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 0;
+}
+
 /* ── Focus panel ─────────────────────────────────────────────────────────── */
 
 .trn-focus-controls {

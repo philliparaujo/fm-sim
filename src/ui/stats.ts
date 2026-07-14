@@ -19,6 +19,7 @@ import {
   offensiveGrade,
 } from "../core/awards";
 import { COVERAGE_STRUCTURE_INFO, COVERAGE_STRUCTURE_NAMES } from "../core/coverage";
+import { playerOvrDelta } from "../core/training";
 import { LEAGUE } from "../core/state";
 import { Label, PlayerStats, Team } from "../core/types";
 import { scoreProspect } from "../core/draftEval";
@@ -997,6 +998,9 @@ type AwardCandidate = {
   grade: number;
   stats: PlayerStats;
   side: "offense" | "defense";
+  /** Overrides the box-score summary line (e.g. for awards not based on
+   * in-game stats, like Most Improved's before → after OVR). */
+  summary?: string;
 };
 
 function offAwardSummary(s: PlayerStats): string {
@@ -1062,11 +1066,33 @@ function renderSeasonAwards(): HTMLElement {
     }
   }
 
+  // Most Improved: driven by roster + training development, not box-score
+  // stats — so it covers every rostered player, not just ones who touched
+  // the ball this season.
+  const mostImproved: AwardCandidate[] = [];
+  for (const team of LEAGUE) {
+    for (const rp of team.roster) {
+      const delta = playerOvrDelta(team.color, rp);
+      if (delta === null || delta <= 0.05) continue;
+      const afterOvr = scoreProspect(rp) * 100;
+      mostImproved.push({
+        color: team.color,
+        label: rp.label,
+        name: rp.name,
+        grade: delta,
+        stats: {},
+        side: "offense",
+        summary: `OVR ${(afterOvr - delta).toFixed(1)} → ${afterOvr.toFixed(1)}`,
+      });
+    }
+  }
+
   const grid = document.createElement("div");
   grid.className = "sched-awards-grid stats-awards-grid";
   grid.appendChild(awardLeaderboard("MVP", "Most Valuable Player", mvp));
   grid.appendChild(awardLeaderboard("OPOY", "Offensive Player of the Year", opoy));
   grid.appendChild(awardLeaderboard("DPOY", "Defensive Player of the Year", dpoy));
+  grid.appendChild(awardLeaderboard("MIP", "Most Improved Player", mostImproved, (v) => `+${v.toFixed(1)}`));
   section.appendChild(grid);
   return section;
 }
@@ -1075,6 +1101,7 @@ function awardLeaderboard(
   title: string,
   subtitle: string,
   candidates: AwardCandidate[],
+  fmtGrade: (grade: number) => string = (v) => v.toFixed(1),
 ): HTMLElement {
   const col = document.createElement("div");
   col.className = "sched-award-col";
@@ -1099,7 +1126,7 @@ function awardLeaderboard(
     const team = teamByColor(c.color);
     const rp = team.roster.find((p) => p.label === c.label);
     const ovr = rp ? ` · ${playerOvrDisplay(rp)}` : "";
-    const summary = c.side === "offense" ? offAwardSummary(c.stats) : defAwardSummary(c.stats);
+    const summary = c.summary ?? (c.side === "offense" ? offAwardSummary(c.stats) : defAwardSummary(c.stats));
     const row = document.createElement("div");
     row.className = "sched-award-rank" + (i === 0 ? " leader" : "");
     if (c.color === getSelectedTeamColor()) row.classList.add("focus");
@@ -1108,7 +1135,7 @@ function awardLeaderboard(
       `<span class="sched-award-rank-n">${i === 0 ? "👑" : i + 1}</span>` +
       `<span class="sched-award-rank-name" style="color:${team.color}">${c.name}</span>` +
       `<span class="sched-award-rank-meta">${c.label} · ${team.name}${ovr}</span>` +
-      `<span class="sched-award-rank-grade">${c.grade.toFixed(1)}</span>` +
+      `<span class="sched-award-rank-grade">${fmtGrade(c.grade)}</span>` +
       `</div>` +
       `<div class="sched-award-rank-stat">${summary}</div>`;
     col.appendChild(row);
