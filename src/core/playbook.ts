@@ -39,6 +39,7 @@ const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
   passPercent: 0.55, // Offensive playcall
+  deepPercent: 0.4, // Share of pass plays that push the ball deep (not yet consumed by the sim)
   manPercent: 0.5, // Defensive underneath coverage
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
@@ -52,6 +53,7 @@ const TEAM_PLAYBOOKS: Record<
     t.color,
     {
       passPercent: PLAYBOOK_CONFIG.passPercent,
+      deepPercent: PLAYBOOK_CONFIG.deepPercent,
       manPercent: PLAYBOOK_CONFIG.manPercent,
       blitzPercent: PLAYBOOK_CONFIG.blitzPercent,
     },

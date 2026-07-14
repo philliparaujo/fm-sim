@@ -2,10 +2,11 @@ import { DraftProspect, draftPlayer, draftPool, getRecentPicks, hasLabel } from 
 import { bestOverall, scoreProspect } from "../core/draftEval";
 import { getLetterGrade, getProximity } from "../core/ratings";
 import { LEAGUE } from "../core/state";
+import { captureTrainingBaseline } from "../core/training";
 import { Label, PLAYER_LABELS, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
 import { ATTR_LABELS, ATTR_SHORT_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
-import { playerOvrDisplay } from "./displayMode";
+import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
 import { showTabs } from "./tabs";
 
@@ -174,6 +175,8 @@ function showRecap() {
     statusArea.innerHTML =
       `<button id="draft-advance-btn" class="gtb-btn gtb-btn-advance">Start Season →</button>`;
     document.getElementById("draft-advance-btn")?.addEventListener("click", () => {
+      // Snapshot final rosters as the training baseline for development tracking.
+      captureTrainingBaseline();
       document.getElementById("draft-screen")!.style.display = "none";
       statusArea.style.display = "none";
       showTabs("tab-schedule");
@@ -411,32 +414,36 @@ function renderRosters() {
 
   const team = LEAGUE[rosterViewIdx];
 
-  // Navigation row
+  // Navigation row — shared team-toggle styling (◀ NAME ▶ … OVR)
   const nav = document.createElement("div");
-  nav.className = "draft-roster-nav";
+  nav.className = "team-toggle";
 
   const prevBtn = document.createElement("button");
-  prevBtn.className = "draft-carousel-btn";
-  prevBtn.textContent = "‹";
+  prevBtn.className = "team-toggle-btn";
+  prevBtn.textContent = "◀";
   prevBtn.addEventListener("click", () => {
     rosterViewIdx = (rosterViewIdx - 1 + LEAGUE.length) % LEAGUE.length;
     render();
   });
 
   const teamLabel = document.createElement("span");
-  teamLabel.className = "draft-roster-nav-label";
+  teamLabel.className = "team-toggle-name";
   teamLabel.style.color = team.color;
-  teamLabel.textContent = `${team.name} (${rosterViewIdx + 1}/${LEAGUE.length})`;
+  teamLabel.textContent = team.name;
 
   const nextBtn = document.createElement("button");
-  nextBtn.className = "draft-carousel-btn";
-  nextBtn.textContent = "›";
+  nextBtn.className = "team-toggle-btn";
+  nextBtn.textContent = "▶";
   nextBtn.addEventListener("click", () => {
     rosterViewIdx = (rosterViewIdx + 1) % LEAGUE.length;
     render();
   });
 
-  nav.append(prevBtn, teamLabel, nextBtn);
+  const ovrLabel = document.createElement("span");
+  ovrLabel.className = "team-toggle-ovr";
+  ovrLabel.innerHTML = `OVR ${teamOvrDisplay(team)}`;
+
+  nav.append(prevBtn, teamLabel, nextBtn, ovrLabel);
   container.appendChild(nav);
 
   const autoBtn = document.createElement("button");
@@ -534,6 +541,9 @@ function renderPool() {
   // ── Table ────────────────────────────────────────────────────────────────
   const showAll = poolFilter === "ALL";
   const attrs = showAll ? [] : (ROLE_ATTRIBUTES[labelToRole(poolFilter as Label)] ?? []);
+
+  const scroll = document.createElement("div");
+  scroll.className = "draft-pool-scroll";
 
   const table = document.createElement("table");
   table.className = "dash-table";
@@ -645,6 +655,7 @@ function renderPool() {
     tbody.appendChild(row);
   }
   table.appendChild(tbody);
-  container.appendChild(table);
+  scroll.appendChild(table);
+  container.appendChild(scroll);
 }
 

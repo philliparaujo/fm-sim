@@ -78,20 +78,54 @@
 }
 
 /* --- Draft main two-column layout --- */
+/* The whole board is bounded to the viewport so each column scrolls on its own
+   instead of the whole page scrolling. */
 #draft-main {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+  max-height: calc(100vh - 110px);
 }
 
 #draft-left-col {
   width: 260px;
   flex-shrink: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 #draft-right-col {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#draft-best-prospects {
+  flex-shrink: 0;
+}
+/* The pool fills the remaining right-column height; only its rows scroll. */
+#draft-pool {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.draft-pool-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/* Keep the column headers visible while the rows scroll. */
+.draft-pool-scroll .dash-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.draft-pool-scroll .dash-th.dash-th-label {
+  z-index: 3;
 }
 
 /* Roster nav (prev/next team) */
@@ -432,15 +466,6 @@
 }
 .draft-roster-slot:last-child {
   border-bottom: none;
-}
-.draft-slot-recent {
-  background: #1c2d3a;
-  border-radius: 3px;
-  padding: 3px 3px;
-  font-style: italic;
-}
-.draft-slot-recent .draft-slot-name {
-  font-weight: bold;
 }
 
 /* Slot row 1: label · name · ovr */

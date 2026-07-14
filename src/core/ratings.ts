@@ -78,6 +78,21 @@ function getProximity(attr: Attribute, rating: number): number {
   return Math.max(0, 1 - distFromPeak / threshold.spread);
 }
 
+/**
+ * Returns a new rating (0–1) whose proximity is raised by `dProx`, moving toward
+ * the attribute's peak (so bell-curve attributes improve rather than overshoot).
+ * Clamped to [0, 1] and to the peak (proximity ≤ 1). Used by training to convert
+ * a target overall gain into concrete attribute increases.
+ */
+function raiseRatingProximity(attr: Attribute, rating: number, dProx: number): number {
+  const { peak, spread } = ATTR_GRADE_THRESHOLDS[attr] ?? { peak: 100, spread: 100 };
+  const targetProx = Math.min(1, getProximity(attr, rating) + Math.max(0, dProx));
+  const dist = (1 - targetProx) * spread; // distance from peak, in 0–100 units
+  const cur100 = rating * 100;
+  const new100 = cur100 <= peak ? peak - dist : peak + dist;
+  return Math.max(0, Math.min(1, new100 / 100));
+}
+
 function getLetterGrade(
   attr: Attribute,
   ratingPercent: number,
@@ -367,5 +382,5 @@ function getConstants<K extends Attribute>(
   return transformer(rating);
 }
 
-export { getConstants, getDefaultRatingForLabel, getLetterGrade, getProximity };
+export { getConstants, getDefaultRatingForLabel, getLetterGrade, getProximity, raiseRatingProximity };
 export type { Attribute, Ratings };

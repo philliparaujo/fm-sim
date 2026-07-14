@@ -3,9 +3,21 @@ import { scoreProspect } from "../core/draftEval";
 import { Label, PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
 import { ATTR_SHORT_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
-import { playerOvrDisplay, roleOvrDisplay, sideOvrDisplay, teamOvrDisplay } from "./displayMode";
+import {
+  playerOvrDisplay,
+  roleOvrDisplay,
+  sideOvrDisplay,
+  teamOvrDisplay,
+} from "./displayMode";
 
-const ROLE_ORDER = ["passer", "runner", "catcher", "blocker", "rusher", "coverer"] as const;
+const ROLE_ORDER = [
+  "passer",
+  "runner",
+  "catcher",
+  "blocker",
+  "rusher",
+  "coverer",
+] as const;
 
 export type RosterCardOptions = {
   /** Extra HTML injected into the header after the OVR. */
@@ -16,7 +28,41 @@ export type RosterCardOptions = {
   slotSort?: "pos" | "ovr" | "draft";
   /** If provided, empty slots show a "See prospects" button that calls this with the slot's label. */
   onSeeProspects?: (label: Label) => void;
+  /** Show every role attribute on each player instead of just the top 3. */
+  showAllAttrs?: boolean;
+  /**
+   * Returns a player's season-start rating (0–1) for an attribute, or null.
+   * When the attribute's letter grade has since changed, the chip shows the
+   * previous grade alongside the current one (e.g. "B → A").
+   */
+  attrBaseline?: (rp: RosterPlayer, attr: Attribute) => number | null;
+  /**
+   * When set, shows overall-change chips (e.g. training gains since the season
+   * baseline) next to the team OVR, each side's OVR, each role's OVR, and each
+   * player's OVR. Each callback returns the delta in OVR points, or null.
+   */
+  overallDeltas?: {
+    team?: () => number | null;
+    side?: (side: "offense" | "defense") => number | null;
+    role?: (role: string) => number | null;
+    player?: (rp: RosterPlayer) => number | null;
+  };
 };
+
+type AttrEntry = {
+  attr: Attribute;
+  ratingPct: number;
+  grade: string;
+  color: string;
+};
+
+/** Renders a small ▲/▼ overall-change chip, or "" when the delta is ~0/absent. */
+function deltaChip(delta: number | null | undefined): string {
+  if (delta == null || Math.abs(delta) < 0.05) return "";
+  const up = delta > 0;
+  const cls = up ? "roster-delta-up" : "roster-delta-down";
+  return ` <span class="roster-delta ${cls}">${up ? "▲+" : "▼"}${delta.toFixed(1)}</span>`;
+}
 
 /** Computes per-role average OVR (0–100) for a roster. */
 export function roleBreakdown(roster: RosterPlayer[]): Map<string, number> {
@@ -29,13 +75,15 @@ export function roleBreakdown(roster: RosterPlayer[]): Map<string, number> {
   const out = new Map<string, number>();
   for (const role of ROLE_ORDER) {
     const scores = map.get(role);
-    if (scores) out.set(role, scores.reduce((a, b) => a + b, 0) / scores.length);
+    if (scores)
+      out.set(role, scores.reduce((a, b) => a + b, 0) / scores.length);
   }
   return out;
 }
 
-/** Returns up to `count` role-relevant attributes sorted by proximity (highest first). */
-function topAttrs(rp: RosterPlayer, count = 3): { attr: Attribute; grade: string; color: string }[] {
+/** Role-relevant attributes sorted by proximity (highest first), limited to
+ * `count` (Infinity = all). */
+function roleAttrEntries(rp: RosterPlayer, count = 3): AttrEntry[] {
   const role = labelToRole(rp.label);
   const attrs = (ROLE_ATTRIBUTES[role] ?? []) as Attribute[];
   return attrs
@@ -43,12 +91,43 @@ function topAttrs(rp: RosterPlayer, count = 3): { attr: Attribute; grade: string
       const ratingPct = Math.round((rp.ratings[attr] ?? 0) * 100);
       return {
         attr,
+        ratingPct,
         proximity: getProximity(attr, rp.ratings[attr] ?? 0),
         ...getLetterGrade(attr, ratingPct),
       };
     })
     .sort((a, b) => b.proximity - a.proximity)
-    .slice(0, count);
+    .slice(0, count)
+    .map(({ attr, ratingPct, grade, color }) => ({
+      attr,
+      ratingPct,
+      grade,
+      color,
+    }));
+}
+
+/** Builds one attribute chip's inner HTML, prefixing the previous letter grade
+ * when training has changed it since the season baseline. */
+function attrChipHtml(
+  rp: RosterPlayer,
+  entry: AttrEntry,
+  options: RosterCardOptions,
+): string {
+  const { attr, grade, color } = entry;
+  const name = ATTR_SHORT_LABELS[attr] ?? attr;
+
+  let gradePart = `<span class="slot-grade" style="color:${color}">${grade}</span>`;
+  const prevRating = options.attrBaseline?.(rp, attr);
+  if (prevRating != null) {
+    const prev = getLetterGrade(attr, Math.round(prevRating * 100));
+    if (prev.grade !== grade) {
+      gradePart =
+        `<span class="slot-grade-prev" style="color:${prev.color}">${prev.grade}</span>` +
+        `<span class="slot-grade-arrow">→</span>` +
+        gradePart;
+    }
+  }
+  return gradePart + `<span class="slot-attr-name">${name}</span>`;
 }
 
 /**
@@ -59,7 +138,10 @@ function topAttrs(rp: RosterPlayer, count = 3): { attr: Attribute; grade: string
  *       Row 1: label · name · OVR
  *       Row 2: top-3 attribute grade chips (or "See prospects" button if empty)
  */
-export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HTMLDivElement {
+export function buildRosterCard(
+  team: Team,
+  options: RosterCardOptions = {},
+): HTMLDivElement {
   const card = document.createElement("div");
   card.className = "draft-roster";
 
@@ -69,7 +151,7 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   header.style.color = team.color;
   header.innerHTML =
     `${team.name} <span class="roster-card-count">(${team.roster.length}/${PLAYER_LABELS.length})</span>` +
-    ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}</span>` +
+    ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}${deltaChip(options.overallDeltas?.team?.())}</span>` +
     (options.headerSuffix ?? "");
   card.appendChild(header);
 
@@ -78,8 +160,8 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
     const sideRow = document.createElement("div");
     sideRow.className = "roster-card-side-row";
     sideRow.innerHTML =
-      `<span class="roster-card-side-chip"><span class="roster-card-role-name">OFF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "offense")}</span></span>` +
-      `<span class="roster-card-side-chip"><span class="roster-card-role-name">DEF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "defense")}</span></span>`;
+      `<span class="roster-card-side-chip"><span class="roster-card-role-name">OFF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "offense")}${deltaChip(options.overallDeltas?.side?.("offense"))}</span></span>` +
+      `<span class="roster-card-side-chip"><span class="roster-card-role-name">DEF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "defense")}${deltaChip(options.overallDeltas?.side?.("defense"))}</span></span>`;
     card.appendChild(sideRow);
   }
 
@@ -89,7 +171,10 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   const roles = roleBreakdown(team.roster);
   if (roles.size > 0) {
     breakdown.innerHTML = ROLE_ORDER.filter((r) => roles.has(r))
-      .map((r) => `<span class="roster-card-role-chip"><span class="roster-card-role-name">${r}</span><span class="roster-card-role-ovr">${roleOvrDisplay(team, r)}</span></span>`)
+      .map(
+        (r) =>
+          `<span class="roster-card-role-chip"><span class="roster-card-role-name">${r}</span><span class="roster-card-role-ovr">${roleOvrDisplay(team, r)}${deltaChip(options.overallDeltas?.role?.(r))}</span></span>`,
+      )
       .join("");
   }
   card.appendChild(breakdown);
@@ -100,19 +185,21 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   }
 
   // ── Player slots ──
-  const lastPick = team.roster.reduce<RosterPlayer | null>(
-    (best, rp) => ((rp.pickOrder ?? 0) > (best?.pickOrder ?? -1) ? rp : best),
-    null,
-  );
-
   type Slot = { label: Label; rp: RosterPlayer | undefined };
-  const allSlots: Slot[] = PLAYER_LABELS.map((l) => ({ label: l, rp: team.roster.find((r) => r.label === l) }));
+  const allSlots: Slot[] = PLAYER_LABELS.map((l) => ({
+    label: l,
+    rp: team.roster.find((r) => r.label === l),
+  }));
   let slots: Slot[];
   if (options.slotSort === "ovr") {
-    const drafted = allSlots.filter((s) => !!s.rp).sort((a, b) => scoreProspect(b.rp!) - scoreProspect(a.rp!));
+    const drafted = allSlots
+      .filter((s) => !!s.rp)
+      .sort((a, b) => scoreProspect(b.rp!) - scoreProspect(a.rp!));
     slots = [...drafted, ...allSlots.filter((s) => !s.rp)];
   } else if (options.slotSort === "draft") {
-    const drafted = allSlots.filter((s) => !!s.rp).sort((a, b) => (a.rp!.pickOrder ?? 0) - (b.rp!.pickOrder ?? 0));
+    const drafted = allSlots
+      .filter((s) => !!s.rp)
+      .sort((a, b) => (a.rp!.pickOrder ?? 0) - (b.rp!.pickOrder ?? 0));
     slots = [...drafted, ...allSlots.filter((s) => !s.rp)];
   } else {
     slots = allSlots;
@@ -121,7 +208,6 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
   for (const { label, rp } of slots) {
     const slot = document.createElement("div");
     slot.className = "draft-roster-slot";
-    if (rp && rp === lastPick) slot.classList.add("draft-slot-recent");
 
     // Row 1: label · name · OVR
     const row1 = document.createElement("div");
@@ -134,14 +220,17 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
 
     if (rp) {
       const nameSpan = document.createElement("span");
-      nameSpan.className = rp.starred ? "draft-slot-name draft-starred-name" : "draft-slot-name";
+      nameSpan.className = rp.starred
+        ? "draft-slot-name draft-starred-name"
+        : "draft-slot-name";
       nameSpan.textContent = rp.name;
       row1.appendChild(nameSpan);
 
       const ovrSpan = document.createElement("span");
       ovrSpan.className = "slot-ovr";
-      ovrSpan.innerHTML = playerOvrDisplay(rp);
-    row1.appendChild(ovrSpan);
+      ovrSpan.innerHTML =
+        playerOvrDisplay(rp) + deltaChip(options.overallDeltas?.player?.(rp));
+      row1.appendChild(ovrSpan);
     } else {
       const emptySpan = document.createElement("span");
       emptySpan.className = "draft-slot-name slot-empty";
@@ -156,12 +245,11 @@ export function buildRosterCard(team: Team, options: RosterCardOptions = {}): HT
     row2.className = "slot-row2";
 
     if (rp) {
-      for (const { attr, grade, color } of topAttrs(rp)) {
+      const entries = roleAttrEntries(rp, options.showAllAttrs ? Infinity : 3);
+      for (const entry of entries) {
         const chip = document.createElement("span");
         chip.className = "slot-attr-chip";
-        chip.innerHTML =
-          `<span class="slot-grade" style="color:${color}">${grade}</span>` +
-          `<span class="slot-attr-name">${ATTR_SHORT_LABELS[attr] ?? attr}</span>`;
+        chip.innerHTML = attrChipHtml(rp, entry, options);
         row2.appendChild(chip);
       }
     } else if (options.onSeeProspects) {

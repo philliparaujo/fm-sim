@@ -2,6 +2,7 @@ import { OvrMode, ovrMode, setOvrMode } from "./displayMode";
 import { rerenderDraft } from "./draft";
 import { rerenderSchedule } from "./schedule";
 import { rerenderStats } from "./stats";
+import { rerenderTraining } from "./training";
 
 const NEXT: Record<OvrMode, OvrMode> = {
   ratings: "rankings",
@@ -33,6 +34,7 @@ export function setupRatingsToggle() {
       rerenderDraft();
       rerenderSchedule();
       rerenderStats();
+      rerenderTraining();
     });
   }
   syncButtons();
