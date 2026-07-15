@@ -39,7 +39,7 @@ const SAFETIES_INCLUDED = true;
 
 const PLAYBOOK_CONFIG = {
   passPercent: 0.55, // Offensive playcall
-  deepPercent: 0.4, // Share of pass plays that push the ball deep (not yet consumed by the sim)
+  deepPercent: 0.6, // Share of non-medium pass routes
   manPercent: 0.5, // Defensive underneath coverage
   blitzPercent: 0.3, // Cover 1 blitz or cover 2 shell
 };
@@ -116,9 +116,18 @@ function generateOffensePlaycall(
 } {
   const players: Player[] = [];
 
-  const isPassPlay = Math.random() < PLAYBOOK_CONFIG.passPercent;
+  // Each team calls its own plays off its own tendencies, not a shared global
+  // — PLAYBOOK_CONFIG is only ever a fallback/default.
+  const tendencies = TEAM_PLAYBOOKS[team.color] ?? PLAYBOOK_CONFIG;
+  const isPassPlay =
+    Math.random() < (tendencies.passPercent ?? PLAYBOOK_CONFIG.passPercent);
+  const deepPercent = tendencies.deepPercent ?? PLAYBOOK_CONFIG.deepPercent;
   const routes = isPassPlay
-    ? [randomRoute(), randomRoute(), randomRoute()]
+    ? [
+        randomRoute(deepPercent),
+        randomRoute(deepPercent),
+        randomRoute(deepPercent),
+      ]
     : [];
   const runAngle = isPassPlay ? undefined : randomRunVector();
 
@@ -222,9 +231,12 @@ function generateDefensivePlaycall(
   // concrete alignment for the 5 non-line defenders. Swap this policy or add
   // more presets to core/coverage.ts to change what defenses a team shows —
   // nothing below needs to change.
+  // Each team calls its own coverages off its own tendencies, not a shared
+  // global — PLAYBOOK_CONFIG is only ever a fallback/default.
+  const tendencies = TEAM_PLAYBOOKS[team.color] ?? PLAYBOOK_CONFIG;
   const structure = pickCoverageStructure(
-    PLAYBOOK_CONFIG.manPercent,
-    PLAYBOOK_CONFIG.blitzPercent,
+    tendencies.manPercent ?? PLAYBOOK_CONFIG.manPercent,
+    tendencies.blitzPercent ?? PLAYBOOK_CONFIG.blitzPercent,
   );
   const resolved = resolveCoverage(structure, {
     los: LOS,

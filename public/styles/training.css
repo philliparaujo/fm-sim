@@ -350,15 +350,23 @@
 
 /* ── Scheme sliders ──────────────────────────────────────────────────────── */
 
+.trn-scheme-wrap + .trn-scheme-wrap {
+  border-top: 1px solid #1f2937;
+}
 .trn-scheme-row {
   display: grid;
-  grid-template-columns: 60px 1fr 60px;
+  grid-template-columns: 74px 1fr 74px;
   align-items: center;
   gap: 10px;
-  padding: 10px 0;
+  padding: 10px 0 2px;
 }
-.trn-scheme-row + .trn-scheme-row {
-  border-top: 1px solid #1f2937;
+.trn-scheme-note {
+  text-align: center;
+  font-size: 10px;
+  color: #6b7280;
+  margin: -2px 0 8px;
+  padding-left: 84px;
+  padding-right: 84px;
 }
 .trn-scheme-label {
   font-size: 12px;
@@ -372,6 +380,14 @@
 }
 .trn-scheme-right {
   text-align: left;
+}
+.trn-scheme-pct {
+  display: block;
+  font-size: 13px;
+  font-weight: bold;
+  color: #e5e7eb;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .trn-scheme-dots {
   display: flex;

@@ -20,6 +20,7 @@ import {
 } from "../core/training";
 import { Label, PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
 import { labelToRole, labelToSide } from "../utils/roster";
+import { routeDepthShares } from "../utils/route";
 import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
 
@@ -407,21 +408,65 @@ function renderFieldPanel(): HTMLElement {
 type SchemeSlider = {
   leftLabel: string;
   rightLabel: string;
-  /** Reads the 0..1 slider position from the team's saved playbook. */
+  /** 5 realistic tendency values this slider can be set to, ascending. Index
+   * 2 (the middle button) matches PLAYBOOK_CONFIG's current default, so a
+   * fresh team starts on a sensible "healthy middle" option. */
+  values: number[];
+  /** Reads the current 0–1 value from the team's saved playbook. */
   get: (pb: Record<string, number>) => number;
-  /** Writes the 0..1 slider position back into the team's saved playbook. */
+  /** Writes a 0–1 value back into the team's saved playbook. */
   set: (pb: Record<string, number>, v: number) => void;
+  /** Overrides the default complementary (1-v)/v percentage display — e.g.
+   * the Short/Deep slider shows the actual short/deep route shares (plus the
+   * fixed medium share as a note) instead of the raw stored split. */
+  describe?: (v: number) => { leftPct: number; rightPct: number; note?: string };
 };
 
-// Man/Zone inverts: slider left (0) = all man, so store manPercent = 1 - v.
+// Man/Zone inverts: slider left = all man, so store manPercent = 1 - v (v is
+// the "zone share"). Every ladder's middle option mirrors PLAYBOOK_CONFIG's
+// default (passPercent .55, deepPercent .4, manPercent .5, blitzPercent .3)
+// so an untouched team's dial reads exactly where the engine already starts.
 const SCHEME_SLIDERS: SchemeSlider[] = [
-  { leftLabel: "Run", rightLabel: "Pass", get: (pb) => pb.passPercent ?? 0.5, set: (pb, v) => (pb.passPercent = v) },
-  { leftLabel: "Short", rightLabel: "Deep", get: (pb) => pb.deepPercent ?? 0.5, set: (pb, v) => (pb.deepPercent = v) },
-  { leftLabel: "Man", rightLabel: "Zone", get: (pb) => 1 - (pb.manPercent ?? 0.5), set: (pb, v) => (pb.manPercent = 1 - v) },
-  { leftLabel: "Safe", rightLabel: "Blitz", get: (pb) => pb.blitzPercent ?? 0.3, set: (pb, v) => (pb.blitzPercent = v) },
+  {
+    leftLabel: "Run",
+    rightLabel: "Pass",
+    values: [0.35, 0.45, 0.55, 0.65, 0.75],
+    get: (pb) => pb.passPercent ?? 0.55,
+    set: (pb, v) => (pb.passPercent = v),
+  },
+  {
+    leftLabel: "Short",
+    rightLabel: "Deep",
+    values: [0.4, 0.5, 0.6, 0.7, 0.8],
+    get: (pb) => pb.deepPercent ?? 0.6,
+    set: (pb, v) => (pb.deepPercent = v),
+    // Medium's share of all routes is fixed (see routeDepthShares) — this
+    // slider only flexes the short/deep split of what's left, so it's shown
+    // as actual route shares rather than the raw stored fraction.
+    describe: (v) => {
+      const { short, medium, deep } = routeDepthShares(v);
+      return {
+        leftPct: Math.round(short * 100),
+        rightPct: Math.round(deep * 100),
+        note: `${Math.round(medium * 100)}% Medium`,
+      };
+    },
+  },
+  {
+    leftLabel: "Man",
+    rightLabel: "Zone",
+    values: [0.2, 0.35, 0.5, 0.65, 0.8],
+    get: (pb) => 1 - (pb.manPercent ?? 0.5),
+    set: (pb, v) => (pb.manPercent = 1 - v),
+  },
+  {
+    leftLabel: "Safe",
+    rightLabel: "Blitz",
+    values: [0.1, 0.2, 0.3, 0.4, 0.5],
+    get: (pb) => pb.blitzPercent ?? 0.3,
+    set: (pb, v) => (pb.blitzPercent = v),
+  },
 ];
-
-const SCHEME_STEPS = 5; // 5-button discrete slider: 0, .25, .5, .75, 1
 
 function renderSchemePanel(): HTMLElement {
   const team = activeTeam();
@@ -442,29 +487,50 @@ function renderSchemePanel(): HTMLElement {
   return panel;
 }
 
+/** Index of the ladder value closest to the team's current setting. */
+function closestIndex(values: number[], v: number): number {
+  let best = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (Math.abs(values[i] - v) < Math.abs(values[best] - v)) best = i;
+  }
+  return best;
+}
+
 function renderSchemeSlider(
   team: Team,
   pb: Record<string, number>,
   slider: SchemeSlider,
 ): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "trn-scheme-wrap";
+
   const row = document.createElement("div");
   row.className = "trn-scheme-row";
 
+  const current = closestIndex(slider.values, slider.get(pb));
+  const v = slider.values[current];
+  const desc =
+    slider.describe?.(v) ?? {
+      leftPct: Math.round((1 - v) * 100),
+      rightPct: Math.round(v * 100),
+    };
+
   const left = document.createElement("span");
   left.className = "trn-scheme-label trn-scheme-left";
-  left.textContent = slider.leftLabel;
+  left.innerHTML =
+    `${slider.leftLabel} <span class="trn-scheme-pct">${desc.leftPct}%</span>`;
   row.appendChild(left);
 
   const dots = document.createElement("div");
   dots.className = "trn-scheme-dots";
-  const current = Math.round(slider.get(pb) * (SCHEME_STEPS - 1));
 
-  for (let i = 0; i < SCHEME_STEPS; i++) {
+  for (let i = 0; i < slider.values.length; i++) {
     const dot = document.createElement("button");
     dot.className = "trn-scheme-dot" + (i === current ? " active" : "");
+    dot.title = `${Math.round(slider.values[i] * 100)}% ${slider.rightLabel}`;
     if (i === current) dot.style.background = team.color;
     dot.addEventListener("click", () => {
-      slider.set(pb, i / (SCHEME_STEPS - 1));
+      slider.set(pb, slider.values[i]);
       // Persisted to the team's playbook; the play tab re-syncs PLAYBOOK_CONFIG
       // from TEAM_PLAYBOOKS on each snap, so a game in progress picks it up.
       render();
@@ -475,10 +541,20 @@ function renderSchemeSlider(
 
   const right = document.createElement("span");
   right.className = "trn-scheme-label trn-scheme-right";
-  right.textContent = slider.rightLabel;
+  right.innerHTML =
+    `<span class="trn-scheme-pct">${desc.rightPct}%</span> ${slider.rightLabel}`;
   row.appendChild(right);
 
-  return row;
+  wrap.appendChild(row);
+
+  if (desc.note) {
+    const note = document.createElement("div");
+    note.className = "trn-scheme-note";
+    note.textContent = desc.note;
+    wrap.appendChild(note);
+  }
+
+  return wrap;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { Highlight } from "../core/highlights";
+import { TEAM_PLAYBOOKS } from "../core/playbook";
 import { PlayerStatsByLabel, SpecificPlaycallCoverageStats, Team } from "../core/types";
 
 /**
@@ -26,6 +27,14 @@ export function workerGame(
       worker.terminate();
     };
     worker.onerror = reject;
-    worker.postMessage({ offenseTeam, defenseTeam });
+    // The worker runs in its own thread with its own isolated module state,
+    // so TEAM_PLAYBOOKS there never sees changes made on the main thread
+    // (e.g. from the Training tab) unless explicitly sent across like this.
+    worker.postMessage({
+      offenseTeam,
+      defenseTeam,
+      offensePlaybook: TEAM_PLAYBOOKS[offenseTeam.color],
+      defensePlaybook: TEAM_PLAYBOOKS[defenseTeam.color],
+    });
   });
 }
