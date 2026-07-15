@@ -1,5 +1,5 @@
-import { getCurrentWeek } from "../core/schedule";
 import { TEAM_PLAYBOOKS } from "../core/playbook";
+import { getCurrentWeek } from "../core/schedule";
 import { LEAGUE } from "../core/state";
 import {
   applyTraining,
@@ -18,9 +18,20 @@ import {
   teamOvrDelta,
   teamWeeklyGain,
 } from "../core/training";
-import { Label, PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
+import { Label, PLAYER_LABELS, RosterPlayer, Route, Team } from "../core/types";
 import { labelToRole, labelToSide } from "../utils/roster";
-import { routeDepthShares } from "../utils/route";
+import {
+  cornerRoute,
+  curlRoute,
+  dragRoute,
+  flatRoute,
+  inRoute,
+  outRoute,
+  postRoute,
+  routeDepthShares,
+  slantRoute,
+  streakRoute,
+} from "../utils/route";
 import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
 
@@ -334,15 +345,16 @@ function cycleTeam(delta: number) {
 }
 
 // ── Bottom-left: field / formation ──────────────────────────────────────────
+//
+// Offensive alignment (and the DL/underneath defensive alignment) never
+// changes — only the annotations drawn from each fixed spot react to the
+// scheme sliders. Only the two safeties actually reposition, per Safe/Blitz.
 
 type FieldSpot = { label: Label; nx: number; ny: number };
 
-// Normalized (0..1) base alignment mirroring the sim's real formation geometry
-// (see core/playbook.ts). x = downfield (offense left of the LOS at 0.33,
-// defense to the right), y = field width. One team's offense and defense are
-// shown together so the whole roster is laid out spatially.
-const FORMATION: FieldSpot[] = [
-  // Offense
+// Normalized (0..1): x = downfield (offense left of the LOS at 0.33, defense
+// to the right), y = field width.
+const OFFENSE_FORMATION: FieldSpot[] = [
   { label: "XR", nx: 0.33, ny: 0.14 },
   { label: "LT", nx: 0.33, ny: 0.4 },
   { label: "C", nx: 0.33, ny: 0.5 },
@@ -351,20 +363,239 @@ const FORMATION: FieldSpot[] = [
   { label: "ZR", nx: 0.33, ny: 0.86 },
   { label: "QB", nx: 0.26, ny: 0.5 },
   { label: "RB", nx: 0.2, ny: 0.5 },
-  // Defense
+];
+const DEFENSE_BASE_FORMATION: FieldSpot[] = [
   { label: "LE", nx: 0.4, ny: 0.36 },
   { label: "DT", nx: 0.4, ny: 0.5 },
   { label: "RE", nx: 0.4, ny: 0.64 },
   { label: "CB", nx: 0.5, ny: 0.14 },
-  { label: "LB", nx: 0.52, ny: 0.5 },
+  // LB shades toward the TE it's responsible for (ny 0.7) rather than dead
+  // center, which also keeps it clear of the SS on single-high looks.
+  { label: "LB", nx: 0.52, ny: 0.6 },
   { label: "NB", nx: 0.5, ny: 0.86 },
-  { label: "SS", nx: 0.66, ny: 0.3 },
-  { label: "FS", nx: 0.78, ny: 0.7 },
 ];
+
+// ── Safe/Blitz (slider index 0–4) → safety depth + who's actually rushing ──
+type SafetySpot = { nx: number; ny: number; rushing: boolean };
+const SAFETY_PLANS: { ss: SafetySpot; fs: SafetySpot }[] = [
+  // 0: true 2-high shell, base 3-man rush
+  {
+    ss: { nx: 0.78, ny: 0.3, rushing: false },
+    fs: { nx: 0.78, ny: 0.7, rushing: false },
+  },
+  // 1: current/default 2-high (SS a step closer to the line), base 3-man rush
+  {
+    ss: { nx: 0.66, ny: 0.3, rushing: false },
+    fs: { nx: 0.78, ny: 0.7, rushing: false },
+  },
+  // 2: single-high — SS rotates down toward the box but doesn't rush, 3-man rush
+  {
+    ss: { nx: 0.58, ny: 0.4, rushing: false },
+    fs: { nx: 0.78, ny: 0.5, rushing: false },
+  },
+  // 3: single-high — SS blitzes, 4-man rush
+  {
+    ss: { nx: 0.42, ny: 0.25, rushing: true },
+    fs: { nx: 0.78, ny: 0.5, rushing: false },
+  },
+  // 4: Cover 0 — both safeties come down and blitz, 5-man rush
+  {
+    ss: { nx: 0.42, ny: 0.25, rushing: true },
+    fs: { nx: 0.42, ny: 0.75, rushing: true },
+  },
+];
+
+// ── Man/Zone (slider index 0–4) → underneath coverage per label ────────────
+// Man count steps down 3 → 2 → 1 → 1 → 0 as the dial slides toward zone, so a
+// man-leaning setting actually reads man-first (not mostly zone). Man itself
+// draws no annotation (see renderFieldPanel) — only zone gets a circle — so
+// this table is the only thing that actually distinguishes the two.
+type CoverageCall = "man" | "zone";
+const UNDERNEATH_COVERAGE: Record<"CB" | "NB" | "LB", CoverageCall>[] = [
+  { CB: "man", NB: "man", LB: "man" }, // 0: all man
+  { CB: "zone", NB: "man", LB: "man" }, // 1: man-leaning — press both corners
+  { CB: "man", NB: "man", LB: "zone" }, // 2: balanced — lone press corner on X
+  { CB: "zone", NB: "zone", LB: "man" }, // 3: zone-leaning — LB robs the TE
+  { CB: "zone", NB: "zone", LB: "zone" }, // 4: all zone
+];
+
+// ── Short/Deep (index) → each receiver's actual route shape ────────────────
+// Run/Pass (index) → how many of them actually run one, and whether the RB's
+// run vector shows at all. XR is shown at every Run/Pass setting that has any
+// route at all (including "only one receiver"), so it carries the full
+// short→deep progression; TE/ZR (only shown alongside it) get a simpler split.
+const XR_ROUTE_BY_DEPTH: Route[] = [
+  dragRoute,
+  slantRoute,
+  inRoute,
+  postRoute,
+  streakRoute,
+];
+const TE_ROUTE_BY_DEPTH: Route[] = [
+  flatRoute,
+  flatRoute,
+  flatRoute,
+  postRoute,
+  postRoute,
+];
+const ZR_ROUTE_BY_DEPTH: Route[] = [
+  curlRoute,
+  outRoute,
+  cornerRoute,
+  inRoute,
+  streakRoute,
+];
+const SHOWN_RECEIVERS_BY_RUNPASS: Label[][] = [
+  [],
+  ["XR"],
+  ["XR", "ZR"],
+  ["XR", "ZR", "TE"],
+  ["XR", "ZR", "TE"],
+];
+const RUN_VECTOR_SHOWN_BY_RUNPASS = [true, true, true, true, false];
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+// The annotation SVG uses a 16:9 viewBox matching the field, so it scales
+// uniformly (circles stay circular, strokes stay even) — the old square
+// viewBox stretched to fit distorted everything.
+const VIEW_W = 160;
+const VIEW_H = 90;
+const X = (nx: number) => nx * VIEW_W;
+const Y = (ny: number) => ny * VIEW_H;
+/** Illustrative user-units per yard for drawing routes/vectors — not to scale
+ * with the actual game, just enough to look right in this small diagram. */
+const YARD_SCALE = 2.1;
+
+type ArrowColor = "run" | "route" | "rush";
+
+/** Keeps an arrowhead's tip fully inside the visible field regardless of
+ * where the route/vector's true endpoint lands — out and corner routes break
+ * toward the sideline and can otherwise compute an endpoint past the field
+ * edge, where the container's overflow clipping would hide the arrowhead
+ * entirely. */
+const ARROW_EDGE_MARGIN = 4;
+function clampToField(x: number, y: number): [number, number] {
+  return [
+    Math.min(VIEW_W - ARROW_EDGE_MARGIN, Math.max(ARROW_EDGE_MARGIN, x)),
+    Math.min(VIEW_H - ARROW_EDGE_MARGIN, Math.max(ARROW_EDGE_MARGIN, y)),
+  ];
+}
+
+function svgEl<K extends keyof SVGElementTagNameMap>(
+  tag: K,
+): SVGElementTagNameMap[K] {
+  return document.createElementNS(SVG_NS, tag);
+}
+
+function addLine(
+  svg: SVGSVGElement,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  opts: { dashed?: boolean; arrow?: ArrowColor; cls: string },
+) {
+  const line = svgEl("line");
+  const [ex2, ey2] = opts.arrow ? clampToField(x2, y2) : [x2, y2];
+  line.setAttribute("x1", String(x1));
+  line.setAttribute("y1", String(y1));
+  line.setAttribute("x2", String(ex2));
+  line.setAttribute("y2", String(ey2));
+  line.setAttribute("class", opts.cls);
+  if (opts.dashed) line.setAttribute("stroke-dasharray", "2.5 2");
+  // Each arrow color needs its own marker: a marker's own fill can't inherit
+  // the referencing line's color (currentColor resolves to the marker, not
+  // the line), so per-color markers are the reliable way to color arrowheads.
+  if (opts.arrow)
+    line.setAttribute("marker-end", `url(#trn-arrow-${opts.arrow})`);
+  svg.appendChild(line);
+}
+
+function addCircle(
+  svg: SVGSVGElement,
+  cx: number,
+  cy: number,
+  r: number,
+  cls: string,
+) {
+  const c = svgEl("circle");
+  c.setAttribute("cx", String(cx));
+  c.setAttribute("cy", String(cy));
+  c.setAttribute("r", String(r));
+  c.setAttribute("class", cls);
+  svg.appendChild(c);
+}
+
+/** Draws a route's pre-break straight segment and (if it breaks) a short
+ * post-break segment (with an arrowhead on the final leg), using the same
+ * breakAngle/sideMultiplier convention the live sim uses (see
+ * utils/behavior.ts) so the shape matches what that route does in a real play. */
+function addRoute(svg: SVGSVGElement, spot: FieldSpot, route: Route) {
+  const startX = X(spot.nx);
+  const startY = Y(spot.ny);
+  const sideMultiplier = spot.ny < 0.5 ? 1 : -1;
+
+  const preBreakYards = route === streakRoute ? 30 : route.yardsBeforeBreak;
+  const breakX = startX + preBreakYards * YARD_SCALE;
+
+  if (route === streakRoute) {
+    addLine(svg, startX, startY, breakX, startY, {
+      dashed: true,
+      arrow: "route",
+      cls: "trn-anno-route",
+    });
+    return;
+  }
+
+  addLine(svg, startX, startY, breakX, startY, {
+    dashed: true,
+    cls: "trn-anno-route",
+  });
+  const postYards = route.stopAfterBreak ? 4 : 12;
+  const angleRad = ((route.breakAngle * sideMultiplier) / 180) * Math.PI;
+  const endX = breakX + Math.cos(angleRad) * postYards * YARD_SCALE;
+  const endY = startY + Math.sin(angleRad) * postYards * YARD_SCALE;
+  addLine(svg, breakX, startY, endX, endY, {
+    dashed: true,
+    arrow: "route",
+    cls: "trn-anno-route",
+  });
+}
 
 function renderFieldPanel(): HTMLElement {
   const team = activeTeam();
+  const pb = TEAM_PLAYBOOKS[team.color] ?? {};
   const panel = section("Formation");
+
+  const runPassIdx = closestIndex(
+    SCHEME_SLIDERS[0].values,
+    SCHEME_SLIDERS[0].get(pb),
+  );
+  const shortDeepIdx = closestIndex(
+    SCHEME_SLIDERS[1].values,
+    SCHEME_SLIDERS[1].get(pb),
+  );
+  const manZoneIdx = closestIndex(
+    SCHEME_SLIDERS[2].values,
+    SCHEME_SLIDERS[2].get(pb),
+  );
+  const safeBlitzIdx = closestIndex(
+    SCHEME_SLIDERS[3].values,
+    SCHEME_SLIDERS[3].get(pb),
+  );
+
+  const safetyPlan = SAFETY_PLANS[safeBlitzIdx];
+  const coverage = UNDERNEATH_COVERAGE[manZoneIdx];
+  const shownReceivers = new Set(SHOWN_RECEIVERS_BY_RUNPASS[runPassIdx]);
+  const showRunVector = RUN_VECTOR_SHOWN_BY_RUNPASS[runPassIdx];
+
+  const allSpots: (FieldSpot & { rushing?: boolean })[] = [
+    ...OFFENSE_FORMATION,
+    ...DEFENSE_BASE_FORMATION,
+    { label: "SS", ...safetyPlan.ss },
+    { label: "FS", ...safetyPlan.fs },
+  ];
+  const spotByLabel = new Map(allSpots.map((s) => [s.label, s]));
 
   const field = document.createElement("div");
   field.className = "trn-field";
@@ -375,7 +606,73 @@ function renderFieldPanel(): HTMLElement {
   los.style.left = "33%";
   field.appendChild(los);
 
-  for (const spot of FORMATION) {
+  // ── Annotation layer (behind the player dots) ──
+  const svg = svgEl("svg");
+  svg.setAttribute("viewBox", `0 0 ${VIEW_W} ${VIEW_H}`);
+  svg.classList.add("trn-field-annotations");
+
+  // One small arrow marker per color (fixed user-space size so it doesn't
+  // balloon with stroke width).
+  const marker = (id: ArrowColor, fill: string) =>
+    `<marker id="trn-arrow-${id}" viewBox="0 0 10 10" refX="8.5" refY="5" ` +
+    `markerWidth="4.5" markerHeight="4.5" markerUnits="userSpaceOnUse" orient="auto">` +
+    `<path d="M0,1.5 L9,5 L0,8.5 z" fill="${fill}" /></marker>`;
+  const defs = svgEl("defs");
+  defs.innerHTML =
+    marker("run", "#f59e0b") +
+    marker("route", "#fcd34d") +
+    marker("rush", "#ef4444");
+  svg.appendChild(defs);
+
+  // Run vector — a static stretch-run arrow toward the offense's left (top)
+  // sideline, not straight up the middle.
+  if (showRunVector) {
+    const rb = spotByLabel.get("RB")!;
+    addLine(svg, X(rb.nx), Y(rb.ny), X(rb.nx) + 13, Y(rb.ny) - 24, {
+      arrow: "run",
+      cls: "trn-anno-run",
+    });
+  }
+
+  // Route concepts — dashed, only for catchers the Run/Pass slider shows.
+  const routeByLabel: Partial<Record<string, Route>> = {
+    XR: XR_ROUTE_BY_DEPTH[shortDeepIdx],
+    TE: TE_ROUTE_BY_DEPTH[shortDeepIdx],
+    ZR: ZR_ROUTE_BY_DEPTH[shortDeepIdx],
+  };
+  for (const label of ["XR", "ZR", "TE"] as const) {
+    if (!shownReceivers.has(label)) continue;
+    addRoute(svg, spotByLabel.get(label)!, routeByLabel[label]!);
+  }
+
+  // Rushers — small vectors toward the LOS. DL always rush; safeties only
+  // when the Safe/Blitz plan sends them.
+  const rushArrow = (spot: FieldSpot) =>
+    addLine(svg, X(spot.nx), Y(spot.ny), X(spot.nx) - 8, Y(spot.ny), {
+      arrow: "rush",
+      cls: "trn-anno-rush",
+    });
+  for (const label of ["LE", "DT", "RE"] as const)
+    rushArrow(spotByLabel.get(label)!);
+  for (const label of ["SS", "FS"] as const) {
+    const spot = spotByLabel.get(label)!;
+    if (spot.rushing) rushArrow(spot);
+    else addCircle(svg, X(spot.nx), Y(spot.ny), 12, "trn-anno-zone");
+  }
+
+  // Underneath coverage — a circle for each zone drop; man gets no
+  // annotation at all (the absence of a circle is the "man" signal).
+  for (const label of ["CB", "NB", "LB"] as const) {
+    const spot = spotByLabel.get(label)!;
+    if (coverage[label] === "zone") {
+      addCircle(svg, X(spot.nx), Y(spot.ny), 12, "trn-anno-zone");
+    }
+  }
+
+  field.appendChild(svg);
+
+  // Player dots, on top of the annotation layer.
+  for (const spot of allSpots) {
     const rp = team.roster.find((r) => r.label === spot.label);
     const side = labelToSide(spot.label);
     const dot = document.createElement("div");
@@ -399,7 +696,11 @@ function renderFieldPanel(): HTMLElement {
   legend.className = "trn-field-legend";
   legend.innerHTML =
     `<span class="trn-legend-item"><span class="trn-legend-dot trn-player-offense" style="background:${team.color}"></span>Offense</span>` +
-    `<span class="trn-legend-item"><span class="trn-legend-dot trn-player-defense" style="border-color:${team.color}"></span>Defense</span>`;
+    `<span class="trn-legend-item"><span class="trn-legend-dot trn-player-defense" style="border-color:${team.color}"></span>Defense</span>` +
+    `<span class="trn-legend-item"><span class="trn-legend-swatch trn-legend-swatch-run"></span>Run</span>` +
+    `<span class="trn-legend-item"><span class="trn-legend-swatch trn-legend-swatch-route"></span>Route</span>` +
+    `<span class="trn-legend-item"><span class="trn-legend-swatch trn-legend-swatch-rush"></span>Rush</span>` +
+    `<span class="trn-legend-item"><span class="trn-legend-swatch trn-legend-swatch-zone"></span>Zone (man = no marker)</span>`;
   panel.appendChild(legend);
 
   return panel;
@@ -508,7 +809,13 @@ function describeScheme(pb: Record<string, number>): {
     sep: string,
   ) => {
     const phrase =
-      a && b ? `${a}${sep}${b} ${suffix}` : a ? `${a} ${suffix}` : b ? `${b} ${suffix}` : `balanced ${suffix}`;
+      a && b
+        ? `${a}${sep}${b} ${suffix}`
+        : a
+          ? `${a} ${suffix}`
+          : b
+            ? `${b} ${suffix}`
+            : `balanced ${suffix}`;
     return capitalize(phrase);
   };
 
