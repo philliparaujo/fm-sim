@@ -33,6 +33,7 @@ import {
 import {
   autoTrainAll,
   autoTrainAllExcept,
+  autoTrainTeam,
   clearTrainingCompletion,
   isTrainingDoneForWeek,
 } from "../core/training";
@@ -474,6 +475,17 @@ function renderTrainingGate(week: number): HTMLElement | null {
         document.getElementById("tab-training")?.click();
       });
       row.appendChild(goBtn);
+
+      const autoBtn = document.createElement("button");
+      autoBtn.className = "draft-auto-btn";
+      autoBtn.style.width = "auto";
+      autoBtn.title = "Auto-pick a focus and points for your team this week";
+      autoBtn.textContent = "Auto-Train My Team";
+      autoBtn.addEventListener("click", () => {
+        autoTrainTeam(team, week);
+        render();
+      });
+      row.appendChild(autoBtn);
     }
     gate.appendChild(row);
   }
@@ -1198,7 +1210,12 @@ function renderRosters(): HTMLElement {
     const row = document.createElement("div");
     row.className = "sched-roster-row";
     for (const rec of getDivisionStandings(i)) {
-      row.appendChild(buildRosterCard(teamByColor(rec.color), { slotSort: getRosterSort() }));
+      row.appendChild(
+        buildRosterCard(teamByColor(rec.color), {
+          slotSort: getRosterSort(),
+          isUserTeam: rec.color === getSelectedTeamColor(),
+        }),
+      );
     }
     col.appendChild(row);
     grid.appendChild(col);

@@ -30,6 +30,9 @@ export type RosterCardOptions = {
   onSeeProspects?: (label: Label) => void;
   /** Show every role attribute on each player instead of just the top 3. */
   showAllAttrs?: boolean;
+  /** Highlights the card (border + glow) as the user-controlled team — useful
+   * when several rosters are shown together (draft recap, season rosters). */
+  isUserTeam?: boolean;
   /**
    * Returns a player's season-start rating (0–1) for an attribute, or null.
    * When the attribute's letter grade has since changed, the chip shows the
@@ -143,7 +146,7 @@ export function buildRosterCard(
   options: RosterCardOptions = {},
 ): HTMLDivElement {
   const card = document.createElement("div");
-  card.className = "draft-roster";
+  card.className = "draft-roster" + (options.isUserTeam ? " draft-roster-user" : "");
 
   // ── Header ──
   const header = document.createElement("div");

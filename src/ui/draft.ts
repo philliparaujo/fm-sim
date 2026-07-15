@@ -162,7 +162,12 @@ function showRecap() {
   grid.innerHTML = "";
   syncSortButtons();
   for (const team of LEAGUE) {
-    grid.appendChild(buildRosterCard(team, { slotSort: rosterSort }));
+    grid.appendChild(
+      buildRosterCard(team, {
+        slotSort: rosterSort,
+        isUserTeam: team.color === selectedTeamColor,
+      }),
+    );
   }
 
   // Move "Start Season" into the global top bar, replacing the snake draft button
@@ -463,6 +468,7 @@ function renderRosters() {
   const card = buildRosterCard(team, {
     actionButtons: [autoBtn, bestBtn],
     slotSort: rosterSort,
+    isUserTeam: team.color === selectedTeamColor,
     onSeeProspects: (label) => {
       poolFilter = label;
       render();

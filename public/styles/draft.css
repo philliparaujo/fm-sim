@@ -411,6 +411,13 @@
   width: 230px;
   flex-shrink: 0;
 }
+/* The user-controlled team's roster — same accent used for its game cards. */
+.draft-roster-user {
+  border-color: #60a5fa;
+  box-shadow:
+    0 0 0 1px #60a5fa,
+    0 0 12px rgba(96, 165, 250, 0.25);
+}
 .draft-roster-header {
   font-weight: bold;
   font-size: 16px;
