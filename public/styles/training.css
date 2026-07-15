@@ -350,6 +350,26 @@
 
 /* ── Scheme sliders ──────────────────────────────────────────────────────── */
 
+.trn-scheme-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #1f2937;
+}
+.trn-scheme-summary-line {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e5e7eb;
+  white-space: nowrap;
+}
+.trn-scheme-summary-sep {
+  color: #4b5563;
+  font-size: 12px;
+}
+
 .trn-scheme-wrap + .trn-scheme-wrap {
   border-top: 1px solid #1f2937;
 }

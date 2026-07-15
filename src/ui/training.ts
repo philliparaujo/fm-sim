@@ -158,7 +158,8 @@ function renderFocusPanel(): HTMLElement {
   catBar.className = "trn-cat-bar";
   for (const cat of FOCUS_CATEGORIES) {
     const btn = document.createElement("button");
-    btn.className = "trn-cat-btn" + (focusCategory === cat.key ? " active" : "");
+    btn.className =
+      "trn-cat-btn" + (focusCategory === cat.key ? " active" : "");
     btn.textContent = cat.label;
     btn.addEventListener("click", () => {
       focusCategory = cat.key;
@@ -291,7 +292,8 @@ function renderRosterPanel(): HTMLElement {
   cardWrap.appendChild(
     buildRosterCard(team, {
       showAllAttrs: true,
-      attrBaseline: (rp, attr) => playerBaselineRating(team.color, rp.label, attr),
+      attrBaseline: (rp, attr) =>
+        playerBaselineRating(team.color, rp.label, attr),
       overallDeltas: {
         team: () => teamOvrDelta(team),
         side: (side) => sideOvrDelta(team, side),
@@ -419,7 +421,15 @@ type SchemeSlider = {
   /** Overrides the default complementary (1-v)/v percentage display — e.g.
    * the Short/Deep slider shows the actual short/deep route shares (plus the
    * fixed medium share as a note) instead of the raw stored split. */
-  describe?: (v: number) => { leftPct: number; rightPct: number; note?: string };
+  describe?: (v: number) => {
+    leftPct: number;
+    rightPct: number;
+    note?: string;
+  };
+  /** One tendency word/phrase per value in `values`, aligned by index; null
+   * for the neutral middle option. Used to build the plain-English scheme
+   * summary above the sliders. */
+  tags: (string | null)[];
 };
 
 // Man/Zone inverts: slider left = all man, so store manPercent = 1 - v (v is
@@ -433,6 +443,7 @@ const SCHEME_SLIDERS: SchemeSlider[] = [
     values: [0.35, 0.45, 0.55, 0.65, 0.75],
     get: (pb) => pb.passPercent ?? 0.55,
     set: (pb, v) => (pb.passPercent = v),
+    tags: ["run-heavy", "run-first", null, "pass-first", "pass-heavy"],
   },
   {
     leftLabel: "Short",
@@ -451,6 +462,7 @@ const SCHEME_SLIDERS: SchemeSlider[] = [
         note: `${Math.round(medium * 100)}% Medium`,
       };
     },
+    tags: ["horizontal", "quick-game", null, "downfield", "vertical"],
   },
   {
     leftLabel: "Man",
@@ -458,6 +470,7 @@ const SCHEME_SLIDERS: SchemeSlider[] = [
     values: [0.2, 0.35, 0.5, 0.65, 0.8],
     get: (pb) => 1 - (pb.manPercent ?? 0.5),
     set: (pb, v) => (pb.manPercent = 1 - v),
+    tags: ["press-man", "man-match", null, "zone-match", "spot-drop"],
   },
   {
     leftLabel: "Safe",
@@ -465,8 +478,45 @@ const SCHEME_SLIDERS: SchemeSlider[] = [
     values: [0.1, 0.2, 0.3, 0.4, 0.5],
     get: (pb) => pb.blitzPercent ?? 0.3,
     set: (pb, v) => (pb.blitzPercent = v),
+    tags: ["conservative", "safe", null, "aggressive", "blitz-happy"],
   },
 ];
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Builds a quick, plain-English read on a team's current scheme — one phrase
+ * for offense (Run/Pass + Short/Deep tags) and one for defense (Safe/Blitz +
+ * Man/Zone tags, blitz tendency mentioned first). Falls back to "balanced"
+ * when both sliders in a pairing sit on their neutral middle option. Tags are
+ * stored lowercase and only the final phrase's first letter is capitalized,
+ * so any combination of two tags (or just one, or neither) reads as one
+ * cohesive sentence rather than fragments awkwardly Capitalized Mid-Sentence. */
+function describeScheme(pb: Record<string, number>): {
+  offense: string;
+  defense: string;
+} {
+  const tagFor = (slider: SchemeSlider) =>
+    slider.tags[closestIndex(slider.values, slider.get(pb))];
+  const [runPass, shortDeep, manZone, safeBlitz] = SCHEME_SLIDERS.map(tagFor);
+
+  const join = (
+    a: string | null,
+    b: string | null,
+    suffix: string,
+    sep: string,
+  ) => {
+    const phrase =
+      a && b ? `${a}${sep}${b} ${suffix}` : a ? `${a} ${suffix}` : b ? `${b} ${suffix}` : `balanced ${suffix}`;
+    return capitalize(phrase);
+  };
+
+  return {
+    offense: join(runPass, shortDeep, "offense", ", "),
+    defense: join(safeBlitz, manZone, "defense", " "),
+  };
+}
 
 function renderSchemePanel(): HTMLElement {
   const team = activeTeam();
@@ -480,6 +530,15 @@ function renderSchemePanel(): HTMLElement {
     panel.appendChild(p);
     return panel;
   }
+
+  const { offense, defense } = describeScheme(pb);
+  const summary = document.createElement("div");
+  summary.className = "trn-scheme-summary";
+  summary.innerHTML =
+    `<span class="trn-scheme-summary-line">🏈 ${offense}</span>` +
+    `<span class="trn-scheme-summary-sep">·</span>` +
+    `<span class="trn-scheme-summary-line">🛡️ ${defense}</span>`;
+  panel.appendChild(summary);
 
   for (const slider of SCHEME_SLIDERS) {
     panel.appendChild(renderSchemeSlider(team, pb, slider));
@@ -509,16 +568,14 @@ function renderSchemeSlider(
 
   const current = closestIndex(slider.values, slider.get(pb));
   const v = slider.values[current];
-  const desc =
-    slider.describe?.(v) ?? {
-      leftPct: Math.round((1 - v) * 100),
-      rightPct: Math.round(v * 100),
-    };
+  const desc = slider.describe?.(v) ?? {
+    leftPct: Math.round((1 - v) * 100),
+    rightPct: Math.round(v * 100),
+  };
 
   const left = document.createElement("span");
   left.className = "trn-scheme-label trn-scheme-left";
-  left.innerHTML =
-    `${slider.leftLabel} <span class="trn-scheme-pct">${desc.leftPct}%</span>`;
+  left.innerHTML = `${slider.leftLabel} <span class="trn-scheme-pct">${desc.leftPct}%</span>`;
   row.appendChild(left);
 
   const dots = document.createElement("div");
@@ -541,8 +598,7 @@ function renderSchemeSlider(
 
   const right = document.createElement("span");
   right.className = "trn-scheme-label trn-scheme-right";
-  right.innerHTML =
-    `<span class="trn-scheme-pct">${desc.rightPct}%</span> ${slider.rightLabel}`;
+  right.innerHTML = `<span class="trn-scheme-pct">${desc.rightPct}%</span> ${slider.rightLabel}`;
   row.appendChild(right);
 
   wrap.appendChild(row);
