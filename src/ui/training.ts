@@ -1,3 +1,4 @@
+import { scoreProspect } from "../core/draftEval";
 import { TEAM_PLAYBOOKS } from "../core/playbook";
 import { getCurrentWeek } from "../core/schedule";
 import { LEAGUE } from "../core/state";
@@ -33,6 +34,7 @@ import {
   streakRoute,
 } from "../utils/route";
 import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
+import { getSelectedTeamColor } from "./draft";
 import { buildRosterCard } from "./rosterCard";
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -103,6 +105,14 @@ function render() {
   // Snapshot season-start overalls the first time training is viewed (before
   // any points are applied) so development deltas read from a clean baseline.
   if (LEAGUE.every((t) => t.roster.length > 0)) ensureTrainingBaseline();
+
+  // CPU teams never have a human tuning their scheme sliders, so derive one
+  // live from current roster strength every render — both the formation
+  // panel and the scheme panel below read the same freshly-computed values.
+  const team = activeTeam();
+  if (team.color !== getSelectedTeamColor() && team.roster.length > 0) {
+    autoScheme(team);
+  }
 
   const grid = document.createElement("div");
   grid.className = "trn-grid";
@@ -782,6 +792,118 @@ const SCHEME_SLIDERS: SchemeSlider[] = [
     tags: ["conservative", "safe", null, "aggressive", "blitz-happy"],
   },
 ];
+
+// ── CPU auto-scheme ─────────────────────────────────────────────────────────
+// CPU teams never manually tune their sliders — instead their scheme is
+// derived live from roster strength, restricted to the 3 middle ladder
+// options on every slider (index 1-3) so no CPU team ever commits to an
+// extreme, unbalanced scheme.
+
+/** Overall (0-1) for a team's player at `label`, or null if undrafted. */
+function ovrAt(team: Team, label: Label): number | null {
+  const rp = team.roster.find((r) => r.label === label);
+  return rp ? scoreProspect(rp) : null;
+}
+
+/** Average overall (0-1) across the given labels for a team, or null if none
+ * of them are drafted yet. */
+function avgOvr(team: Team, labels: Label[]): number | null {
+  const ovrs = labels
+    .map((l) => ovrAt(team, l))
+    .filter((o): o is number => o !== null);
+  return ovrs.length > 0 ? ovrs.reduce((a, b) => a + b, 0) / ovrs.length : null;
+}
+
+/** 1 = best in the league. Ranks `team`'s avgOvr(labels) against every other
+ * league team's same average; null if this team hasn't drafted any of them. */
+function leagueRankByAvg(labels: Label[], team: Team): number | null {
+  const mine = avgOvr(team, labels);
+  if (mine === null) return null;
+  const all = LEAGUE.map((t) => avgOvr(t, labels)).filter(
+    (o): o is number => o !== null,
+  );
+  return all.filter((o) => o > mine).length + 1;
+}
+
+/** Maps a league rank to a signed lean in [-1, 1]: negative = elite (rank 1),
+ * positive = weak (rank = league size). Null rank (undrafted) leans neutral. */
+function rankLean(rank: number | null, leagueSize: number): number {
+  if (rank === null || leagueSize <= 1) return 0;
+  const normalized = (rank - 1) / (leagueSize - 1); // 0 = best, 1 = worst
+  return (normalized - 0.5) * 2;
+}
+
+/** Average raw rating value for `attr` across a set of players. */
+function avgAttr(players: RosterPlayer[], attr: keyof RosterPlayer["ratings"]): number {
+  return (
+    players.reduce((s, p) => s + (p.ratings[attr] ?? 0), 0) / players.length
+  );
+}
+
+/** Snaps a signed lean to one of the 3 permitted middle indices — never the
+ * two extremes at either end of the ladder. */
+function leanToMiddleIndex(lean: number, threshold: number): 1 | 2 | 3 {
+  if (lean > threshold) return 3;
+  if (lean < -threshold) return 1;
+  return 2;
+}
+
+/** Derives and writes a full scheme (all 4 sliders) for a CPU team, based on
+ * roster strength:
+ *  - Run/Pass: passer vs runner league rank
+ *  - Short/Deep: passer short vs deep accuracy, and catcher catch radius vs
+ *    catch acceleration
+ *  - Man/Zone: coverer man vs zone coverage rating
+ *  - Safe/Blitz: rusher league rank (a weak pass rush leans blitz; a strong
+ *    one can afford to play safe)
+ * Every slider is restricted to indices 1-3 — CPU teams never pick an
+ * extreme, unbalanced option. */
+function autoScheme(team: Team): void {
+  const pb = TEAM_PLAYBOOKS[team.color];
+  if (!pb) return;
+  const leagueSize = LEAGUE.length;
+
+  const passerRank = leagueRankByAvg(["QB"], team);
+  const runnerRank = leagueRankByAvg(["RB"], team);
+  const runPassLean =
+    rankLean(runnerRank, leagueSize) - rankLean(passerRank, leagueSize);
+
+  const qb = team.roster.find((r) => r.label === "QB");
+  const passerDelta = qb
+    ? (qb.ratings.DEEPACCURACY ?? 0) - (qb.ratings.SHORTACCURACY ?? 0)
+    : 0;
+  const catchers = (["XR", "ZR", "TE"] as Label[])
+    .map((l) => team.roster.find((r) => r.label === l))
+    .filter((r): r is RosterPlayer => !!r);
+  const catcherDelta =
+    catchers.length > 0
+      ? avgAttr(catchers, "CATCHRADIUS") - avgAttr(catchers, "CATCHACCELERATION")
+      : 0;
+  const shortDeepLean = (passerDelta + catcherDelta) / 2;
+
+  const coverers = (["CB", "NB", "LB", "FS", "SS"] as Label[])
+    .map((l) => team.roster.find((r) => r.label === l))
+    .filter((r): r is RosterPlayer => !!r);
+  const manZoneLean =
+    coverers.length > 0
+      ? avgAttr(coverers, "ZONECOVERAGE") - avgAttr(coverers, "MANCOVERAGE")
+      : 0;
+
+  const rusherRank = leagueRankByAvg(["LE", "DT", "RE"], team);
+  const safeBlitzLean = rankLean(rusherRank, leagueSize);
+
+  const RANK_THRESHOLD = 0.2; // league-rank-based leans span roughly [-1, 1]
+  const ATTR_THRESHOLD = 0.06; // ratings are stored on a 0-1 scale
+
+  const idx = [
+    leanToMiddleIndex(runPassLean, RANK_THRESHOLD),
+    leanToMiddleIndex(shortDeepLean, ATTR_THRESHOLD),
+    leanToMiddleIndex(manZoneLean, ATTR_THRESHOLD),
+    leanToMiddleIndex(safeBlitzLean, RANK_THRESHOLD),
+  ];
+
+  SCHEME_SLIDERS.forEach((slider, i) => slider.set(pb, slider.values[idx[i]]));
+}
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
