@@ -9,10 +9,14 @@ import {
   isTrainingDoneForWeek,
   playerBaselineRating,
   playerOvrDelta,
+  playerWeeklyGain,
   POINTS_BUDGET,
   roleOvrDelta,
+  roleWeeklyGain,
   sideOvrDelta,
+  sideWeeklyGain,
   teamOvrDelta,
+  teamWeeklyGain,
 } from "../core/training";
 import { Label, PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
 import { labelToRole, labelToSide } from "../utils/roster";
@@ -292,6 +296,14 @@ function renderRosterPanel(): HTMLElement {
         side: (side) => sideOvrDelta(team, side),
         role: (role) => roleOvrDelta(team, role),
         player: (rp) => playerOvrDelta(team.color, rp),
+      },
+      // "This week" gains for the week currently in context — 0/no chip
+      // until that week is actually trained, then shows immediately.
+      weeklyDeltas: {
+        team: () => teamWeeklyGain(team, activeWeek()),
+        side: (side) => sideWeeklyGain(team, activeWeek(), side),
+        role: (role) => roleWeeklyGain(team, activeWeek(), role),
+        player: (rp) => playerWeeklyGain(team.color, rp.label, activeWeek()),
       },
     }),
   );

@@ -50,6 +50,17 @@ export type RosterCardOptions = {
     role?: (role: string) => number | null;
     player?: (rp: RosterPlayer) => number | null;
   };
+  /**
+   * Same shape as overallDeltas, but for a single week's gain rather than the
+   * season-long total — rendered as a second, distinctly styled chip (e.g.
+   * "+0.3 wk") right next to the season chip.
+   */
+  weeklyDeltas?: {
+    team?: () => number | null;
+    side?: (side: "offense" | "defense") => number | null;
+    role?: (role: string) => number | null;
+    player?: (rp: RosterPlayer) => number | null;
+  };
 };
 
 type AttrEntry = {
@@ -59,12 +70,25 @@ type AttrEntry = {
   color: string;
 };
 
-/** Renders a small ▲/▼ overall-change chip, or "" when the delta is ~0/absent. */
-function deltaChip(delta: number | null | undefined): string {
+/** Renders a small ▲/▼ overall-change chip, or "" when the delta is ~0/absent.
+ * Pass `weekly: true` for the smaller, muted "this week" variant shown
+ * alongside the season-long chip. */
+function deltaChip(delta: number | null | undefined, weekly = false): string {
   if (delta == null || Math.abs(delta) < 0.05) return "";
   const up = delta > 0;
-  const cls = up ? "roster-delta-up" : "roster-delta-down";
-  return ` <span class="roster-delta ${cls}">${up ? "▲+" : "▼"}${delta.toFixed(1)}</span>`;
+  const cls =
+    (up ? "roster-delta-up" : "roster-delta-down") +
+    (weekly ? " roster-delta-weekly" : "");
+  const suffix = weekly ? " wk" : "";
+  return ` <span class="roster-delta ${cls}">${up ? "▲+" : "▼"}${delta.toFixed(1)}${suffix}</span>`;
+}
+
+/** Combines a season chip and its weekly counterpart. */
+function deltaChips(
+  seasonDelta: number | null | undefined,
+  weeklyDelta: number | null | undefined,
+): string {
+  return deltaChip(seasonDelta) + deltaChip(weeklyDelta, true);
 }
 
 /** Computes per-role average OVR (0–100) for a roster. */
@@ -154,7 +178,7 @@ export function buildRosterCard(
   header.style.color = team.color;
   header.innerHTML =
     `${team.name} <span class="roster-card-count">(${team.roster.length}/${PLAYER_LABELS.length})</span>` +
-    ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}${deltaChip(options.overallDeltas?.team?.())}</span>` +
+    ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}${deltaChips(options.overallDeltas?.team?.(), options.weeklyDeltas?.team?.())}</span>` +
     (options.headerSuffix ?? "");
   card.appendChild(header);
 
@@ -163,8 +187,8 @@ export function buildRosterCard(
     const sideRow = document.createElement("div");
     sideRow.className = "roster-card-side-row";
     sideRow.innerHTML =
-      `<span class="roster-card-side-chip"><span class="roster-card-role-name">OFF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "offense")}${deltaChip(options.overallDeltas?.side?.("offense"))}</span></span>` +
-      `<span class="roster-card-side-chip"><span class="roster-card-role-name">DEF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "defense")}${deltaChip(options.overallDeltas?.side?.("defense"))}</span></span>`;
+      `<span class="roster-card-side-chip"><span class="roster-card-role-name">OFF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "offense")}${deltaChips(options.overallDeltas?.side?.("offense"), options.weeklyDeltas?.side?.("offense"))}</span></span>` +
+      `<span class="roster-card-side-chip"><span class="roster-card-role-name">DEF</span><span class="roster-card-role-ovr">${sideOvrDisplay(team, "defense")}${deltaChips(options.overallDeltas?.side?.("defense"), options.weeklyDeltas?.side?.("defense"))}</span></span>`;
     card.appendChild(sideRow);
   }
 
@@ -176,7 +200,7 @@ export function buildRosterCard(
     breakdown.innerHTML = ROLE_ORDER.filter((r) => roles.has(r))
       .map(
         (r) =>
-          `<span class="roster-card-role-chip"><span class="roster-card-role-name">${r}</span><span class="roster-card-role-ovr">${roleOvrDisplay(team, r)}${deltaChip(options.overallDeltas?.role?.(r))}</span></span>`,
+          `<span class="roster-card-role-chip"><span class="roster-card-role-name">${r}</span><span class="roster-card-role-ovr">${roleOvrDisplay(team, r)}${deltaChips(options.overallDeltas?.role?.(r), options.weeklyDeltas?.role?.(r))}</span></span>`,
       )
       .join("");
   }
@@ -232,7 +256,8 @@ export function buildRosterCard(
       const ovrSpan = document.createElement("span");
       ovrSpan.className = "slot-ovr";
       ovrSpan.innerHTML =
-        playerOvrDisplay(rp) + deltaChip(options.overallDeltas?.player?.(rp));
+        playerOvrDisplay(rp) +
+        deltaChips(options.overallDeltas?.player?.(rp), options.weeklyDeltas?.player?.(rp));
       row1.appendChild(ovrSpan);
     } else {
       const emptySpan = document.createElement("span");

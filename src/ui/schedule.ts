@@ -36,6 +36,7 @@ import {
   autoTrainTeam,
   clearTrainingCompletion,
   isTrainingDoneForWeek,
+  teamWeeklyGain,
 } from "../core/training";
 import {
   Award,
@@ -458,10 +459,15 @@ function renderTrainingGate(week: number): HTMLElement | null {
     const row = document.createElement("div");
     row.className = "sched-training-gate-row";
     if (userDone) {
+      const gain = teamWeeklyGain(team, week);
+      const gainText =
+        Math.abs(gain) >= 0.05
+          ? ` (${gain > 0 ? "+" : ""}${gain.toFixed(1)} OVR this week)`
+          : "";
       row.innerHTML =
         `<span class="sched-training-gate-check">✓</span>` +
         `<span class="sched-training-gate-msg" style="color:${team.color}">${team.name}</span>` +
-        `<span class="sched-training-gate-msg">training complete.</span>`;
+        `<span class="sched-training-gate-msg">training complete${gainText}.</span>`;
     } else {
       row.innerHTML =
         `<span class="sched-training-gate-msg" style="color:${team.color}">${team.name}</span>` +

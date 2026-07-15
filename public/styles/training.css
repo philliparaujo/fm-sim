@@ -259,6 +259,13 @@
 .roster-delta-down {
   color: #f87171;
 }
+/* This-week variant: same up/down coloring, but muted + smaller so it reads
+ * as a secondary detail next to the season-long chip. */
+.roster-delta-weekly {
+  opacity: 0.65;
+  font-size: 9px;
+  font-weight: 600;
+}
 
 /* Previous → current letter grade on a trained attribute */
 .slot-grade-prev {

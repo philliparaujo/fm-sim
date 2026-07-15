@@ -43,7 +43,11 @@ const CATEGORY_ATTRS: Record<Exclude<FocusCategory, "general">, Attribute[]> = {
   coverage: ["MANCOVERAGE", "ZONECOVERAGE", "PURSUIT", "CATCHRADIUS"],
 };
 
-/** Physical/genetic tools — not moved by practice, regardless of focus. */
+/** Physical/genetic tools — still trainable, but independently and at a
+ * fraction of the normal rate (see PHYSICAL_DEVELOPMENT_RATE below), so a
+ * position leaning heavily on these (e.g. a running back's SPEED/POWER)
+ * doesn't have to dump its entire weekly development into one or two
+ * leftover technique attributes. */
 const PHYSICAL_ATTRS: Attribute[] = ["SPEED", "SIZE", "THROWPOWER", "POWER"];
 
 /** A player's overall on the 0–100 scale. */
@@ -147,30 +151,98 @@ export function clearTrainingCompletion(): void {
   for (const k of Object.keys(completedWeeks)) delete completedWeeks[k];
 }
 
+// ── Weekly gain tracking ─────────────────────────────────────────────────────
+// How much overall each player actually gained the specific week training was
+// applied — separate from the season-long baseline above, so the UI can show
+// "this week" alongside "this season". Captured directly in applyTraining
+// (before/after), keyed by team color → label → week number.
+
+const weeklyGains: Record<string, Partial<Record<Label, Record<number, number>>>> = {};
+
+function recordWeeklyGain(color: string, label: Label, week: number, delta: number): void {
+  const byLabel = (weeklyGains[color] ??= {});
+  const byWeek = (byLabel[label] ??= {});
+  byWeek[week] = delta;
+}
+
+/** A player's overall gain for the specific week training was applied (0 if
+ * that player/week hasn't been trained). */
+export function playerWeeklyGain(color: string, label: Label, week: number): number {
+  return weeklyGains[color]?.[label]?.[week] ?? 0;
+}
+
+/** Average overall gained by a team's players (optionally filtered) in `week`. */
+function groupWeeklyGain(
+  team: Team,
+  week: number,
+  filter?: (rp: RosterPlayer) => boolean,
+): number {
+  const players = team.roster.filter((rp) => !filter || filter(rp));
+  if (players.length === 0) return 0;
+  const gains = players.map((rp) => playerWeeklyGain(team.color, rp.label, week));
+  return gains.reduce((a, b) => a + b, 0) / gains.length;
+}
+
+export function teamWeeklyGain(team: Team, week: number): number {
+  return groupWeeklyGain(team, week);
+}
+export function sideWeeklyGain(team: Team, week: number, side: "offense" | "defense"): number {
+  return groupWeeklyGain(team, week, (rp) => labelToSide(rp.label) === side);
+}
+export function roleWeeklyGain(team: Team, week: number, role: string): number {
+  return groupWeeklyGain(team, week, (rp) => labelToRole(rp.label) === role);
+}
+
 // ── Applying training ────────────────────────────────────────────────────────
 //
 // Every rostered player develops a little each week: players with focus points
-// assigned get a concentrated bump in the selected category's attributes;
-// everyone else gets a much smaller, general "still practicing" bump. Neither
-// ever touches a physical attribute (SPEED/SIZE/THROWPOWER/POWER) — those are
-// fixed tools, not something a week of practice moves.
+// assigned get a bigger bump in the selected category's attributes; everyone
+// else gets a much smaller, general "still practicing" bump.
 //
-// Both bumps run through the same diminishing-returns curve: an attribute
-// already near its peak (S/A grades) inches up far less than one with a lot of
-// room to grow (D/F grades), so gains stay small and self-limiting.
+// Two separate mechanisms move a player's attributes, and they don't mix:
+//
+// 1. Physical attributes (SPEED/SIZE/THROWPOWER/POWER) develop independently,
+//    at a flat fraction of a technique attribute's rate (see
+//    PHYSICAL_DEVELOPMENT_RATE), driven only by their own room to grow. This
+//    is deliberately NOT tied to the overall-conservation math below — it's
+//    what keeps a season of physical development to a small, steady partial
+//    step (e.g. B → B+) instead of a runaway swing.
+//
+// 2. Technique attributes are conserved toward the same target OVERALL delta
+//    for every player at a given overall (a diminishing-returns curve on
+//    their scalar overall, not on any one attribute), regardless of how that
+//    overall is composed. A role with a small technique-weight share (e.g. a
+//    running back's VISION/PASSBLOCK) leans harder on those few attributes to
+//    hit the same target as any other role.
+//
+// Both mechanisms run through a hard per-attribute weekly cap
+// (MAX_WEEKLY_ATTR_PROX): whatever the math above wants, no single attribute
+// can ever move more than that in one week. Without this cap, a role whose
+// other attributes cap out early (or whose weight is concentrated on very few
+// attributes) can otherwise see the *entire* remaining weekly budget dumped
+// into one leftover attribute — which is exactly the "F → S in a season"
+// runaway this cap exists to prevent.
 
-/** Small weekly growth every rostered player gets on attributes not singled
- * out for focus this week (proximity units, before the diminishing-returns
- * curve below is applied). */
-const BACKGROUND_STRENGTH = 0.015;
-/** Growth strength per training point assigned to a player this week,
- * concentrated into the selected focus category's attributes. Meaningfully
- * larger than the background rate, but still a single week's worth. */
-const FOCUS_STRENGTH_PER_POINT = 0.035;
+/** Background (untouched players) weekly growth-target strength — this is a
+ * target *overall* (0–1) delta at zero overall, scaled down by
+ * developmentRate(overall) below. */
+const BACKGROUND_STRENGTH = 0.01;
+/** Growth-target strength per training point assigned to a player this week.
+ * Meaningfully larger than the background rate, but still a single week's
+ * worth once diminishing returns are applied. */
+const FOCUS_STRENGTH_PER_POINT = 0.025;
+/** Physical attributes develop at this fraction of a technique attribute's
+ * rate, given equal room to grow — present, but a distant second. */
+const PHYSICAL_DEVELOPMENT_RATE = 0.5;
+/** Hard ceiling on how much any single attribute's proximity can move in one
+ * week, regardless of what the formulas below would otherwise produce — the
+ * actual guard against runaway swings. */
+const MAX_WEEKLY_ATTR_PROX = 0.03;
 
-/** Diminishing-returns curve on proximity (0 = worst/F, 1 = best/S): well-
- * rated attributes (S, A+, A, A-) improve far less per week than poorly-rated
- * ones (D+, D, D-, F), which have far more room to grow. */
+/** Diminishing-returns curve on proximity (0 = worst/F, 1 = best/S): applied
+ * both to a player's overall (how much total technique development they get
+ * this week) and to each individual attribute's own room (physical or
+ * technique). */
 function developmentRate(proximity: number): number {
   const room = Math.max(0, 1 - proximity);
   return room * room;
@@ -179,7 +251,8 @@ function developmentRate(proximity: number): number {
 /**
  * Applies a week's assigned points to a team's roster: players with points
  * develop the active category's attributes; everyone else gets a small
- * general bump. Mutates ratings in place and marks `week` complete for `team`.
+ * general bump. Mutates ratings in place, records each player's overall gain
+ * for `week` (see playerWeeklyGain), and marks `week` complete for `team`.
  */
 export function applyTraining(
   team: Team,
@@ -189,35 +262,82 @@ export function applyTraining(
 ): void {
   ensureTrainingBaseline();
   for (const rp of team.roster) {
+    const before = ovrOf(rp);
     const assigned = points[rp.label] ?? 0;
     if (assigned > 0) {
-      trainAttrs(rp, targetAttrs(rp, category), FOCUS_STRENGTH_PER_POINT * assigned);
+      trainPlayer(rp, targetAttrs(rp, category), FOCUS_STRENGTH_PER_POINT * assigned);
     } else {
-      trainAttrs(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH);
+      trainPlayer(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH);
     }
+    recordWeeklyGain(team.color, rp.label, week, ovrOf(rp) - before);
   }
   markTrainingDone(team.color, week);
 }
 
-/** The trainable (non-physical) attributes a category develops for a given
- * player's role, falling back to a general spread when the category doesn't
- * overlap that role at all (so a mismatched focus still does something). */
+/** The attributes a category develops for a given player's role (physical
+ * ones included — they just develop slower, see PHYSICAL_DEVELOPMENT_RATE),
+ * falling back to a general spread when the category doesn't overlap that
+ * role at all (so a mismatched focus still does something). */
 function targetAttrs(rp: RosterPlayer, category: FocusCategory): Attribute[] {
-  const roleAttrs = (
-    Object.keys(DEFAULT_ROLE_WEIGHTS[labelToRole(rp.label)] ?? {}) as Attribute[]
-  ).filter((a) => !PHYSICAL_ATTRS.includes(a));
+  const roleAttrs = Object.keys(DEFAULT_ROLE_WEIGHTS[labelToRole(rp.label)] ?? {}) as Attribute[];
 
   if (category === "general") return roleAttrs;
 
-  const catAttrs = CATEGORY_ATTRS[category].filter((a) => !PHYSICAL_ATTRS.includes(a));
-  const overlap = roleAttrs.filter((a) => catAttrs.includes(a));
+  const overlap = roleAttrs.filter((a) => CATEGORY_ATTRS[category].includes(a));
   return overlap.length > 0 ? overlap : roleAttrs;
 }
 
-function trainAttrs(rp: RosterPlayer, attrs: Attribute[], strength: number): void {
+function trainPlayer(rp: RosterPlayer, attrs: Attribute[], strength: number): void {
+  const physical = attrs.filter((a) => PHYSICAL_ATTRS.includes(a));
+  const technique = attrs.filter((a) => !PHYSICAL_ATTRS.includes(a));
+  developPhysical(rp, physical, strength);
+  developTechnique(rp, technique, strength);
+}
+
+/** Physical attributes: a small, independent, capped bump — never amplified
+ * by anything happening to the player's other attributes. */
+function developPhysical(rp: RosterPlayer, attrs: Attribute[], strength: number): void {
   for (const attr of attrs) {
     const rating = rp.ratings[attr] ?? 0;
-    const dProx = strength * developmentRate(getProximity(attr, rating));
+    const room = developmentRate(getProximity(attr, rating));
+    const dProx = Math.min(MAX_WEEKLY_ATTR_PROX, strength * PHYSICAL_DEVELOPMENT_RATE * room);
+    rp.ratings[attr] = raiseRatingProximity(attr, rating, dProx);
+  }
+}
+
+/**
+ * Technique attributes: raised so the player's OVERALL increases by roughly
+ * `strength * developmentRate(overall)` this week — a target that depends
+ * only on the player's current overall, not on how it's distributed across
+ * attributes. That target overall delta is converted into concrete
+ * per-attribute proximity gains by conserving the OVR formula (a weighted
+ * average over every role attribute, physical included, via wTotal):
+ * attributes with more of their own room absorb a bigger share of the shared
+ * budget, and a role with little technique weight (e.g. a running back)
+ * leans harder on its few technique attributes to hit the same target as any
+ * other role — each capped at MAX_WEEKLY_ATTR_PROX so that leaning never
+ * turns into a runaway swing.
+ */
+function developTechnique(rp: RosterPlayer, attrs: Attribute[], strength: number): void {
+  const weights = DEFAULT_ROLE_WEIGHTS[labelToRole(rp.label)] ?? {};
+  const wTotal = Object.values(weights).reduce((s, w) => s + (w ?? 0), 0);
+  if (wTotal <= 0 || attrs.length === 0) return;
+
+  const overall = scoreProspect(rp);
+  const dOverallTarget = strength * developmentRate(overall);
+  if (dOverallTarget <= 0) return;
+
+  const rooms = attrs.map((attr) => {
+    const rating = rp.ratings[attr] ?? 0;
+    return { attr, weight: weights[attr] ?? 0, room: developmentRate(getProximity(attr, rating)) };
+  });
+  const totalRoomWeight = rooms.reduce((s, r) => s + r.weight * r.room, 0);
+  if (totalRoomWeight <= 0) return; // every targeted attribute is already maxed
+
+  const k = (dOverallTarget * wTotal) / totalRoomWeight;
+  for (const { attr, room } of rooms) {
+    const rating = rp.ratings[attr] ?? 0;
+    const dProx = Math.min(MAX_WEEKLY_ATTR_PROX, k * room);
     rp.ratings[attr] = raiseRatingProximity(attr, rating, dProx);
   }
 }
