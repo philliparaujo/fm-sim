@@ -171,6 +171,11 @@ type SpecificCoverageStats = Record<string, CountYards>;
 /** Same granularity as SpecificCoverageStats, but split by offensive playcall
  * too — keyed by `${offense}_${specific coverage name}`. */
 type SpecificPlaycallCoverageStats = Record<string, CountYards>;
+/** Completed route yards split by the specific coverage structure faced —
+ * keyed by coverage structure name, then route name. Same routeYards
+ * technique QBStats/ReceivingStats already use (see bestRouteFromMap in
+ * ui/stats.ts), just one level deeper so it can be read per coverage. */
+type RouteCoverageYards = Record<string, Record<string, number>>;
 
 type PlayCallCoverageStats = Record<PlaycallCoverageKey, QBStats | RBStats>;
 
@@ -268,6 +273,7 @@ type Stats = {
   playcallCoverageStats: PlayCallCoverageStats;
   players: PlayerStatsByLabel;
   routes: Record<string, CountYards>;
+  routeCoverage: RouteCoverageYards;
   advanced: AdvancedStats;
 };
 
@@ -366,6 +372,7 @@ export type {
   Roster,
   RosterPlayer,
   Route,
+  RouteCoverageYards,
   Scoreboard,
   Side,
   SpecialPlayType,

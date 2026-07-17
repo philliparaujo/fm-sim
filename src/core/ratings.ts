@@ -84,9 +84,19 @@ function getProximity(attr: Attribute, rating: number): number {
  * Clamped to [0, 1] and to the peak (proximity ≤ 1). Used by training to convert
  * a target overall gain into concrete attribute increases.
  */
-function raiseRatingProximity(attr: Attribute, rating: number, dProx: number): number {
-  const { peak, spread } = ATTR_GRADE_THRESHOLDS[attr] ?? { peak: 100, spread: 100 };
-  const targetProx = Math.min(1, getProximity(attr, rating) + Math.max(0, dProx));
+function raiseRatingProximity(
+  attr: Attribute,
+  rating: number,
+  dProx: number,
+): number {
+  const { peak, spread } = ATTR_GRADE_THRESHOLDS[attr] ?? {
+    peak: 100,
+    spread: 100,
+  };
+  const targetProx = Math.min(
+    1,
+    getProximity(attr, rating) + Math.max(0, dProx),
+  );
   const dist = (1 - targetProx) * spread; // distance from peak, in 0–100 units
   const cur100 = rating * 100;
   const new100 = cur100 <= peak ? peak - dist : peak + dist;
@@ -225,7 +235,7 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   DEEPACCURACY: 0.1,
   THROWPOWER: 0.1,
   VISION: 0.2,
-  POWER: 0.1,
+  POWER: 0.07,
   ROUTERUNNING: 0.5,
   CATCHACCELERATION: 0.5,
   CATCHRADIUS: 0.4,
@@ -234,9 +244,9 @@ const createBaseRatings = (overrides: Partial<Ratings> = {}): Ratings => ({
   BLOCKSHEDDING: 0.15,
   BEND: 0.3,
   MANCOVERAGE: 0.48,
-  ZONECOVERAGE: 0.52,
+  ZONECOVERAGE: 0.54,
   PURSUIT: 0.3,
-  TACKLING: 0.65,
+  TACKLING: 0.68,
   ...overrides,
 });
 
@@ -326,47 +336,47 @@ const DEFAULT_RATINGS_BY_LABEL: Record<string, Ratings> = {
   CB: createBaseRatings({
     SPEED: 0.88,
     SIZE: 0.08,
-    TACKLING: 0.45,
+    TACKLING: 0.48,
     CATCHRADIUS: 0.6,
     MANCOVERAGE: 0.55,
-    ZONECOVERAGE: 0.47,
+    ZONECOVERAGE: 0.49,
   }),
   NB: createBaseRatings({
     SPEED: 0.85,
     SIZE: 0.07,
-    TACKLING: 0.5,
+    TACKLING: 0.53,
     CATCHRADIUS: 0.6,
     MANCOVERAGE: 0.5,
-    ZONECOVERAGE: 0.47,
+    ZONECOVERAGE: 0.49,
   }),
   LB: createBaseRatings({
     SPEED: 0.69,
     SIZE: 0.4,
     TACKLING: 0.8,
     CATCHRADIUS: 0.4,
-    MANCOVERAGE: 0.35,
-    ZONECOVERAGE: 0.47,
+    MANCOVERAGE: 0.4,
+    ZONECOVERAGE: 0.49,
     BLOCKSHEDDING: 0.3,
   }),
   SS: createBaseRatings({
     SPEED: 0.75,
     SIZE: 0.2,
-    TACKLING: 0.65,
+    TACKLING: 0.68,
     PURSUIT: 0.7,
     BLOCKSHEDDING: 0.45,
     BEND: 0.4,
     CATCHRADIUS: 0.65,
     MANCOVERAGE: 0.35,
-    ZONECOVERAGE: 0.37,
+    ZONECOVERAGE: 0.39,
   }),
   FS: createBaseRatings({
     SPEED: 0.81,
     SIZE: 0.1,
-    TACKLING: 0.65,
+    TACKLING: 0.68,
     PURSUIT: 0.5,
     CATCHRADIUS: 0.7,
     MANCOVERAGE: 0.45,
-    ZONECOVERAGE: 0.52,
+    ZONECOVERAGE: 0.54,
   }),
 };
 function getDefaultRatingForLabel(label: string): Ratings {
@@ -382,5 +392,11 @@ function getConstants<K extends Attribute>(
   return transformer(rating);
 }
 
-export { getConstants, getDefaultRatingForLabel, getLetterGrade, getProximity, raiseRatingProximity };
+export {
+  getConstants,
+  getDefaultRatingForLabel,
+  getLetterGrade,
+  getProximity,
+  raiseRatingProximity,
+};
 export type { Attribute, Ratings };

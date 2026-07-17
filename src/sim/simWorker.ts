@@ -1,7 +1,12 @@
 import { Highlight } from "../core/highlights";
 import { TEAM_PLAYBOOKS } from "../core/playbook";
 import { LEAGUE } from "../core/state";
-import { PlayerStatsByLabel, SpecificPlaycallCoverageStats, Team } from "../core/types";
+import {
+  PlayerStatsByLabel,
+  RouteCoverageYards,
+  SpecificPlaycallCoverageStats,
+  Team,
+} from "../core/types";
 import { simulateFullGame } from "./index";
 
 type WorkerInput = {
@@ -19,6 +24,7 @@ type WorkerOutput = {
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
   defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
+  routeCoverage: Record<string, RouteCoverageYards>;
   highlights: Highlight[];
 };
 

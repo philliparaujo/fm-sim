@@ -26,6 +26,7 @@ import {
 import {
   addGameDefensiveStats,
   addGamePlayerStats,
+  addGameRouteCoverageStats,
   clearSeasonStats,
   getSeasonStats,
   hasSeasonStats,
@@ -149,8 +150,14 @@ async function simOneGame(game: Game): Promise<void> {
   const home = teamByColor(game.homeColor);
   const away = teamByColor(game.awayColor);
   // Home team starts with the ball → passed as the "offense" team.
-  const { offenseScore, defenseScore, playerStats, defensivePlaycalls, highlights } =
-    await workerGame(home, away);
+  const {
+    offenseScore,
+    defenseScore,
+    playerStats,
+    defensivePlaycalls,
+    routeCoverage,
+    highlights,
+  } = await workerGame(home, away);
   recordGame(game, offenseScore, defenseScore);
   game.playerStats = playerStats;
   game.highlights = highlights;
@@ -158,6 +165,7 @@ async function simOneGame(game: Game): Promise<void> {
   if (game.round === "regular") {
     addGamePlayerStats(playerStats);
     addGameDefensiveStats(defensivePlaycalls);
+    addGameRouteCoverageStats(routeCoverage);
   }
 }
 
@@ -198,7 +206,8 @@ function recordWatchedGame() {
   pendingWatch = null;
   if (!game || game.played) return;
 
-  const { scoreByColor, playerStats, defensivePlaycalls } = getLiveGameResult();
+  const { scoreByColor, playerStats, defensivePlaycalls, routeCoverage } =
+    getLiveGameResult();
   // Guard against a stale pointer: only record if the game that just ended is
   // actually the matchup we were watching (both teams present in the result).
   if (
@@ -213,6 +222,7 @@ function recordWatchedGame() {
   if (game.round === "regular") {
     addGamePlayerStats(playerStats);
     addGameDefensiveStats(defensivePlaycalls);
+    addGameRouteCoverageStats(routeCoverage);
   }
   render();
 }

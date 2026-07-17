@@ -104,6 +104,8 @@ function updateStatsAfterPlay(
         const key = routeKey(ballCarrierRoute);
         next.routes[key].yards += netYards;
         qb.routeYards[key] = (qb.routeYards[key] ?? 0) + netYards;
+        const coverageBucket = (next.routeCoverage[play.defenseSpecific] ??= {});
+        coverageBucket[key] = (coverageBucket[key] ?? 0) + netYards;
       }
       for (const route of play.routes) {
         updateCountYards(next.routes[routeKey(route)], 0);

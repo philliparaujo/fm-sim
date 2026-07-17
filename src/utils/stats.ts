@@ -212,6 +212,9 @@ export function createEmptyStats(): Stats {
         { ...EMPTY_COUNT_YARDS },
       ]),
     ),
+    routeCoverage: Object.fromEntries(
+      COVERAGE_STRUCTURE_NAMES.map((name) => [name, {}]),
+    ),
     advanced: { ...emptyAdvancedStats() },
   };
 }

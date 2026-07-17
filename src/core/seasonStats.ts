@@ -1,4 +1,4 @@
-import { Label, PlayerStats, PlayerStatsByLabel, SpecificPlaycallCoverageStats } from "./types";
+import { Label, PlayerStats, PlayerStatsByLabel, RouteCoverageYards, SpecificPlaycallCoverageStats } from "./types";
 
 /**
  * Season-long accumulation of individual player stats, keyed by team color then
@@ -16,10 +16,16 @@ const gamesByColor: Record<string, number> = {};
  * utils/stats.ts's specificPlaycallCoverageKey). */
 const defensivePlaycallStore: Record<string, SpecificPlaycallCoverageStats> = {};
 
+/** League-wide (not per-team) completed route yards split by coverage
+ * structure — "which route beats which coverage" is a league-wide question,
+ * not a team-specific one, so every team's offense pools into one table. */
+const routeCoverageStore: RouteCoverageYards = {};
+
 export function clearSeasonStats(): void {
   for (const k of Object.keys(store)) delete store[k];
   for (const k of Object.keys(gamesByColor)) delete gamesByColor[k];
   for (const k of Object.keys(defensivePlaycallStore)) delete defensivePlaycallStore[k];
+  for (const k of Object.keys(routeCoverageStore)) delete routeCoverageStore[k];
 }
 
 export function getSeasonStats(): Record<string, PlayerStatsByLabel> {
@@ -73,6 +79,27 @@ export function getDefensivePlaycallStats(
   color: string,
 ): SpecificPlaycallCoverageStats {
   return defensivePlaycallStore[color] ?? {};
+}
+
+/** Folds one game's per-team completed-route-vs-coverage yards into the
+ * league-wide season totals. */
+export function addGameRouteCoverageStats(
+  byColor: Record<string, RouteCoverageYards>,
+): void {
+  for (const entries of Object.values(byColor)) {
+    for (const [coverage, routeYards] of Object.entries(entries)) {
+      const dest = (routeCoverageStore[coverage] ??= {});
+      for (const [route, yds] of Object.entries(routeYards)) {
+        dest[route] = (dest[route] ?? 0) + yds;
+      }
+    }
+  }
+}
+
+/** League-wide season-long completed route yards, keyed by coverage
+ * structure name then route name. Empty until games are played. */
+export function getRouteCoverageStats(): RouteCoverageYards {
+  return routeCoverageStore;
 }
 
 function mergePlayerStats(dest: PlayerStats, src: PlayerStats): void {

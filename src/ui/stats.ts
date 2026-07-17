@@ -9,6 +9,7 @@ import {
 import {
   getDefensivePlaycallStats,
   getGamesPlayed,
+  getRouteCoverageStats,
   getSeasonStats,
   hasSeasonStats,
 } from "../core/seasonStats";
@@ -730,6 +731,7 @@ type LeagueCoverageRow = {
   passPlays: number;
   passAvg: number;
   runPct: number;
+  bestRoute: string;
 };
 
 type LeagueCoverageCol = {
@@ -749,6 +751,7 @@ const LEAGUE_COVERAGE_COLS: LeagueCoverageCol[] = [
   { header: "Run%",      get: (r) => r.runPct,    fmt: (v) => v.toFixed(0) + "%", numeric: true },
   { header: "Run Avg",   get: (r) => r.runAvg,    fmt: (v) => v.toFixed(1), numeric: true },
   { header: "Pass Avg",  get: (r) => r.passAvg,   fmt: (v) => v.toFixed(1), numeric: true },
+  { header: "Best Route", get: (r) => r.bestRoute, numeric: false },
 ];
 const LEAGUE_AVG_COL = LEAGUE_COVERAGE_COLS.findIndex((c) => c.header === "Avg");
 
@@ -770,6 +773,7 @@ function buildLeagueCoverageRows(teamRows: PlaycallRow[]): LeagueCoverageRow[] {
     acc.passYards += r.passYards;
     byCoverage.set(r.coverage, acc);
   }
+  const routeCoverage = getRouteCoverageStats();
   return [...byCoverage.entries()].map(([coverage, a]) => ({
     coverage,
     plays: a.plays,
@@ -780,6 +784,7 @@ function buildLeagueCoverageRows(teamRows: PlaycallRow[]): LeagueCoverageRow[] {
     passPlays: a.passPlays,
     passAvg: a.passPlays ? a.passYards / a.passPlays : 0,
     runPct: a.plays ? (a.runPlays / a.plays) * 100 : 0,
+    bestRoute: bestRouteFromMap(routeCoverage[coverage]),
   }));
 }
 

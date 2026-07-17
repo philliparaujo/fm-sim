@@ -16,6 +16,7 @@ import {
   PlayEndReason,
   Player,
   PlayerStatsByLabel,
+  RouteCoverageYards,
   SpecificPlaycallCoverageStats,
   Team,
 } from "../core/types";
@@ -580,19 +581,22 @@ function getLiveGameResult(): {
   scoreByColor: Record<string, number>;
   playerStats: Record<string, PlayerStatsByLabel>;
   defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
+  routeCoverage: Record<string, RouteCoverageYards>;
 } {
   const scoreByColor: Record<string, number> = {};
   const playerStats: Record<string, PlayerStatsByLabel> = {};
   const defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats> = {};
+  const routeCoverage: Record<string, RouteCoverageYards> = {};
   for (const t of state.scoreboard.teams) {
     scoreByColor[t.color] = t.score;
     const s = state.stats[t.name];
     if (s) {
       playerStats[t.color] = s.players;
       defensivePlaycalls[t.color] = s.specificPlaycallCoverage;
+      routeCoverage[t.color] = s.routeCoverage;
     }
   }
-  return { scoreByColor, playerStats, defensivePlaycalls };
+  return { scoreByColor, playerStats, defensivePlaycalls, routeCoverage };
 }
 
 /**
@@ -607,6 +611,7 @@ function simulateFullGame(
   defenseScore: number;
   playerStats: Record<string, PlayerStatsByLabel>;
   defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats>;
+  routeCoverage: Record<string, RouteCoverageYards>;
   highlights: Highlight[];
 } {
   const restoredOffenseColor = openingOffenseColor;
@@ -632,11 +637,13 @@ function simulateFullGame(
   // wipes state.stats.
   const playerStats: Record<string, PlayerStatsByLabel> = {};
   const defensivePlaycalls: Record<string, SpecificPlaycallCoverageStats> = {};
+  const routeCoverage: Record<string, RouteCoverageYards> = {};
   for (const t of teams) {
     const s = state.stats[t.name];
     if (s) {
       playerStats[t.color] = s.players;
       defensivePlaycalls[t.color] = s.specificPlaycallCoverage;
+      routeCoverage[t.color] = s.routeCoverage;
     }
   }
 
@@ -650,7 +657,14 @@ function simulateFullGame(
   }
   simulatingMode = false;
 
-  return { offenseScore, defenseScore, playerStats, defensivePlaycalls, highlights };
+  return {
+    offenseScore,
+    defenseScore,
+    playerStats,
+    defensivePlaycalls,
+    routeCoverage,
+    highlights,
+  };
 }
 
 export {

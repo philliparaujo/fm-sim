@@ -83,9 +83,9 @@ const ZONE_DEPTH_YARDS: Record<ZoneDepth, number> = {
 // Y position as a fraction of field height (0 = top sideline, 1 = bottom).
 const ZONE_LANDMARK_Y: Record<ZoneLandmark, number> = {
   flatLeft: 0.1,
-  hookLeft: 0.3,
+  hookLeft: 0.25,
   hookMiddle: 0.5,
-  hookRight: 0.7,
+  hookRight: 0.75,
   flatRight: 0.9,
   deepLeft: 0.25,
   deepMiddle: 0.5,
@@ -95,8 +95,8 @@ const ZONE_LANDMARK_Y: Record<ZoneLandmark, number> = {
 // Fallback Y (as a fraction of field height, offset from center) used when a
 // man matchup's receiver isn't actually fielded this play.
 const MAN_DEFAULT_Y_OFFSET: Record<ManMatchup, number> = {
-  XR: -0.325,
-  ZR: 0.325,
+  XR: -0.375,
+  ZR: 0.375,
   TE: 0,
 };
 
