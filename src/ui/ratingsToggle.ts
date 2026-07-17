@@ -7,12 +7,17 @@ import { rerenderTraining } from "./training";
 const NEXT: Record<OvrMode, OvrMode> = {
   ratings: "rankings",
   rankings: "both",
-  both: "ratings",
+  both: "percentile",
+  percentile: "ratingPercentile",
+  ratingPercentile: "ratings",
 };
+// Each label names the mode the button will switch TO when clicked.
 const LABEL: Record<OvrMode, string> = {
   ratings: "Show Rankings",
-  rankings: "Show Both",
-  both: "Show Ratings",
+  rankings: "Show Rating + Rank",
+  both: "Show Percentiles",
+  percentile: "Show Rating + Percentile",
+  ratingPercentile: "Show Ratings",
 };
 
 const BTN_IDS = ["btn-ratings-toggle-draft"];

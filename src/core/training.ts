@@ -388,6 +388,27 @@ function autoAssignPoints(team: Team, n: number): Partial<Record<Label, number>>
   return points;
 }
 
+/** Applies one week of CPU-style auto-training in place to a throwaway roster,
+ * mirroring autoTrainTeam's policy (focus the weakest group, points to the
+ * neediest players) but WITHOUT any module-state side effects — no baseline,
+ * completion, or weekly-gain bookkeeping. Used by the percentile model to
+ * advance a synthetic population week by week the same way real CPU teams
+ * develop, so projected distributions match actual in-season development. */
+export function projectAutoTrainWeek(roster: RosterPlayer[]): void {
+  if (roster.length === 0) return;
+  const team = { roster } as Team;
+  const category = weakestRoleCategory(team);
+  const points = autoAssignPoints(team, POINTS_BUDGET);
+  for (const rp of roster) {
+    const assigned = points[rp.label] ?? 0;
+    if (assigned > 0) {
+      trainPlayer(rp, targetAttrs(rp, category), FOCUS_STRENGTH_PER_POINT * assigned);
+    } else {
+      trainPlayer(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH);
+    }
+  }
+}
+
 /** Auto-completes one team's weekly training if it hasn't been done yet:
  * focuses the weakest position group and assigns points to the neediest
  * players. */

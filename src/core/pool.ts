@@ -55,6 +55,14 @@ function randomizeRatings(base: Ratings): Ratings {
   return result;
 }
 
+/** A single random rating vector for a position, drawn from that label's
+ * fixed defaults + per-attribute spread — the same generative distribution the
+ * draft pool is sampled from. Used by the percentile model to build a
+ * synthetic population per position. */
+export function randomProspectRatings(label: Label): Ratings {
+  return randomizeRatings(getDefaultRatingForLabel(label));
+}
+
 /** Generates a fresh pool of PROSPECTS_PER_LABEL prospects per position. */
 export function generatePool(): DraftProspect[] {
   const pool: DraftProspect[] = [];
