@@ -228,12 +228,58 @@
   background: #16a34a;
 }
 
+/* "Your Team" selector — the only way to take control of a team, so it reads
+ * as a prominent, deliberate control rather than a bare dropdown. */
 .draft-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-weight: bold;
+  gap: 10px;
+  padding: 5px 12px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f1729;
+}
+.draft-controls.has-team {
+  border-color: #3b5bdb;
+  background: #10182e;
+}
+.draft-controls-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.draft-controls-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+.draft-controls-hint {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 500;
+}
+.draft-controls.has-team .draft-controls-hint {
+  display: none;
+}
+#draft-team-select {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e5e7eb;
+  cursor: pointer;
+  min-width: 130px;
+}
+#draft-team-select:hover {
+  border-color: #64748b;
+}
+#draft-team-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 91, 219, 0.4);
 }
 
 .draft-heading {
@@ -440,6 +486,37 @@
   background: #22c55e;
   color: #000;
 }
+
+/* Best Prospects header row: heading on the left, "Best single pick" action
+ * right-aligned alongside it. */
+.draft-best-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.draft-best-pick-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  background: #1e3a2f;
+  color: #4ade80;
+  border: 1px solid #22c55e;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.draft-best-pick-btn:hover:not(:disabled) {
+  background: #22c55e;
+  color: #04140a;
+}
+.draft-best-pick-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 /* Rankings medal styling */
 .rank-medal {
   font-weight: bold;
@@ -622,12 +699,58 @@
   background: #16a34a;
 }
 
-.gtb-delay-label {
-  font-size: 12px;
-  color: #9ca3af;
+/* Snake Draft All is the headline action here — brighten it past the base
+ * green so it out-weighs the muted random-fill action on the roster cards. */
+.gtb-btn-primary {
+  background: #22c55e;
+  color: #04140a;
+  border-color: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.25);
+}
+.gtb-btn-primary:hover:not(:disabled) {
+  background: #16a34a;
+  color: #04140a;
+}
+
+/* Pick-delay segmented control (Instant / Rapid / Quick / Slow). */
+.gtb-delay {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+.gtb-delay-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.gtb-delay-seg {
+  display: inline-flex;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.gtb-delay-opt {
+  padding: 4px 10px;
+  background: #111827;
+  color: #94a3b8;
+  border: none;
+  border-left: 1px solid #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.gtb-delay-opt:first-child {
+  border-left: none;
+}
+.gtb-delay-opt:hover:not(.active) {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+.gtb-delay-opt.active {
+  background: #3b5bdb;
+  color: #fff;
 }
 
 #global-bottom-bar {
