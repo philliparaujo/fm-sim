@@ -62,8 +62,20 @@ function snapshotFrame(): ReplayFrame {
       prevVel: { x: p.prevVel.x, y: p.prevVel.y },
       assignedTarget: null,
     })),
-    // Create a deep value copy of the scoreboard state
-    scoreboard: JSON.parse(JSON.stringify(state.scoreboard)),
+    // Shallow structured copy instead of a JSON round-trip. `{ ...scoreboard }`
+    // value-copies every scalar field (clock, quarter, down, distance, LOS, …)
+    // and `{ ...t }` value-copies each team's mutable scalars (score, timeouts,
+    // possessing), so the frame stays a true point-in-time snapshot. The team's
+    // roster is shared by reference rather than deep-cloning ~32 players' full
+    // ratings on every captured frame — the old JSON round-trip did exactly
+    // that every 2 ticks, dominating headless season-sim cost. Safe because
+    // replay rendering only ever reads the scalar fields (never the roster),
+    // rosters don't change during a game, and the worker's postMessage
+    // structured-clones the whole result on the way back to the main thread.
+    scoreboard: {
+      ...state.scoreboard,
+      teams: state.scoreboard.teams.map((t) => ({ ...t })),
+    },
   };
 }
 

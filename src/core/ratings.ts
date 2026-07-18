@@ -383,13 +383,37 @@ function getDefaultRatingForLabel(label: string): Ratings {
   return DEFAULT_RATINGS_BY_LABEL[label] ?? createBaseRatings();
 }
 
+/**
+ * Per-player memo of transformer results. Every transformer is a pure function
+ * of the rating, and a Player object's ratings never change during its life
+ * (in-game Player objects are rebuilt each play via fillOutRosterPlayer;
+ * training only ever mutates the separate roster ratings between games), so a
+ * result cached by player-object identity stays valid for the whole play and
+ * self-invalidates when the next play's players are created. The WeakMap lets
+ * those per-play objects be garbage-collected. Callers treat results as
+ * read-only (they destructure), so returning the shared cached object is safe.
+ */
+const constantsCache = new WeakMap<Player, Partial<Record<Attribute, unknown>>>();
+
 function getConstants<K extends Attribute>(
   attribute: K,
   player: Player,
 ): ReturnType<(typeof ATTRIBUTE_CONFIG)[K]> {
+  let byAttr = constantsCache.get(player);
+  if (byAttr) {
+    const cached = byAttr[attribute];
+    if (cached !== undefined) {
+      return cached as ReturnType<(typeof ATTRIBUTE_CONFIG)[K]>;
+    }
+  } else {
+    byAttr = {};
+    constantsCache.set(player, byAttr);
+  }
   const rating = player.ratings[attribute] ?? 0.5;
   const transformer = ATTRIBUTE_CONFIG[attribute] as (r: number) => any;
-  return transformer(rating);
+  const result = transformer(rating);
+  byAttr[attribute] = result;
+  return result;
 }
 
 export {
