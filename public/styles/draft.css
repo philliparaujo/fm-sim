@@ -160,18 +160,6 @@
   flex-direction: column;
   gap: 4px;
 }
-.bp-tag {
-  font-size: 9px;
-  font-weight: bold;
-  letter-spacing: 0.1em;
-  color: #fbbf24;
-  text-transform: uppercase;
-}
-.bp-sub {
-  font-size: 10px;
-  color: #6b7280;
-  margin-bottom: 2px;
-}
 .bp-pos-name {
   display: flex;
   gap: 5px;
@@ -195,7 +183,30 @@
   font-size: 13px;
   color: #4ade80;
   font-weight: bold;
+  margin-bottom: 2px;
+}
+
+/* Category-standing badges under each featured prospect (e.g. "#1 Overall"). */
+.bp-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 4px;
+}
+.bp-badge {
+  font-size: 10px;
+  font-weight: bold;
+  color: #cbd5e1;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.bp-badge-cat {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
 }
 
 /* --- Draft screen --- */

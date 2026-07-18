@@ -41,12 +41,20 @@ export function scoreProspect(
  *
  * This penalizes positions whose pool tanks after the top 1-2 picks, even when
  * the 1-2 margin itself is small (e.g. [0.80, 0.75, 0.20, 0.15, ...]).
+ *
+ * A position down to its LAST remaining prospect has no intra-position cliff
+ * left, so its urgency is 0 — there's nothing to "beat you to." Crucially it
+ * must NOT be scores[0]: doing so made the balanced value collapse to the full
+ * score (urgency·0.5 + score·0.5 = score), which let a mediocre last-ranked
+ * (#8) player outrank a clearly better available prospect at a deeper position
+ * and get grabbed far too early. With 0, the last player at a position is only
+ * taken once it's genuinely the best value left — i.e. near the end, once
+ * everyone else has taken that position.
  */
 const URGENCY_DECAY = 0.7;
 
 function cascadeUrgency(scores: number[]): number {
-  if (scores.length === 0) return 0;
-  if (scores.length === 1) return scores[0];
+  if (scores.length <= 1) return 0;
   let urgency = 0;
   let weight = 1.0;
   for (let i = 0; i < scores.length - 1; i++) {
@@ -84,6 +92,17 @@ export function bestInGroup(
  * Uses the strategy's score/urgency weights to rank candidates. `urgency`
  * reflects full pool depth, not just the 1–2 gap, so positions with a strong
  * #1 but a weak #2-8 rank higher than positions with two good options remaining.
+ *
+ * A position down to its LAST remaining prospect (the worst-ranked / "#8" at
+ * that spot) is only ever a fallback. With an equal number of prospects and
+ * teams, every team ends up with exactly one player at each position no matter
+ * the order, so grabbing a position's last player early gains nothing and
+ * wastes the pick on a low-value player instead of a better, non-last one
+ * elsewhere. We therefore never draft a lone last player while any position
+ * that still has depth is open; only once every open slot is down to its final
+ * prospect do we take the best of those (by score). This is stronger than an
+ * urgency tweak: it holds regardless of how the lone player's absolute score
+ * compares across positions.
  */
 export function bestOverall(
   team: Team,
@@ -92,11 +111,23 @@ export function bestOverall(
 ): EvalResult | null {
   let best: EvalResult | null = null;
   let bestValue = -1;
+  // Fallback bucket: positions with only their last prospect left.
+  let bestLone: EvalResult | null = null;
+  let bestLoneScore = -1;
 
   for (const label of PLAYER_LABELS) {
     if (hasLabel(team, label)) continue;
     const result = bestInGroup(label, pool, strategy);
     if (!result) continue;
+
+    const remaining = pool.reduce((n, p) => n + (p.label === label ? 1 : 0), 0);
+    if (remaining <= 1) {
+      if (result.score > bestLoneScore) {
+        bestLoneScore = result.score;
+        bestLone = result;
+      }
+      continue;
+    }
 
     const posBonus = strategy.positionBonus?.[label] ?? 0;
     const value =
@@ -110,5 +141,6 @@ export function bestOverall(
     }
   }
 
-  return best;
+  // Only fall back to a last-ranked player when no position with depth is open.
+  return best ?? bestLone;
 }

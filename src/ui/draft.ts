@@ -6,13 +6,14 @@ import {
   hasLabel,
 } from "../core/draft";
 import { bestOverall, scoreProspect } from "../core/draftEval";
+import { overallPercentile } from "../core/percentile";
 import { getLetterGrade, getProximity } from "../core/ratings";
 import { LEAGUE } from "../core/state";
 import { captureTrainingBaseline } from "../core/training";
 import { Label, PLAYER_LABELS, Team } from "../core/types";
 import { labelToRole } from "../utils/roster";
 import { ATTR_LABELS, ATTR_SHORT_LABELS, ROLE_ATTRIBUTES } from "./playerAttrs";
-import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
+import { formatRank, playerOvrDisplay, teamOvrDisplay } from "./displayMode";
 import { buildRosterCard } from "./rosterCard";
 import { showTabs } from "./tabs";
 
@@ -285,13 +286,17 @@ async function snakeDraftAll() {
           });
         } else {
           humanTurnActive = false;
+          // Pause BEFORE making the pick, while the bar correctly shows this
+          // team on the clock and the previous pick already in "Last picks".
+          // Delaying after the pick instead would leave the recent-picks list
+          // one behind for the whole pause (the pick only surfaced when the
+          // next team came on the clock). Read the live delay each pick so
+          // changing the segmented control mid-draft takes effect immediately.
+          if (pickDelayMs > 0)
+            await new Promise((r) => setTimeout(r, pickDelayMs));
           const pick = bestOverall(team, draftPool);
           if (pick) draftPlayer(team.color, pick.prospect.id);
           render();
-          // Read the live delay each pick so changing the segmented control
-          // mid-draft takes effect immediately (not just at snake-draft start).
-          if (pickDelayMs > 0)
-            await new Promise((r) => setTimeout(r, pickDelayMs));
         }
       }
       if (!anyPick) break;
@@ -373,16 +378,25 @@ function autoDraftTeam(teamColor: string) {
   }
 }
 
-/** Three distinct "best prospect" cards: top OVR, top position rank, biggest positional drop. */
+/**
+ * Four "best prospect" cards. Rather than force one player per category (which
+ * mislabels a player as e.g. "best position rank" when the overall #1 actually
+ * holds that too), we feature the top remaining player of each category —
+ * Overall, Position Rank, Positional Drop, Percentile — as four DISTINCT
+ * players, then annotate each with every category it truly ranks top-4 in. So
+ * a player who leads several categories shows all of them, and the other cards
+ * surface genuinely different standouts.
+ */
 function renderBestProspects() {
   const container = document.getElementById("draft-best-prospects");
   if (!container) return;
   container.innerHTML = "";
   if (draftPool.length === 0) return;
 
-  // Rank each pool player against ALL players at their position (pool + already drafted),
-  // so a #2 QB stays #2 even after the #1 QB is picked.
-  const globalRankOf = (p: DraftProspect): number => {
+  // Position rank: rank each pool player against ALL players at their position
+  // (pool + already drafted), so a #2 QB stays #2 even after the #1 QB is
+  // picked.
+  const posRankOf = (p: DraftProspect): number => {
     const everyone = [
       ...draftPool.filter((q) => q.label === p.label),
       ...LEAGUE.flatMap((t) => t.roster.filter((r) => r.label === p.label)),
@@ -391,58 +405,85 @@ function renderBestProspects() {
     return everyone.filter((q) => scoreProspect(q) > myScore).length + 1;
   };
 
-  type Ranked = { prospect: DraftProspect; posRank: number; score: number };
-  const poolRanked: Ranked[] = draftPool.map((p) => ({
-    prospect: p,
-    posRank: globalRankOf(p),
-    score: scoreProspect(p),
-  }));
-
-  // TOP TALENT: highest OVR remaining in pool
-  const byOvr = [...poolRanked].sort((a, b) => b.score - a.score);
-
-  // TOP RANKED: lowest posRank remaining (posRank ASC, score DESC tiebreak)
-  const byPosRank = [...poolRanked].sort((a, b) =>
-    a.posRank !== b.posRank ? a.posRank - b.posRank : b.score - a.score,
-  );
-
-  const used = new Set<number>();
-  const picks: Array<{ prospect: DraftProspect; tag: string; sub: string }> =
-    [];
-
-  const pickFirst = (sorted: Ranked[], tag: string, sub: string) => {
-    const c = sorted.find((x) => !used.has(x.prospect.id));
-    if (c) {
-      picks.push({ prospect: c.prospect, tag, sub });
-      used.add(c.prospect.id);
+  // Positional drop: only the top remaining player at each position "has" a
+  // drop — the score gap down to the next-best remaining player at that spot
+  // (how much value is lost by not taking them now). Everyone else is 0.
+  const dropGapById = new Map<number, number>();
+  {
+    const byLabel = new Map<Label, DraftProspect[]>();
+    for (const p of draftPool) {
+      const l = p.label as Label;
+      if (!byLabel.has(l)) byLabel.set(l, []);
+      byLabel.get(l)!.push(p);
     }
+    for (const grp of byLabel.values()) {
+      grp.sort((a, b) => scoreProspect(b) - scoreProspect(a));
+      const gap =
+        grp.length > 1 ? scoreProspect(grp[0]) - scoreProspect(grp[1]) : 0;
+      dropGapById.set(grp[0].id, gap);
+    }
+  }
+
+  type Cand = {
+    prospect: DraftProspect;
+    score: number;
+    posRank: number;
+    dropGap: number;
+    percentile: number;
   };
+  const cands: Cand[] = draftPool.map((p) => {
+    const score = scoreProspect(p);
+    return {
+      prospect: p,
+      score,
+      posRank: posRankOf(p),
+      dropGap: dropGapById.get(p.id) ?? 0,
+      // Draft-day (week 0) percentile — position-normalized, so it can crown a
+      // different standout than raw overall.
+      percentile: overallPercentile(p.label as Label, score * 100, 0),
+    };
+  });
 
-  pickFirst(byOvr, "TOP TALENT", "Highest overall");
-  pickFirst(byPosRank, "TOP RANKED", "Best position rank");
+  // Each category is a full ordering of the remaining pool; a player's "rank"
+  // in a category is their 1-based position in that ordering.
+  const categories: { name: string; sorted: Cand[] }[] = [
+    { name: "Overall", sorted: [...cands].sort((a, b) => b.score - a.score) },
+    {
+      name: "Pos Rank",
+      sorted: [...cands].sort((a, b) =>
+        a.posRank !== b.posRank ? a.posRank - b.posRank : b.score - a.score,
+      ),
+    },
+    {
+      name: "Percentile",
+      sorted: [...cands].sort(
+        (a, b) => b.percentile - a.percentile || b.score - a.score,
+      ),
+    },
+    {
+      name: "Drop",
+      sorted: [...cands].sort(
+        (a, b) => b.dropGap - a.dropGap || b.score - a.score,
+      ),
+    },
+  ];
+  const rankMaps = categories.map((c) => {
+    const m = new Map<number, number>();
+    c.sorted.forEach((cand, i) => m.set(cand.prospect.id, i + 1));
+    return m;
+  });
 
-  // NOW OR NEVER: computed on what remains after TOP TALENT and TOP RANKED are set aside.
-  // For each remaining player, gap = their score minus the next-lower-ranked remaining
-  // player at the same position. Pick the player with the biggest such gap.
-  // NOW OR NEVER: for each position, take only its top remaining player and compute
-  // the gap to the next remaining player at that position. The position with the
-  // biggest such gap wins — and the card shows that position's top player.
-  const remaining = poolRanked.filter((r) => !used.has(r.prospect.id));
-  const remByLabel = new Map<Label, Ranked[]>();
-  for (const r of remaining) {
-    const l = r.prospect.label as Label;
-    if (!remByLabel.has(l)) remByLabel.set(l, []);
-    remByLabel.get(l)!.push(r);
+  // Feature the top remaining (not-yet-featured) player of each category, in
+  // order — yielding up to four distinct standouts.
+  const featured: DraftProspect[] = [];
+  const featuredIds = new Set<number>();
+  for (const cat of categories) {
+    const pick = cat.sorted.find((c) => !featuredIds.has(c.prospect.id));
+    if (pick) {
+      featured.push(pick.prospect);
+      featuredIds.add(pick.prospect.id);
+    }
   }
-  const nowOrNeverCands: (Ranked & { gap: number })[] = [];
-  for (const grp of remByLabel.values()) {
-    grp.sort((a, b) => a.posRank - b.posRank);
-    const top = grp[0];
-    const gap = grp.length > 1 ? top.score - grp[1].score : 0;
-    nowOrNeverCands.push({ ...top, gap });
-  }
-  const byGap = nowOrNeverCands.sort((a, b) => b.gap - a.gap);
-  pickFirst(byGap, "NOW OR NEVER", "Biggest position drop");
 
   const selectedTeam =
     LEAGUE.find((t) => t.color === selectedTeamColor) ?? null;
@@ -477,17 +518,9 @@ function renderBestProspects() {
   const cards = document.createElement("div");
   cards.className = "best-prospects-cards";
 
-  for (const { prospect, tag, sub } of picks) {
+  for (const prospect of featured) {
     const card = document.createElement("div");
     card.className = "best-prospect-card";
-
-    const tagEl = document.createElement("div");
-    tagEl.className = "bp-tag";
-    tagEl.textContent = tag;
-
-    const subEl = document.createElement("div");
-    subEl.className = "bp-sub";
-    subEl.textContent = sub;
 
     const posNameEl = document.createElement("div");
     posNameEl.className = "bp-pos-name";
@@ -498,6 +531,20 @@ function renderBestProspects() {
     const ovrEl = document.createElement("div");
     ovrEl.className = "bp-ovr";
     ovrEl.innerHTML = playerOvrDisplay(prospect);
+
+    // Every category this player ranks top-4 in — its true standing, so a
+    // player leading several categories shows all of them accurately.
+    const badgesEl = document.createElement("div");
+    badgesEl.className = "bp-badges";
+    badgesEl.innerHTML = categories
+      .map((cat, i) => ({ name: cat.name, rank: rankMaps[i].get(prospect.id)! }))
+      .filter((b) => b.rank <= 4)
+      .map(
+        (b) =>
+          `<span class="bp-badge">${formatRank(b.rank)}` +
+          `<span class="bp-badge-cat">${b.name}</span></span>`,
+      )
+      .join("");
 
     const btn = document.createElement("button");
     btn.className = "draft-prospect-btn";
@@ -512,7 +559,7 @@ function renderBestProspects() {
       }
     });
 
-    card.append(tagEl, subEl, posNameEl, ovrEl, btn);
+    card.append(posNameEl, ovrEl, badgesEl, btn);
     cards.appendChild(card);
   }
 
