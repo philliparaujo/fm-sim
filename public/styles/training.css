@@ -120,6 +120,14 @@
   border-color: #2563eb;
   color: #fff;
 }
+.trn-cat-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.trn-cat-btn:disabled:hover {
+  border-color: #374151;
+  color: #9ca3af;
+}
 
 .trn-focus-list {
   display: flex;
@@ -232,11 +240,6 @@
 .team-toggle-name {
   font-size: 17px;
   font-weight: 700;
-}
-.team-toggle-ovr {
-  margin-left: auto;
-  font-size: 13px;
-  color: #9ca3af;
 }
 .trn-roster-card-wrap {
   max-height: 420px;

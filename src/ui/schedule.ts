@@ -7,6 +7,7 @@ import {
   generateSeason,
   getChampion,
   getCurrentWeek,
+  getDivisionRecord,
   getDivisions,
   getDivisionStandings,
   getGames,
@@ -61,9 +62,10 @@ import { initDashboard, updateDashboardValues } from "./dashboard";
 import { buildRosterCard } from "./rosterCard";
 import { focusTrainingTeam } from "./training";
 
-/** When true, the viewed week jumps to the current week after simming games.
- * Off by default so playing a week's games leaves you on that week. */
-const AUTO_ADVANCE_WEEK = false;
+/** When true, the viewed week jumps to the current (first non-completed) week
+ * after simming games, so you land on the next week that still needs action
+ * instead of staying on whatever week you happened to be viewing. */
+const AUTO_ADVANCE_WEEK = true;
 
 /** When true, simming a week (Sim Week / Sim to Playoffs / Sim to End) also
  * auto-completes that week's training for every team — human-controlled or
@@ -74,6 +76,16 @@ const AUTO_TRAIN_ON_SIM = true;
 let viewWeek = 1;
 let busy = false;
 let showRosters = false;
+/** Week currently being simmed, for a live "Simulating Week N…" indicator that
+ * updates on its own during a multi-week sim (Sim to Playoffs / Sim to End) —
+ * not just when some unrelated click happens to trigger a re-render. Null
+ * outside of an active sim. */
+let simProgressWeek: number | null = null;
+/** Which sim button is driving the active sim, so the progress label only
+ * replaces THAT button's text — otherwise all three buttons would flip to the
+ * same "Simulating…" text at once, which reads as three sims running. Null
+ * outside of an active sim. */
+let activeSimAction: "week" | "playoffs" | "end" | null = null;
 /** The unplayed game currently being watched live, recorded once it ends. */
 let pendingWatch: Game | null = null;
 /** Keys of game cards whose box score is expanded. */
@@ -170,11 +182,17 @@ async function simOneGame(game: Game): Promise<void> {
 }
 
 async function simWeek(week: number): Promise<void> {
+  // Live progress indicator: updates the sim controls immediately (and again
+  // once this week's games finish), independent of any other UI interaction —
+  // so a multi-week sim visibly advances week by week on its own.
+  simProgressWeek = week;
+  render();
   // Training happens before that week's games so it can affect them, and only
   // fills in whoever hasn't already trained manually this week.
   if (AUTO_TRAIN_ON_SIM) autoTrainAll(week);
   const unplayed = getGamesForWeek(week).filter((g) => !g.played);
   await Promise.all(unplayed.map(simOneGame));
+  render();
 }
 
 /** Sims consecutive weeks until `lastWeek` is done (or the season ends). */
@@ -235,6 +253,8 @@ async function withBusy(action: () => Promise<void>) {
     await action();
   } finally {
     busy = false;
+    simProgressWeek = null;
+    activeSimAction = null;
     if (AUTO_ADVANCE_WEEK) viewWeek = getCurrentWeek();
     render();
   }
@@ -280,38 +300,43 @@ function renderControls(): HTMLElement {
   const bar = document.createElement("div");
   bar.className = "sched-controls";
 
-  const genBtn = document.createElement("button");
-  genBtn.className = "draft-auto-btn";
-  genBtn.style.width = "auto";
-  genBtn.textContent = isSeasonGenerated()
-    ? "Regenerate Season"
-    : "Generate Season";
-  genBtn.disabled = busy;
-  genBtn.addEventListener("click", () => {
-    if (
-      isSeasonGenerated() &&
-      !confirm("Regenerate divisions & schedule? All results will be lost.")
-    )
-      return;
-    generateSeason();
-    clearSeasonStats();
-    clearTrainingCompletion();
-    viewWeek = 1;
-    render();
-  });
-  bar.appendChild(genBtn);
+  if (!isSeasonGenerated()) {
+    const genBtn = document.createElement("button");
+    genBtn.className = "draft-auto-btn";
+    genBtn.style.width = "auto";
+    genBtn.textContent = "Generate Season";
+    genBtn.disabled = busy;
+    genBtn.addEventListener("click", () => {
+      generateSeason();
+      clearSeasonStats();
+      clearTrainingCompletion();
+      viewWeek = 1;
+      render();
+    });
+    bar.appendChild(genBtn);
+  }
 
   if (isSeasonGenerated()) {
     const notDrafted = !allDrafted();
 
+    // Live progress label, per sim button: each shows its OWN "Simulating…"
+    // text only while it's the one actually driving the sim (activeSimAction)
+    // — otherwise all three would flip to the same text at once, which reads
+    // as three sims running simultaneously.
+    const progressLabel = (action: typeof activeSimAction) =>
+      activeSimAction === action && simProgressWeek !== null
+        ? `Simulating ${weekLabel(simProgressWeek)}…`
+        : null;
+
     const weekBtn = document.createElement("button");
     weekBtn.className = "draft-auto-btn";
     weekBtn.style.width = "auto";
-    weekBtn.textContent = busy ? "Simulating…" : `Sim Week ${getCurrentWeek()}`;
+    weekBtn.textContent = progressLabel("week") ?? `Sim Week ${getCurrentWeek()}`;
     weekBtn.disabled = busy || notDrafted || !!getChampion();
-    weekBtn.addEventListener("click", () =>
-      withBusy(() => simWeek(getCurrentWeek())),
-    );
+    weekBtn.addEventListener("click", () => {
+      activeSimAction = "week";
+      withBusy(() => simWeek(getCurrentWeek()));
+    });
     bar.appendChild(weekBtn);
 
     // Only offer "Sim to Playoffs" while the regular season is still going.
@@ -319,28 +344,32 @@ function renderControls(): HTMLElement {
       const regBtn = document.createElement("button");
       regBtn.className = "draft-auto-btn";
       regBtn.style.width = "auto";
-      regBtn.textContent = "Sim to Playoffs";
+      regBtn.textContent = progressLabel("playoffs") ?? "Sim to Playoffs";
       regBtn.title = "Play out the rest of the regular season";
       regBtn.disabled = busy || notDrafted;
-      regBtn.addEventListener("click", () =>
-        withBusy(() => simThroughWeek(REG_SEASON_WEEKS)),
-      );
+      regBtn.addEventListener("click", () => {
+        activeSimAction = "playoffs";
+        withBusy(() => simThroughWeek(REG_SEASON_WEEKS));
+      });
       bar.appendChild(regBtn);
     }
 
     const seasonBtn = document.createElement("button");
     seasonBtn.className = "draft-auto-btn";
     seasonBtn.style.width = "auto";
-    seasonBtn.textContent = "Sim to End";
+    seasonBtn.textContent = progressLabel("end") ?? "Sim to End";
     seasonBtn.title = "Play out the regular season and the entire playoffs";
     seasonBtn.disabled = busy || notDrafted || !!getChampion();
-    seasonBtn.addEventListener("click", () => withBusy(() => simThroughWeek(FINAL_WEEK)));
+    seasonBtn.addEventListener("click", () => {
+      activeSimAction = "end";
+      withBusy(() => simThroughWeek(FINAL_WEEK));
+    });
     bar.appendChild(seasonBtn);
 
     const clearBtn = document.createElement("button");
     clearBtn.className = "draft-auto-btn sim-clear-btn";
     clearBtn.style.width = "auto";
-    clearBtn.textContent = "Clear Season";
+    clearBtn.textContent = "End Season";
     clearBtn.disabled = busy;
     clearBtn.addEventListener("click", () => {
       clearSeason();
@@ -1135,7 +1164,13 @@ function renderAwardFavorites(): HTMLElement {
   return section;
 }
 
-export function renderDivisionTable(div: Division, divIndex: number): HTMLElement {
+/** `showDivRecord` adds a DIV (in-division W-L-T) column — used by the Stats
+ * tab's standings only; the Season tab's own standings omit it. */
+export function renderDivisionTable(
+  div: Division,
+  divIndex: number,
+  showDivRecord = false,
+): HTMLElement {
   const standings = getDivisionStandings(divIndex);
   const seeds = getSeeds();
 
@@ -1149,6 +1184,7 @@ export function renderDivisionTable(div: Division, divIndex: number): HTMLElemen
     `<th class="sched-th sched-th-team">${div.name}</th>` +
     `<th class="sched-th">W</th><th class="sched-th">L</th><th class="sched-th">T</th>` +
     `<th class="sched-th">PCT</th>` +
+    (showDivRecord ? `<th class="sched-th">DIV</th>` : "") +
     `<th class="sched-th">PF</th><th class="sched-th">PA</th><th class="sched-th">DIFF</th>` +
     `<th class="sched-th">STRK</th>` +
     `</tr></thead>`;
@@ -1181,6 +1217,7 @@ export function renderDivisionTable(div: Division, divIndex: number): HTMLElemen
 
     const streak = getStreak(rec.color);
     const streakColor = streak.startsWith("W") ? "#4ade80" : streak.startsWith("L") ? "#f87171" : "#9ca3af";
+    const divRec = showDivRecord ? getDivisionRecord(rec.color) : null;
     tr.innerHTML =
       `<td class="sched-td sched-td-team" style="color:${team.color}">${marker}${team.name}` +
       `<span class="sched-td-ovr">${teamOvrDisplay(team)}</span></td>` +
@@ -1188,6 +1225,7 @@ export function renderDivisionTable(div: Division, divIndex: number): HTMLElemen
       `<td class="sched-td">${rec.losses}</td>` +
       `<td class="sched-td">${rec.ties}</td>` +
       `<td class="sched-td">${pct}</td>` +
+      (divRec ? `<td class="sched-td">${formatRecord(divRec)}</td>` : "") +
       `<td class="sched-td">${rec.pointsFor}</td>` +
       `<td class="sched-td">${rec.pointsAgainst}</td>` +
       `<td class="sched-td">${diff >= 0 ? "+" : ""}${diff}</td>` +

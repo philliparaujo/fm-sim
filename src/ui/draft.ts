@@ -331,7 +331,6 @@ function updateSnakeBar(current: Team, upcoming: Team[], isHuman: boolean) {
     `<div class="snake-bar-onclock${isHuman ? " snake-bar-you" : ""}">` +
     `<span class="snake-bar-tag">${isHuman ? "YOUR PICK" : "ON THE CLOCK"}</span>` +
     `<span class="snake-bar-team" style="color:${current.color}">${current.name}</span>` +
-    `<span class="snake-bar-slots">${current.roster.length}/${PLAYER_LABELS.length}</span>` +
     `</div>`;
 
   const next = upcoming.slice(0, 3);
@@ -537,7 +536,10 @@ function renderBestProspects() {
     const badgesEl = document.createElement("div");
     badgesEl.className = "bp-badges";
     badgesEl.innerHTML = categories
-      .map((cat, i) => ({ name: cat.name, rank: rankMaps[i].get(prospect.id)! }))
+      .map((cat, i) => ({
+        name: cat.name,
+        rank: rankMaps[i].get(prospect.id)!,
+      }))
       .filter((b) => b.rank <= 4)
       .map(
         (b) =>

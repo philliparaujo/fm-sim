@@ -170,15 +170,15 @@ export function buildRosterCard(
   options: RosterCardOptions = {},
 ): HTMLDivElement {
   const card = document.createElement("div");
-  card.className = "draft-roster" + (options.isUserTeam ? " draft-roster-user" : "");
+  card.className =
+    "draft-roster" + (options.isUserTeam ? " draft-roster-user" : "");
 
   // ── Header ──
   const header = document.createElement("div");
   header.className = "draft-roster-header";
   header.style.color = team.color;
   header.innerHTML =
-    `${team.name} <span class="roster-card-count">(${team.roster.length}/${PLAYER_LABELS.length})</span>` +
-    ` · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}${deltaChips(options.overallDeltas?.team?.(), options.weeklyDeltas?.team?.())}</span>` +
+    `${team.name} · <span class="roster-card-ovr">OVR ${teamOvrDisplay(team)}${deltaChips(options.overallDeltas?.team?.(), options.weeklyDeltas?.team?.())}</span>` +
     (options.headerSuffix ?? "");
   card.appendChild(header);
 
@@ -257,7 +257,10 @@ export function buildRosterCard(
       ovrSpan.className = "slot-ovr";
       ovrSpan.innerHTML =
         playerOvrDisplay(rp) +
-        deltaChips(options.overallDeltas?.player?.(rp), options.weeklyDeltas?.player?.(rp));
+        deltaChips(
+          options.overallDeltas?.player?.(rp),
+          options.weeklyDeltas?.player?.(rp),
+        );
       row1.appendChild(ovrSpan);
     } else {
       const emptySpan = document.createElement("span");

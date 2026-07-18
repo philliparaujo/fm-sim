@@ -6,16 +6,31 @@ import { LEAGUE } from "../core/state";
 import { Label, RosterPlayer, Team } from "../core/types";
 import { labelToRole, labelToSide } from "../utils/roster";
 
-/** How OVR values are shown everywhere: raw rating, league rank, rating+rank,
- * position percentile, or rating+percentile. */
-export type OvrMode =
-  | "ratings"
-  | "rankings"
-  | "both"
-  | "percentile"
-  | "ratingPercentile";
-export let ovrMode: OvrMode = "ratings";
-export function setOvrMode(m: OvrMode) { ovrMode = m; }
+/** Which OVR metrics are shown everywhere, independently toggle-able (all
+ * three can be on at once). Fixed display order: rating, rank, percentile. */
+export type OvrDisplayKey = "rating" | "rank" | "percentile";
+const DISPLAY_ORDER: OvrDisplayKey[] = ["rating", "rank", "percentile"];
+const displayFlags: Record<OvrDisplayKey, boolean> = {
+  rating: true,
+  rank: false,
+  percentile: false,
+};
+
+/** Current checked/unchecked state of all three metrics. */
+export function getOvrDisplayFlags(): Record<OvrDisplayKey, boolean> {
+  return { ...displayFlags };
+}
+
+/** Sets whether a metric is shown. Refuses to leave all three unchecked — at
+ * least one metric must always be visible — and returns false if refused, so
+ * the caller (a checkbox) can snap its own state back. */
+export function setOvrDisplayFlag(key: OvrDisplayKey, value: boolean): boolean {
+  if (!value && DISPLAY_ORDER.every((k) => k === key || !displayFlags[k])) {
+    return false;
+  }
+  displayFlags[key] = value;
+  return true;
+}
 
 /** How many values in `all` are strictly greater than `score` — gives 1-based rank. */
 function rankIn(score: number, all: number[]): number {
@@ -51,27 +66,23 @@ function displayWeek(): number {
 }
 
 /**
- * Renders an OVR value per the active mode. `rank`/`pct` are computed lazily so
- * callers that only need the rating (the common case) don't pay for the
- * ranking or percentile pass.
+ * Renders an OVR value from whichever metrics are checked, in fixed order
+ * (rating, rank, percentile). The first checked metric is shown bare; every
+ * checked metric after it is appended in parentheses. `rank`/`pct` are
+ * computed lazily so callers that only need the rating (the common case)
+ * don't pay for the ranking or percentile pass.
  */
 function formatOvr(
   ratingStr: string,
   rank: () => number,
   pct?: () => number,
 ): string {
-  switch (ovrMode) {
-    case "ratings":
-      return ratingStr;
-    case "rankings":
-      return formatRank(rank());
-    case "both":
-      return `${ratingStr} (${formatRank(rank())})`;
-    case "percentile":
-      return pct ? formatPercentile(pct()) : ratingStr;
-    case "ratingPercentile":
-      return pct ? `${ratingStr} (${formatPercentile(pct())})` : ratingStr;
-  }
+  const parts: string[] = [];
+  if (displayFlags.rating) parts.push(ratingStr);
+  if (displayFlags.rank) parts.push(formatRank(rank()));
+  if (displayFlags.percentile && pct) parts.push(formatPercentile(pct()));
+  if (parts.length === 0) return ratingStr; // shouldn't happen; last-one guard prevents this
+  return parts.map((p, i) => (i === 0 ? p : `(${p})`)).join(" ");
 }
 
 /** Percentile of a group's average overall (role/side/team) against the

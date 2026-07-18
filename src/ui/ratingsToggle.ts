@@ -1,46 +1,43 @@
-import { OvrMode, ovrMode, setOvrMode } from "./displayMode";
+import {
+  getOvrDisplayFlags,
+  OvrDisplayKey,
+  setOvrDisplayFlag,
+} from "./displayMode";
 import { rerenderDraft } from "./draft";
 import { rerenderSchedule } from "./schedule";
 import { rerenderStats } from "./stats";
 import { rerenderTraining } from "./training";
 
-const NEXT: Record<OvrMode, OvrMode> = {
-  ratings: "rankings",
-  rankings: "both",
-  both: "percentile",
-  percentile: "ratingPercentile",
-  ratingPercentile: "ratings",
-};
-// Each label names the mode the button will switch TO when clicked.
-const LABEL: Record<OvrMode, string> = {
-  ratings: "Show Rankings",
-  rankings: "Show Rating + Rank",
-  both: "Show Percentiles",
-  percentile: "Show Rating + Percentile",
-  ratingPercentile: "Show Ratings",
+/** Checkbox element IDs, left to right matching the fixed display order
+ * (rating, rank, percentile) — see displayMode.ts's formatOvr. */
+const CHECKBOX_IDS: Record<OvrDisplayKey, string> = {
+  rating: "gbb-ovr-rating",
+  rank: "gbb-ovr-rank",
+  percentile: "gbb-ovr-percentile",
 };
 
-const BTN_IDS = ["btn-ratings-toggle-draft"];
-
-function syncButtons() {
-  for (const id of BTN_IDS) {
-    const btn = document.getElementById(id);
-    if (!btn) continue;
-    btn.textContent = LABEL[ovrMode];
-    btn.classList.toggle("active", ovrMode !== "ratings");
-  }
+function rerenderAll() {
+  rerenderDraft();
+  rerenderSchedule();
+  rerenderStats();
+  rerenderTraining();
 }
 
 export function setupRatingsToggle() {
-  for (const id of BTN_IDS) {
-    document.getElementById(id)?.addEventListener("click", () => {
-      setOvrMode(NEXT[ovrMode]);
-      syncButtons();
-      rerenderDraft();
-      rerenderSchedule();
-      rerenderStats();
-      rerenderTraining();
+  const flags = getOvrDisplayFlags();
+  for (const key of Object.keys(CHECKBOX_IDS) as OvrDisplayKey[]) {
+    const cb = document.getElementById(CHECKBOX_IDS[key]) as HTMLInputElement | null;
+    if (!cb) continue;
+    cb.checked = flags[key];
+    cb.addEventListener("change", () => {
+      const applied = setOvrDisplayFlag(key, cb.checked);
+      if (!applied) {
+        // Refused: this was the last checked box — at least one metric must
+        // always stay visible, so snap it back to checked.
+        cb.checked = true;
+        return;
+      }
+      rerenderAll();
     });
   }
-  syncButtons();
 }

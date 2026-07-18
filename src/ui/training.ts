@@ -33,7 +33,7 @@ import {
   slantRoute,
   streakRoute,
 } from "../utils/route";
-import { playerOvrDisplay, teamOvrDisplay } from "./displayMode";
+import { playerOvrDisplay } from "./displayMode";
 import { getSelectedTeamColor } from "./draft";
 import { buildRosterCard } from "./rosterCard";
 
@@ -129,6 +129,11 @@ function renderFocusPanel(): HTMLElement {
   const team = activeTeam();
   const panel = section("Weekly Focus");
   const week = activeWeek();
+  // CPU teams' training is auto-completed elsewhere (see autoTrainTeam) — a
+  // human viewing another team's page here shouldn't be able to edit its
+  // points, category, or confirm on its behalf, so every control below is
+  // grayed out unless this is the user's own team.
+  const isUserTeam = team.color === getSelectedTeamColor();
 
   if (isTrainingDoneForWeek(team.color, week)) {
     const done = document.createElement("p");
@@ -153,7 +158,7 @@ function renderFocusPanel(): HTMLElement {
   const autoBtn = document.createElement("button");
   autoBtn.className = "trn-btn";
   autoBtn.textContent = "Auto Assign";
-  autoBtn.disabled = team.roster.length === 0;
+  autoBtn.disabled = team.roster.length === 0 || !isUserTeam;
   autoBtn.addEventListener("click", () => {
     autoAssign(team);
     render();
@@ -163,7 +168,7 @@ function renderFocusPanel(): HTMLElement {
   const confirmBtn = document.createElement("button");
   confirmBtn.className = "trn-btn trn-btn-primary";
   confirmBtn.textContent = "Confirm";
-  confirmBtn.disabled = used === 0;
+  confirmBtn.disabled = used === 0 || !isUserTeam;
   confirmBtn.addEventListener("click", () => {
     // Apply the week's points under the active category, then clear the pool.
     applyTraining(team, teamPoints(team.color), focusCategory, week);
@@ -182,6 +187,7 @@ function renderFocusPanel(): HTMLElement {
     btn.className =
       "trn-cat-btn" + (focusCategory === cat.key ? " active" : "");
     btn.textContent = cat.label;
+    btn.disabled = !isUserTeam;
     btn.addEventListener("click", () => {
       focusCategory = cat.key;
       render();
@@ -200,7 +206,7 @@ function renderFocusPanel(): HTMLElement {
   }));
 
   for (const { label, rp } of drafted) {
-    list.appendChild(renderFocusRow(team, label, rp, remaining));
+    list.appendChild(renderFocusRow(team, label, rp, remaining, isUserTeam));
   }
 
   panel.appendChild(list);
@@ -212,6 +218,7 @@ function renderFocusRow(
   label: Label,
   rp: RosterPlayer | undefined,
   remaining: number,
+  isUserTeam: boolean,
 ): HTMLElement {
   const row = document.createElement("div");
   row.className = "trn-focus-row" + (rp ? "" : " trn-focus-row-empty");
@@ -233,7 +240,7 @@ function renderFocusRow(
   const minus = document.createElement("button");
   minus.className = "trn-step-btn";
   minus.textContent = "−";
-  minus.disabled = !rp || value <= 0;
+  minus.disabled = !rp || value <= 0 || !isUserTeam;
   minus.addEventListener("click", () => {
     teamPoints(team.color)[label] = Math.max(0, value - 1);
     render();
@@ -246,7 +253,7 @@ function renderFocusRow(
   const plus = document.createElement("button");
   plus.className = "trn-step-btn";
   plus.textContent = "+";
-  plus.disabled = !rp || remaining <= 0;
+  plus.disabled = !rp || remaining <= 0 || !isUserTeam;
   plus.addEventListener("click", () => {
     teamPoints(team.color)[label] = value + 1;
     render();
@@ -297,11 +304,7 @@ function renderRosterPanel(): HTMLElement {
   next.textContent = "▶";
   next.addEventListener("click", () => cycleTeam(1));
 
-  const ovr = document.createElement("span");
-  ovr.className = "team-toggle-ovr";
-  ovr.innerHTML = `OVR ${teamOvrDisplay(team)}`;
-
-  toggle.append(prev, name, next, ovr);
+  toggle.append(prev, name, next);
   panel.appendChild(toggle);
 
   // Full roster card (reused from the draft/play screens for consistency)
@@ -751,7 +754,7 @@ const SCHEME_SLIDERS: SchemeSlider[] = [
   {
     leftLabel: "Run",
     rightLabel: "Pass",
-    values: [0.35, 0.45, 0.55, 0.65, 0.75],
+    values: [0.45, 0.5, 0.55, 0.6, 0.65],
     get: (pb) => pb.passPercent ?? 0.55,
     set: (pb, v) => (pb.passPercent = v),
     tags: ["run-heavy", "run-first", null, "pass-first", "pass-heavy"],
@@ -834,7 +837,10 @@ function rankLean(rank: number | null, leagueSize: number): number {
 }
 
 /** Average raw rating value for `attr` across a set of players. */
-function avgAttr(players: RosterPlayer[], attr: keyof RosterPlayer["ratings"]): number {
+function avgAttr(
+  players: RosterPlayer[],
+  attr: keyof RosterPlayer["ratings"],
+): number {
   return (
     players.reduce((s, p) => s + (p.ratings[attr] ?? 0), 0) / players.length
   );
@@ -877,7 +883,8 @@ function autoScheme(team: Team): void {
     .filter((r): r is RosterPlayer => !!r);
   const catcherDelta =
     catchers.length > 0
-      ? avgAttr(catchers, "CATCHRADIUS") - avgAttr(catchers, "CATCHACCELERATION")
+      ? avgAttr(catchers, "CATCHRADIUS") -
+        avgAttr(catchers, "CATCHACCELERATION")
       : 0;
   const shortDeepLean = (passerDelta + catcherDelta) / 2;
 

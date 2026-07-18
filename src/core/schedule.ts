@@ -197,6 +197,41 @@ export function getRecord(color: string): TeamRecord {
   return rec;
 }
 
+/** Regular-season record for a team against divisional opponents only —
+ * mirrors getRecord but skips any game whose opponent isn't in the same
+ * division (see the "DIVISION" tag check in ui/schedule.ts's renderGameCard). */
+export function getDivisionRecord(color: string): TeamRecord {
+  const rec: TeamRecord = {
+    color,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+  };
+  const myDiv = divisionIndexOf(color);
+  for (const g of games) {
+    if (g.round !== "regular" || !g.played) continue;
+    let mine: number, theirs: number, oppColor: string;
+    if (g.homeColor === color) {
+      mine = g.homeScore;
+      theirs = g.awayScore;
+      oppColor = g.awayColor;
+    } else if (g.awayColor === color) {
+      mine = g.awayScore;
+      theirs = g.homeScore;
+      oppColor = g.homeColor;
+    } else continue;
+    if (divisionIndexOf(oppColor) !== myDiv) continue;
+    rec.pointsFor += mine;
+    rec.pointsAgainst += theirs;
+    if (mine > theirs) rec.wins++;
+    else if (mine < theirs) rec.losses++;
+    else rec.ties++;
+  }
+  return rec;
+}
+
 /** Sort comparator: win% (ties = half win), then point differential, then points for. */
 export function compareRecords(a: TeamRecord, b: TeamRecord): number {
   const aw = a.wins + 0.5 * a.ties;

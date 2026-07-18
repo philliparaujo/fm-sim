@@ -76,7 +76,7 @@ function render() {
   standSection.appendChild(standHeading);
   const divWrap = document.createElement("div");
   divWrap.className = "sched-standings-wrap";
-  getDivisions().forEach((div, i) => divWrap.appendChild(renderDivisionTable(div, i)));
+  getDivisions().forEach((div, i) => divWrap.appendChild(renderDivisionTable(div, i, true)));
   standSection.appendChild(divWrap);
   leftCol.appendChild(standSection);
 

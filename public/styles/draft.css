@@ -62,6 +62,7 @@
 }
 .roster-card-side-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin: 2px 0 4px;
   padding-bottom: 4px;
@@ -464,6 +465,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin-top: 18px;
 }
 .draft-roster {
   background: #1a1a1a;
@@ -688,12 +690,16 @@
   flex-shrink: 0;
 }
 
+/* Never wrap to a second line when space is tight (e.g. zoomed in) — the
+ * secondary groups (Next/Last picks) ellipsis-truncate instead; see below. */
 #gtb-status {
   display: none;
   align-items: center;
   gap: 20px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   flex: 1;
+  min-width: 0;
 }
 
 .gtb-btn {
@@ -806,10 +812,33 @@
   color: #6b7280;
 }
 
-.gbb-ratings-btn {
+/* Rating / Rank / Percentile display checkboxes — all three can be checked
+ * at once (see displayMode.ts's formatOvr for the resulting ordering). */
+.gbb-ovr-display {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gbb-ovr-display-label {
   font-size: 12px;
-  padding: 3px 12px;
+  color: #6b7280;
+}
+.gbb-ovr-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #9ca3af;
+  cursor: pointer;
+  user-select: none;
+}
+.gbb-ovr-check:hover {
+  color: #e5e7eb;
+}
+.gbb-ovr-check input {
+  cursor: pointer;
+  accent-color: #3b82f6;
 }
 
 /* keep bottom bar from overlapping content */
@@ -820,6 +849,9 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* The most important info in the bar — never sacrifice it to make room for
+   * Next/Last picks; those ellipsis-truncate first instead. */
+  flex-shrink: 0;
 }
 .snake-bar-tag {
   font-size: 10px;
@@ -849,24 +881,30 @@ body {
   font-size: 18px;
   font-weight: bold;
 }
-.snake-bar-slots {
-  font-size: 11px;
-  color: #9ca3af;
-}
+/* Secondary info — truncates with an ellipsis instead of wrapping the whole
+ * bar to a second line when space runs short. text-overflow only clips a
+ * single-line block's own inline content, so these switch from flex to plain
+ * inline-block layout (spacing moves to margins on the inline children below)
+ * rather than a flex row, which text-overflow can't clip predictably. */
 .snake-bar-next,
 .snake-bar-recent {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
 }
 .snake-bar-label {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #6b7280;
+  margin-right: 8px;
 }
 .snake-bar-chip {
   font-weight: bold;
+  margin-right: 8px;
 }
 .snake-bar-recent {
   margin-left: auto;
@@ -874,6 +912,7 @@ body {
 .snake-bar-pick {
   font-size: 12px;
   white-space: nowrap;
+  margin-right: 8px;
 }
 .snake-bar-pick-label {
   color: #6b7280;
