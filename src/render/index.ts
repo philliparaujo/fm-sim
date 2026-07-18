@@ -25,6 +25,8 @@ const PASSER_POCKET_ON = false;
 const RUNNER_LOOK_AHEAD_ON = false;
 const BALL_IN_AIR_PREDICTED_ROUTE_ON = false;
 const BALL_IN_AIR_TARGET_ON = true;
+/** Extra ball radius at mid-flight (fraction) to suggest the pass's loft. */
+const BALL_AIR_LOFT = 0.6;
 const ALL_PREDICTED_ROUTE_ON = BALL_IN_AIR_PREDICTED_ROUTE_ON && false;
 const ALL_PREDICTED_TARGET_ON = BALL_IN_AIR_TARGET_ON && false;
 
@@ -87,15 +89,31 @@ function render(state: State) {
     drawPlayer(player);
   }
 
-  // 4) Draw the ball or target of ball in the air
-  if (state.ballFlight && state.ballFlight.isInFlight) {
-    const receiver = state.ballFlight.receiver;
+  // 4) Draw the ball. While a pass is airborne, draw it traveling from the
+  //    throw point toward its target reticle (interpolated by flight progress)
+  //    with a slight mid-flight swell to read as loft — instead of leaving it
+  //    frozen in the passer's hands. Otherwise draw it at its resting spot.
+  const flight = state.ballFlight;
+  if (flight && flight.isInFlight) {
     if (BALL_IN_AIR_TARGET_ON) {
-      drawThrowTarget(state.ballFlight.endLoc);
+      drawThrowTarget(flight.endLoc);
     }
-    if (BALL_IN_AIR_PREDICTED_ROUTE_ON && receiver) {
-      drawReceiverPredictedRoute(receiver, state);
+    if (BALL_IN_AIR_PREDICTED_ROUTE_ON && flight.receiver) {
+      drawReceiverPredictedRoute(flight.receiver, state);
     }
+    const t =
+      flight.totalTicks > 0
+        ? Math.min(1, Math.max(0, flight.ticksElapsed / flight.totalTicks))
+        : 1;
+    const loft = 1 + BALL_AIR_LOFT * Math.sin(Math.PI * t);
+    drawBall({
+      ...state.ball,
+      radius: state.ball.radius * loft,
+      loc: {
+        x: flight.startLoc.x + (flight.endLoc.x - flight.startLoc.x) * t,
+        y: flight.startLoc.y + (flight.endLoc.y - flight.startLoc.y) * t,
+      },
+    });
   } else {
     drawBall(state.ball);
   }

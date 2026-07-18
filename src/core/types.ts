@@ -312,6 +312,11 @@ type ReplayFrame = {
   ballVel: Vector;
   players: Player[];
   scoreboard: Scoreboard;
+  /** The in-air pass state at capture time (null when no pass is airborne), so
+   * a replay can draw the ball traveling toward its target instead of frozen
+   * in the passer's hands. `receiver` is always null in captures — only the
+   * flight geometry is needed for rendering. */
+  ballFlight: BallFlightState | null;
 };
 
 type BallFlightState = {

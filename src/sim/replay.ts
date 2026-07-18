@@ -76,6 +76,21 @@ function snapshotFrame(): ReplayFrame {
       ...state.scoreboard,
       teams: state.scoreboard.teams.map((t) => ({ ...t })),
     },
+    // Snapshot the airborne pass (if any) so the replay can animate the ball in
+    // flight. Only the flight geometry is kept — receiver is dropped (a live
+    // Player reference has no meaning in a replay and isn't needed to draw the
+    // ball or its target).
+    ballFlight:
+      state.ballFlight && state.ballFlight.isInFlight
+        ? {
+            isInFlight: true,
+            startLoc: { ...state.ballFlight.startLoc },
+            endLoc: { ...state.ballFlight.endLoc },
+            receiver: null,
+            totalTicks: state.ballFlight.totalTicks,
+            ticksElapsed: state.ballFlight.ticksElapsed,
+          }
+        : null,
   };
 }
 
@@ -117,6 +132,9 @@ function getReplayMockState(frame: ReplayFrame): State {
     ball: { ...state.ball, loc: frame.ballLoc, vel: frame.ballVel },
     players: frame.players,
     scoreboard: frame.scoreboard,
+    // Use the frame's captured flight, not the live one (which is stale/null
+    // once the replayed play is over), so the ball animates in the air.
+    ballFlight: frame.ballFlight,
   };
 }
 
