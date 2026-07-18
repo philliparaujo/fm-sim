@@ -637,15 +637,16 @@ function renderGameCard(game: Game): HTMLElement {
   const awayWon = game.played && !isTie && game.awayScore > game.homeScore;
 
   // Matchup tag: only division rivalries are called out (regular season only).
+  // Always render the row (even when blank) so every card reserves the same
+  // vertical space — otherwise division games, which get a tag, end up taller
+  // than non-division games, which didn't have the row at all.
   const isDivision =
     game.round === "regular" &&
     divisionIndexOf(game.homeColor) === divisionIndexOf(game.awayColor);
-  if (isDivision) {
-    const tag = document.createElement("div");
-    tag.className = "sched-game-tag sched-game-tag-div";
-    tag.textContent = "DIVISION";
-    card.appendChild(tag);
-  }
+  const tag = document.createElement("div");
+  tag.className = "sched-game-tag" + (isDivision ? " sched-game-tag-div" : " sched-game-tag-hidden");
+  tag.textContent = isDivision ? "DIVISION" : " ";
+  card.appendChild(tag);
 
   const teamRow = (
     team: typeof home,

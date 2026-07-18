@@ -186,15 +186,20 @@
   margin-bottom: 2px;
 }
 
-/* Category-standing badges under each featured prospect (e.g. "#1 Overall"). */
+/* Category-standing badges under each featured prospect (e.g. "#1 Overall").
+ * Reserves height for the max possible 4 categories (see BADGE_ROW_H below) so
+ * a card's height never changes with how many badges that player actually
+ * earns — all four cards stay the same height regardless of content. */
 .bp-badges {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin-bottom: 4px;
+  min-height: 62px; /* 4 rows * 14px line-height + 3 gaps * 2px */
 }
 .bp-badge {
   font-size: 10px;
+  line-height: 14px;
   font-weight: bold;
   color: #cbd5e1;
   display: flex;

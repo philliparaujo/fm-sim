@@ -29,6 +29,9 @@
 /* ── Player stats section (needs horizontal scroll) ── */
 .stats-player-col {
   overflow-x: auto;
+  /* Missing .sched-section's margin-bottom left no gap above whatever
+   * section follows (e.g. Playcalls) — match it here. */
+  margin-bottom: 24px;
 }
 
 /* ── Season awards stacked in right col ── */

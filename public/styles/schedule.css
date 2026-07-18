@@ -250,6 +250,11 @@
 .sched-game-tag-div {
   color: #f59e0b;
 }
+/* Non-division games still render this row (blank) so every card reserves
+ * identical vertical space regardless of matchup type. */
+.sched-game-tag-hidden {
+  visibility: hidden;
+}
 .sched-game-rec {
   font-size: 11px;
   color: #6b7280;
