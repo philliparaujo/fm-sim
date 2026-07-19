@@ -63,8 +63,10 @@ import { buildRosterCard } from "./rosterCard";
 import { focusTrainingTeam } from "./training";
 
 /** When true, the viewed week jumps to the current (first non-completed) week
- * after simming games, so you land on the next week that still needs action
- * instead of staying on whatever week you happened to be viewing. */
+ * after a multi-week sim (Sim to Playoffs / Sim to End) — see withBusy — so
+ * you land on the next week that still needs action. A single "Sim Week N"
+ * (or an individual game's Sim/Highlights action) never auto-advances; you
+ * stay on the week you were looking at. */
 const AUTO_ADVANCE_WEEK = true;
 
 /** When true, simming a week (Sim Week / Sim to Playoffs / Sim to End) also
@@ -254,8 +256,13 @@ async function withBusy(action: () => Promise<void>) {
   } finally {
     busy = false;
     simProgressWeek = null;
+    // Multi-week sims (Sim to Playoffs / Sim to End) jump the viewed week
+    // forward to wherever the season actually landed. A single "Sim Week N"
+    // (or an individual game's Sim/Highlights action) leaves the view exactly
+    // where it was — the user is still looking at that same week's games.
+    const wasMultiWeek = activeSimAction === "playoffs" || activeSimAction === "end";
     activeSimAction = null;
-    if (AUTO_ADVANCE_WEEK) viewWeek = getCurrentWeek();
+    if (AUTO_ADVANCE_WEEK && wasMultiWeek) viewWeek = getCurrentWeek();
     render();
   }
 }

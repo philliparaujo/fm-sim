@@ -20,6 +20,11 @@ import { showTabs } from "./tabs";
 /** Set to true to auto-draft every team's full roster at startup. */
 export const AUTO_DRAFTED = false;
 
+/** Sentinel <option> value for "🎲 Random" in the team select — resolved to an
+ * actual team color the moment it's chosen (see setupDraft's change handler),
+ * never stored as the selection itself. */
+const RANDOM_TEAM_VALUE = "__random__";
+
 let selectedTeamColor = "";
 let snakePickResolve: (() => void) | null = null;
 let rosterViewIdx = 0;
@@ -80,6 +85,11 @@ export function setupDraft() {
   noneOpt.textContent = "NONE";
   teamSelect.appendChild(noneOpt);
 
+  const randomOpt = document.createElement("option");
+  randomOpt.value = RANDOM_TEAM_VALUE;
+  randomOpt.textContent = "🎲 Random";
+  teamSelect.appendChild(randomOpt);
+
   for (const team of LEAGUE) {
     const opt = document.createElement("option");
     opt.value = team.color;
@@ -91,7 +101,15 @@ export function setupDraft() {
   teamSelect.value = selectedTeamColor;
   syncTeamSelect(teamSelect);
   teamSelect.addEventListener("change", () => {
-    selectedTeamColor = teamSelect.value;
+    let value = teamSelect.value;
+    if (value === RANDOM_TEAM_VALUE) {
+      // Roll a team, then snap the <select> to show it by name rather than
+      // leaving "🎲 Random" displayed for a now-fixed choice.
+      const randomTeam = LEAGUE[Math.floor(Math.random() * LEAGUE.length)];
+      value = randomTeam.color;
+      teamSelect.value = value;
+    }
+    selectedTeamColor = value;
     if (selectedTeamColor) {
       const idx = LEAGUE.findIndex((t) => t.color === selectedTeamColor);
       if (idx >= 0) rosterViewIdx = idx;
