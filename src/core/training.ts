@@ -238,6 +238,11 @@ const PHYSICAL_DEVELOPMENT_RATE = 0.5;
  * week, regardless of what the formulas below would otherwise produce — the
  * actual guard against runaway swings. */
 const MAX_WEEKLY_ATTR_PROX = 0.03;
+/** CPU teams' auto-training (see autoTrainTeam) develops 50% faster than the
+ * same points applied manually — a deliberate balance lever, not a modeling
+ * choice. Also used by projectAutoTrainWeek so the percentile projections
+ * (which simulate CPU-style development) stay consistent with real CPU teams. */
+const CPU_TRAINING_MULTIPLIER = 1.5;
 
 /** Diminishing-returns curve on proximity (0 = worst/F, 1 = best/S): applied
  * both to a player's overall (how much total technique development they get
@@ -259,15 +264,20 @@ export function applyTraining(
   points: Partial<Record<Label, number>>,
   category: FocusCategory,
   week: number,
+  strengthMultiplier = 1,
 ): void {
   ensureTrainingBaseline();
   for (const rp of team.roster) {
     const before = ovrOf(rp);
     const assigned = points[rp.label] ?? 0;
     if (assigned > 0) {
-      trainPlayer(rp, targetAttrs(rp, category), FOCUS_STRENGTH_PER_POINT * assigned);
+      trainPlayer(
+        rp,
+        targetAttrs(rp, category),
+        FOCUS_STRENGTH_PER_POINT * assigned * strengthMultiplier,
+      );
     } else {
-      trainPlayer(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH);
+      trainPlayer(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH * strengthMultiplier);
     }
     recordWeeklyGain(team.color, rp.label, week, ovrOf(rp) - before);
   }
@@ -402,22 +412,31 @@ export function projectAutoTrainWeek(roster: RosterPlayer[]): void {
   for (const rp of roster) {
     const assigned = points[rp.label] ?? 0;
     if (assigned > 0) {
-      trainPlayer(rp, targetAttrs(rp, category), FOCUS_STRENGTH_PER_POINT * assigned);
+      trainPlayer(
+        rp,
+        targetAttrs(rp, category),
+        FOCUS_STRENGTH_PER_POINT * assigned * CPU_TRAINING_MULTIPLIER,
+      );
     } else {
-      trainPlayer(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH);
+      trainPlayer(rp, targetAttrs(rp, "general"), BACKGROUND_STRENGTH * CPU_TRAINING_MULTIPLIER);
     }
   }
 }
 
 /** Auto-completes one team's weekly training if it hasn't been done yet:
  * focuses the weakest position group and assigns points to the neediest
- * players. */
-export function autoTrainTeam(team: Team, week: number): void {
+ * players. `userColor`, if given, is the human's own team color — passing
+ * it in (even when `team` IS that team, e.g. the "Auto-Train My Team"
+ * button) keeps the human's training at the normal 1.0 rate; any other team
+ * gets the CPU boost, since CPU_TRAINING_MULTIPLIER exists only to balance
+ * CPU-controlled teams, not to reward a human for skipping the Training tab. */
+export function autoTrainTeam(team: Team, week: number, userColor?: string): void {
   if (team.roster.length === 0) return;
   if (isTrainingDoneForWeek(team.color, week)) return;
   const category = weakestRoleCategory(team);
   const points = autoAssignPoints(team, POINTS_BUDGET);
-  applyTraining(team, points, category, week);
+  const multiplier = team.color === userColor ? 1 : CPU_TRAINING_MULTIPLIER;
+  applyTraining(team, points, category, week, multiplier);
 }
 
 /** Auto-completes weekly training for every league team except `excludeColor`
@@ -425,7 +444,7 @@ export function autoTrainTeam(team: Team, week: number): void {
 export function autoTrainAllExcept(excludeColor: string, week: number): void {
   for (const team of LEAGUE) {
     if (team.color === excludeColor) continue;
-    autoTrainTeam(team, week);
+    autoTrainTeam(team, week, excludeColor);
   }
 }
 
@@ -433,7 +452,9 @@ export function autoTrainAllExcept(excludeColor: string, week: number): void {
  * trained this week — including a human-controlled one. Used as a fallback
  * when simming a week forward (see AUTO_TRAIN_ON_SIM), so a team's
  * development never silently skips a week just because nobody visited the
- * Training tab; a team that already trained manually is left untouched. */
-export function autoTrainAll(week: number): void {
-  for (const team of LEAGUE) autoTrainTeam(team, week);
+ * Training tab; a team that already trained manually is left untouched.
+ * `userColor` (the human's own team, if any) still gets the normal 1.0 rate
+ * even when swept up by this fallback — only genuine CPU teams get the boost. */
+export function autoTrainAll(week: number, userColor?: string): void {
+  for (const team of LEAGUE) autoTrainTeam(team, week, userColor);
 }

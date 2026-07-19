@@ -191,7 +191,7 @@ async function simWeek(week: number): Promise<void> {
   render();
   // Training happens before that week's games so it can affect them, and only
   // fills in whoever hasn't already trained manually this week.
-  if (AUTO_TRAIN_ON_SIM) autoTrainAll(week);
+  if (AUTO_TRAIN_ON_SIM) autoTrainAll(week, getSelectedTeamColor());
   const unplayed = getGamesForWeek(week).filter((g) => !g.played);
   await Promise.all(unplayed.map(simOneGame));
   render();
@@ -534,7 +534,7 @@ function renderTrainingGate(week: number): HTMLElement | null {
       autoBtn.title = "Auto-pick a focus and points for your team this week";
       autoBtn.textContent = "Auto-Train My Team";
       autoBtn.addEventListener("click", () => {
-        autoTrainTeam(team, week);
+        autoTrainTeam(team, week, userColor);
         render();
       });
       row.appendChild(autoBtn);
@@ -810,6 +810,7 @@ const HIGHLIGHT_ICON: Record<Highlight["kind"], string> = {
   bigPass: "🎯",
   bigRun: "🏃",
   loss: "🔻",
+  final: "🏁",
 };
 
 /** Expandable list of a game's highlights, each playable in the Play tab. */

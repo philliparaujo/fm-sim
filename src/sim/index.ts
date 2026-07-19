@@ -307,15 +307,27 @@ function resetSimulation(reason: PlayEndReason) {
   const updatedGlobalStats = updateStatsAfterPlay(state, reason);
   const updatedTeamStats = updatedGlobalStats[offenseTeamName];
 
-  // Highlight capture: judge the finished play and, if notable, save its frames.
-  if (capturingHighlights) {
-    const playYards = pxToYards(
+  // Highlight capture: judge the finished play and, if notable, save its
+  // frames. The actual push is deferred until after the clock/game-over logic
+  // further down determines whether this was the game's final play — see
+  // there for why. isRush/isCompletePass/playYards are captured here (rather
+  // than recomputed later) because `state` gets reassigned via recreateState
+  // just below, after which checkIfRush/checkIfPassComplete would be judging
+  // the NEXT play, not the one that just ended.
+  let evaluatedHighlight: ReturnType<typeof evaluateHighlight> = null;
+  let evaluatedFrames: typeof playFrameBuffer = [];
+  const playIsRush = checkIfRush(state, reason);
+  const playIsCompletePass = checkIfPassComplete(state, reason);
+  const playYards = Math.round(
+    pxToYards(
       (isTouchdown ? W + ENDZONE_W : finalLOSBeforeFlip) - prevScoreboard.LOS,
-    );
-    const res = evaluateHighlight({
+    ),
+  );
+  if (capturingHighlights) {
+    evaluatedHighlight = evaluateHighlight({
       playYards,
-      isRush: checkIfRush(state, reason),
-      isCompletePass: checkIfPassComplete(state, reason),
+      isRush: playIsRush,
+      isCompletePass: playIsCompletePass,
       isSack: checkIfSack(state, reason),
       isInterception,
       isTouchdown,
@@ -326,16 +338,7 @@ function resetSimulation(reason: PlayEndReason) {
       defenseColor: activeDefenseTeam.color,
       defenseName: activeDefenseTeam.name,
     });
-    // Record highlights that have replay frames; field goals are the exception —
-    // they never animate but are still listed (without a playable replay).
-    if (res && (playFrameBuffer.length > 0 || isFieldGoal)) {
-      capturedHighlights.push({
-        ...res,
-        quarter: prevScoreboard.quarter,
-        clock: formatClock(prevScoreboard.time),
-        frames: [...playFrameBuffer],
-      });
-    }
+    evaluatedFrames = [...playFrameBuffer];
     playFrameBuffer = [];
     highlightTickCounter = 0;
   }
@@ -456,6 +459,45 @@ function resetSimulation(reason: PlayEndReason) {
         // scoreboard is rebuilt
         if (nextQuarter === "3rd") startSecondHalf = true;
       }
+    }
+  }
+
+  // Now that gameOver is resolved, decide what (if anything) to push for this
+  // play. A play that independently qualifies (evaluateHighlight) is recorded
+  // as usual; a play that DOESN'T qualify but happens to be the game's very
+  // last one (e.g. an ordinary clock-killing run) is still force-included, so
+  // a full highlight reel always ends on the actual last play instead of
+  // stopping at whichever earlier play happened to be the last one that
+  // qualified on its own. It's labeled like any other ordinary play (e.g.
+  // "BLU 2-yd run") rather than with the final score — the scoreboard visible
+  // during playback already shows the score at that point in the game.
+  if (capturingHighlights) {
+    if (
+      evaluatedHighlight &&
+      (evaluatedFrames.length > 0 || isFieldGoal)
+    ) {
+      capturedHighlights.push({
+        ...evaluatedHighlight,
+        quarter: prevScoreboard.quarter,
+        clock: formatClock(prevScoreboard.time),
+        frames: evaluatedFrames,
+      });
+    } else if (gameOver && evaluatedFrames.length > 0) {
+      const description = playIsCompletePass
+        ? `${activeOffenseTeam.name} ${playYards}-yd pass`
+        : playIsRush
+          ? `${activeOffenseTeam.name} ${playYards}-yd run`
+          : reason === "incomplete"
+            ? `${activeOffenseTeam.name} incomplete pass`
+            : `${activeOffenseTeam.name} final play`;
+      capturedHighlights.push({
+        kind: "final",
+        description,
+        teamColor: activeOffenseTeam.color,
+        quarter: prevScoreboard.quarter,
+        clock: formatClock(prevScoreboard.time),
+        frames: evaluatedFrames,
+      });
     }
   }
 

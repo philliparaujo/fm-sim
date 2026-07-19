@@ -95,6 +95,18 @@ export function rerenderTraining() {
 function render() {
   const root = document.getElementById("training-root");
   if (!root) return;
+
+  // render() fully rebuilds the tab on every interaction (including each +/-
+  // stepper click), which would otherwise reset any scrollable panel — most
+  // noticeably the focus list — back to the top every time, since freshly
+  // created elements start at scrollTop 0. Preserve and restore scroll
+  // position across the rebuild so repeatedly clicking +/- on a player further
+  // down the roster doesn't jump the view back up each time.
+  const scrollPositions = new Map<string, number>();
+  root.querySelectorAll(".trn-focus-list, .trn-roster-card-wrap").forEach((el) => {
+    if (el.scrollTop > 0) scrollPositions.set(el.className, el.scrollTop);
+  });
+
   root.innerHTML = "";
 
   if (LEAGUE.length === 0) return;
@@ -121,6 +133,11 @@ function render() {
   grid.appendChild(renderFieldPanel()); // bottom-left
   grid.appendChild(renderSchemePanel()); // bottom-right
   root.appendChild(grid);
+
+  root.querySelectorAll(".trn-focus-list, .trn-roster-card-wrap").forEach((el) => {
+    const saved = scrollPositions.get(el.className);
+    if (saved !== undefined) el.scrollTop = saved;
+  });
 }
 
 // ── Top-left: Focuses / point assignment ────────────────────────────────────

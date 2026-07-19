@@ -11,6 +11,7 @@ const HIGHLIGHT_ICON: Record<Highlight["kind"], string> = {
   bigPass: "🎯",
   bigRun: "🏃",
   loss: "🔻",
+  final: "🏁",
 };
 
 let reel: Highlight[] = [];

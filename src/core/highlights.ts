@@ -6,7 +6,13 @@ export type HighlightKind =
   | "sack"
   | "bigPass"
   | "bigRun"
-  | "loss";
+  | "loss"
+  /** The game's very last play, forced into the reel even when it wouldn't
+   * otherwise qualify (e.g. a clock-killing run) — see resetSimulation's
+   * highlight capture — so a full reel always ends on the actual final play
+   * and states the final score, instead of stopping at whatever earlier play
+   * happened to be the last one that qualified on its own. */
+  | "final";
 
 /** A saved highlight: the play's replay frames plus display metadata. */
 export type Highlight = {
