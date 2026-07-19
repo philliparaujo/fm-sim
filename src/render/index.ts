@@ -12,7 +12,7 @@ import {
   drawRunnerPath,
 } from "./trace";
 import { isCarryingBall, isPassPlay } from "../utils/field";
-import { getPocket, TOTAL_W } from "../utils/units";
+import { getPocket } from "../utils/units";
 
 /* Determines whether to render anything at all */
 const ONLY_SIMULATE = false;
@@ -32,10 +32,9 @@ const ALL_PREDICTED_TARGET_ON = BALL_IN_AIR_TARGET_ON && false;
 
 if (typeof document !== "undefined") {
   const scoreboard = document.getElementById("scoreboard") as HTMLDivElement;
-  if (scoreboard) {
-    scoreboard.style.width = `${TOTAL_W}px`;
-    scoreboard.style.visibility = "visible";
-  }
+  // The scoreboard now sizes to the Play tab layout (see play.css) rather than
+  // matching the field width — just reveal it (hidden by default in CSS).
+  if (scoreboard) scoreboard.style.visibility = "visible";
 }
 
 /** Renders the current frame's full play and scoreboard */

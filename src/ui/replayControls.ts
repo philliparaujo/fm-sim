@@ -1,45 +1,49 @@
-import { getCompletedPlaysCount, NUM_REPLAYS, setReplayMode } from "../sim/replay";
+import { getReplayLabels, setReplayMode } from "../sim/replay";
 
-/** Generates the replay buttons from NUM_REPLAYS, wires selection, and unlocks
- * them as plays are recorded. */
+/** Which entry is selected: "live" or a stored-play index (0 = most recent). */
+let active: "live" | number = "live";
+
+/**
+ * Renders the play-by-play replay list as a vertical column: a "Live" row on
+ * top, then one row per stored past play (most recent first), each captioned by
+ * its game clock. Rebuilds whenever a new play is recorded.
+ */
 export function setupReplayControls() {
-  const container = document.getElementById("replay-controls")!;
+  const container = document.getElementById("replay-controls");
+  if (!container) return;
 
-  // Generate one "N Plays Ago" button per stored replay (disabled until recorded)
-  for (let i = 1; i <= NUM_REPLAYS; i++) {
-    const btn = document.createElement("button");
-    btn.id = `btn-replay-${i}`;
-    btn.className = "replay-btn";
-    btn.disabled = true;
-    btn.textContent = i === 1 ? "1 Play Ago" : `${i} Plays Ago`;
-    container.appendChild(btn);
-  }
-
-  const buttons = container.querySelectorAll(".replay-btn");
-
-  buttons.forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const target = e.target as HTMLButtonElement;
-
-      buttons.forEach((b) => b.classList.remove("active-mode"));
-      target.classList.add("active-mode");
-
-      if (target.id === "btn-replay-live") {
-        setReplayMode("live");
-      } else {
-        // "btn-replay-1" -> index 0, "btn-replay-2" -> index 1, ...
-        const playIndex = parseInt(target.id.replace("btn-replay-", "")) - 1;
-        setReplayMode(playIndex);
-      }
+  const makeRow = (idx: "live" | number, when: string): HTMLElement => {
+    const row = document.createElement("button");
+    row.className = "replay-row" + (idx === active ? " active-mode" : "");
+    row.dataset.idx = String(idx);
+    row.innerHTML =
+      `<span class="replay-row-when">${when}</span>` +
+      `<span class="replay-row-play">${idx === "live" ? "●" : "▷"}</span>`;
+    row.addEventListener("click", () => {
+      active = idx;
+      setReplayMode(idx);
+      container
+        .querySelectorAll(".replay-row")
+        .forEach((el) =>
+          el.classList.toggle(
+            "active-mode",
+            (el as HTMLElement).dataset.idx === String(active),
+          ),
+        );
     });
-  });
+    return row;
+  };
 
-  // Unlock buttons for however many plays have been recorded so far
-  window.addEventListener("playRecorded", () => {
-    const totalHistory = getCompletedPlaysCount();
-    for (let i = 1; i <= NUM_REPLAYS; i++) {
-      const btn = document.getElementById(`btn-replay-${i}`) as HTMLButtonElement;
-      if (btn && i <= totalHistory) btn.removeAttribute("disabled");
-    }
-  });
+  const rebuild = () => {
+    container.innerHTML = "";
+    container.appendChild(makeRow("live", "Live"));
+    getReplayLabels().forEach((label, i) => {
+      container.appendChild(makeRow(i, label || `${i + 1} plays ago`));
+    });
+  };
+
+  rebuild();
+  // A newly recorded play shifts the list; re-render it. Selection stays on
+  // whatever `active` points to (live stays live).
+  window.addEventListener("playRecorded", rebuild);
 }

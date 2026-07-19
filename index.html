@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="./styles/schedule.css" />
     <link rel="stylesheet" href="./styles/stats.css" />
     <link rel="stylesheet" href="./styles/training.css" />
+    <link rel="stylesheet" href="./styles/play.css" />
     <script type="module" src="./src/app.ts"></script>
   </head>
 
@@ -65,88 +66,17 @@
       </div>
 
       <div id="play-tab" class="tab-panel" style="display:none">
-        <div class="controls-container">
-          <div class="control-row">
-            <div class="slider-group">
-              <label for="sim-speed-slider"
-                >Speed: <span id="speed-label">1×</span></label
-              >
-              <input
-                type="range"
-                id="sim-speed-slider"
-                min="0"
-                max="13"
-                step="1"
-                value="2"
-              />
-            </div>
+        <!-- Playback control bar: play/pause + speed dots (left), sim skips (right) -->
+        <div id="play-controls-bar">
+          <div class="play-ctrl-left">
+            <button id="btn-play-pause" class="play-ctrl-btn play-play-pause" title="Play / Pause">▶</button>
+            <span class="play-ctrl-caption">Speed</span>
+            <div id="speed-dots" class="speed-dots"></div>
           </div>
-
-          <div class="control-row">
-            <div class="slider-group">
-              <label for="team-select-0">Team 1</label>
-              <select id="team-select-0" class="team-select"></select>
-            </div>
-            <div class="slider-group">
-              <label for="team-select-1">Team 2</label>
-              <select id="team-select-1" class="team-select"></select>
-            </div>
-            <button id="btn-reset-game" class="reset-btn">Reset Game</button>
+          <div class="play-ctrl-right">
+            <button id="btn-sim-quarter" class="play-ctrl-btn">Sim Quarter</button>
+            <button id="btn-sim-to-end" class="play-ctrl-btn">Sim to End</button>
           </div>
-
-          <div class="control-row playbook-row" id="playbook-controls">
-            <div class="slider-group">
-              <label for="pass-slider"
-                >Pass Mix: <span id="pass-label">50%</span></label
-              >
-              <input
-                type="range"
-                id="pass-slider"
-                min="0"
-                max="1"
-                step="0.5"
-                value="0.5"
-              />
-            </div>
-
-            <div class="slider-group">
-              <label for="man-slider"
-                >Man Coverage Mix: <span id="man-label">50%</span></label
-              >
-              <input
-                type="range"
-                id="man-slider"
-                min="0"
-                max="1"
-                step="0.5"
-                value="0.5"
-              />
-            </div>
-
-            <div class="slider-group">
-              <label for="blitz-slider"
-                >Blitz Mix: <span id="blitz-label">50%</span></label
-              >
-              <input
-                type="range"
-                id="blitz-slider"
-                min="0"
-                max="1"
-                step="0.5"
-                value="0.5"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div
-          id="replay-controls"
-          style="margin: 10px 0; display: flex; gap: 5px; flex-wrap: wrap"
-        >
-          <button id="btn-replay-live" class="replay-btn active-mode">
-            Live
-          </button>
-          <!-- "N Plays Ago" buttons are generated from NUM_REPLAYS in replayControls.ts -->
         </div>
 
         <div id="scoreboard" class="scoreboard">
@@ -192,12 +122,26 @@
           </div>
         </div>
 
-        <div class="play-field-row">
-          <div id="hl-panel" style="display:none"></div>
-          <canvas id="field"></canvas>
+        <!-- Main area: left column (replays/highlights + box score) and the field -->
+        <div class="play-main">
+          <div class="play-left-col">
+            <!-- Highlights list (shown only in highlights mode; see highlightReel.ts) -->
+            <div id="hl-panel" style="display:none"></div>
+            <!-- Play-by-play replay list -->
+            <div id="replay-panel" class="play-side-panel">
+              <div class="play-side-title">Play-by-Play</div>
+              <div id="replay-controls" class="replay-list"></div>
+            </div>
+            <!-- Roster (one team tab at a time; see dashboard.ts) -->
+            <div id="play-boxscore" class="play-side-panel play-boxscore">
+              <div class="play-side-title">Roster</div>
+              <div id="player-dashboard"></div>
+            </div>
+          </div>
+          <div class="play-field-wrap">
+            <canvas id="field"></canvas>
+          </div>
         </div>
-
-        <div id="player-dashboard"></div>
       </div>
     </main>
 

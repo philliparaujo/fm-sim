@@ -571,6 +571,29 @@ function isGameOver(): boolean {
 }
 
 /**
+ * Fast-forwards the LIVE (watched) game by running ticks synchronously until the
+ * current quarter ends (`"quarter"`) or the game does (`"end"`), then repaints
+ * once. Drives the Play tab's "Sim Quarter" / "Sim to End" buttons. Replay
+ * frames aren't captured here — the point is to skip past these plays quickly —
+ * but stats, scoring, and the game-over callback still fire normally through
+ * resetSimulation, so a watched game finished this way is recorded just as if
+ * it had played out at speed.
+ */
+function fastForwardLive(mode: "quarter" | "end"): void {
+  if (gameOver) return;
+  const startQuarter = state.scoreboard.quarter;
+  const MAX_TICKS = 1_000_000;
+  let ticks = 0;
+  while (!gameOver && ticks < MAX_TICKS) {
+    if (mode === "quarter" && state.scoreboard.quarter !== startQuarter) break;
+    stepSimulation();
+    ticks++;
+  }
+  render(state);
+  updateScoreboardUI(state.scoreboard);
+}
+
+/**
  * Harvests the just-finished live game's result from the current state: each
  * team's final score, per-label box score, and defensive coverage-call
  * breakdown, all keyed by team color. Mirrors the harvest in simulateFullGame
@@ -668,6 +691,7 @@ function simulateFullGame(
 }
 
 export {
+  fastForwardLive,
   getLiveGameResult,
   isGameOver,
   loadGame,

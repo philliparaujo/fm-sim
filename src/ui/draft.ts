@@ -41,7 +41,7 @@ function canUserDraftNow(): boolean {
 const POOL_FILTERS: (Label | "ALL")[] = ["ALL", ...PLAYER_LABELS];
 let poolFilter: Label | "ALL" = "ALL";
 let rosterSort: "pos" | "ovr" | "draft" = "pos";
-let onRosterSortChange: (() => void) | null = null;
+const onRosterSortListeners: (() => void)[] = [];
 
 /** Preset delays between AI snake-draft picks, shown as a segmented control. */
 const PICK_DELAY_PRESETS: { label: string; ms: number }[] = [
@@ -56,7 +56,7 @@ export function getRosterSort(): "pos" | "ovr" | "draft" {
   return rosterSort;
 }
 export function onRosterSort(cb: () => void) {
-  onRosterSortChange = cb;
+  onRosterSortListeners.push(cb);
 }
 
 /** The team color currently focused in the "Drafting for" dropdown ("" = NONE). */
@@ -176,7 +176,7 @@ export function setupDraft() {
       rosterSort = btn.dataset.sort as typeof rosterSort;
       syncSortButtons();
       render();
-      onRosterSortChange?.();
+      onRosterSortListeners.forEach((cb) => cb());
     });
   });
 

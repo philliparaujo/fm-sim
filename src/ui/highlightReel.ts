@@ -23,6 +23,13 @@ function panel(): HTMLElement | null {
   return document.getElementById("hl-panel");
 }
 
+/** Toggles the Play tab into/out of highlights mode. In highlights mode the
+ * play-by-play replay list is hidden (CSS) and the highlights panel takes its
+ * slot in the left column. */
+function setHighlightsMode(on: boolean) {
+  document.getElementById("play-tab")?.classList.toggle("hl-active", on);
+}
+
 /**
  * Opens a game's highlights as a playable reel. Loads that game's two teams
  * into the Play tab (same as watching live) so the roster panel matches the
@@ -73,6 +80,7 @@ function advanceCinematic() {
   if (h && h.frames.length > 0) {
     playHighlight(h.frames, HIGHLIGHT_FRAME_STRIDE, advanceCinematic);
   }
+  highlightActiveRow();
 }
 
 function step(delta: number) {
@@ -92,6 +100,7 @@ function hide() {
   cinematic = false;
   const p = panel();
   if (p) p.style.display = "none";
+  setHighlightsMode(false);
 }
 
 function highlightActiveRow() {
@@ -105,20 +114,45 @@ function highlightActiveRow() {
   });
 }
 
-/** Cinematic panel: no list and no clip counter (both would spoil the game) —
- * just a live badge and a way back out. */
-function renderCinematicPanel(p: HTMLElement) {
+function renderPanel() {
+  const p = panel();
+  if (!p) return;
+
+  setHighlightsMode(true);
+  // Cinematic mode auto-advances clips and shows a LIVE badge instead of the
+  // prev/counter/next nav — but it still lists every highlight (with the
+  // playing one marked), the same as pick-from-a-list mode.
+  p.classList.toggle("hl-panel-cinematic", cinematic);
+
   p.style.display = "flex";
-  p.classList.add("hl-panel-cinematic");
   p.innerHTML = "";
 
+  // ── Header ──────────────────────────────────────────────────────────────
   const header = document.createElement("div");
   header.className = "hl-panel-header";
 
-  const live = document.createElement("span");
-  live.className = "hl-live-badge";
-  live.textContent = "🔴 LIVE";
-  header.appendChild(live);
+  if (cinematic) {
+    const live = document.createElement("span");
+    live.className = "hl-live-badge";
+    live.textContent = "🔴 LIVE";
+    header.appendChild(live);
+  } else {
+    const nav = document.createElement("div");
+    nav.className = "hl-panel-nav";
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "hl-nav-btn";
+    prevBtn.textContent = "‹";
+    prevBtn.addEventListener("click", () => step(-1));
+    const counter = document.createElement("span");
+    counter.className = "hl-nav-count";
+    counter.textContent = `${index + 1} / ${reel.length}`;
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "hl-nav-btn";
+    nextBtn.textContent = "›";
+    nextBtn.addEventListener("click", () => step(1));
+    nav.append(prevBtn, counter, nextBtn);
+    header.appendChild(nav);
+  }
 
   const closeBtn = document.createElement("button");
   closeBtn.className = "hl-close-btn";
@@ -128,50 +162,8 @@ function renderCinematicPanel(p: HTMLElement) {
   header.appendChild(closeBtn);
 
   p.appendChild(header);
-}
 
-function renderPanel() {
-  const p = panel();
-  if (!p) return;
-
-  if (cinematic) {
-    renderCinematicPanel(p);
-    return;
-  }
-  p.classList.remove("hl-panel-cinematic");
-
-  p.style.display = "flex";
-  p.innerHTML = "";
-
-  // ── Header ──────────────────────────────────────────────────────────────
-  const header = document.createElement("div");
-  header.className = "hl-panel-header";
-
-  const nav = document.createElement("div");
-  nav.className = "hl-panel-nav";
-  const prevBtn = document.createElement("button");
-  prevBtn.className = "hl-nav-btn";
-  prevBtn.textContent = "‹";
-  prevBtn.addEventListener("click", () => step(-1));
-  const counter = document.createElement("span");
-  counter.className = "hl-nav-count";
-  counter.textContent = `${index + 1} / ${reel.length}`;
-  const nextBtn = document.createElement("button");
-  nextBtn.className = "hl-nav-btn";
-  nextBtn.textContent = "›";
-  nextBtn.addEventListener("click", () => step(1));
-  nav.append(prevBtn, counter, nextBtn);
-
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "hl-close-btn";
-  closeBtn.textContent = "✕";
-  closeBtn.title = "Back to live";
-  closeBtn.addEventListener("click", close);
-
-  header.append(nav, closeBtn);
-  p.appendChild(header);
-
-  // ── Scrollable list ──────────────────────────────────────────────────────
+  // ── Scrollable list (both modes) ─────────────────────────────────────────
   const list = document.createElement("div");
   list.className = "hl-list";
 

@@ -1,4 +1,5 @@
 import { ReplayFrame, State } from "../core/types";
+import { secondsToTimeString } from "../utils/units";
 import { state } from ".";
 
 // Stores up to NUM_REPLAYS plays. [0] = 1 play ago, [1] = 2 ago, ...
@@ -48,6 +49,15 @@ function setReplayMode(mode: "live" | number) {
 /** Returns how many replays are saved */
 function getCompletedPlaysCount(): number {
   return completedPlays.length;
+}
+
+/** A short "quarter clock" label per stored play (most recent first), taken
+ * from each play's first captured frame — used to caption the replay list. */
+function getReplayLabels(): string[] {
+  return completedPlays.map((frames) => {
+    const sb = frames[0]?.scoreboard;
+    return sb ? `${sb.quarter} ${secondsToTimeString(sb.time)}` : "";
+  });
 }
 
 /** Builds a renderable snapshot of the current live state. */
@@ -166,6 +176,7 @@ export {
   captureReplayFrame,
   getCompletedPlaysCount,
   getReplayFrame,
+  getReplayLabels,
   getReplayMockState,
   incrementReplay,
   isHighlightPlaying,

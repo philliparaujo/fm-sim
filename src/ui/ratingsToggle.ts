@@ -3,6 +3,7 @@ import {
   OvrDisplayKey,
   setOvrDisplayFlag,
 } from "./displayMode";
+import { rerenderDashboard } from "./dashboard";
 import { rerenderDraft } from "./draft";
 import { rerenderSchedule } from "./schedule";
 import { rerenderStats } from "./stats";
@@ -21,6 +22,7 @@ function rerenderAll() {
   rerenderSchedule();
   rerenderStats();
   rerenderTraining();
+  rerenderDashboard();
 }
 
 export function setupRatingsToggle() {
