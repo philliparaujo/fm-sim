@@ -1,4 +1,5 @@
 import {
+  DEBUG_LOGGING,
   PAUSE_MS_AFTER_PLAY,
   simSpeed,
   TRAINING_MODE_ON,
@@ -343,7 +344,7 @@ function resetSimulation(reason: PlayEndReason) {
     highlightTickCounter = 0;
   }
 
-  if (numPlays(updatedTeamStats) % 100 === 0) {
+  if (DEBUG_LOGGING && numPlays(updatedTeamStats) % 100 === 0) {
     console.log(
       `${offenseTeamName} Offense Milestone:`,
       numPlays(updatedTeamStats),
@@ -447,9 +448,11 @@ function resetSimulation(reason: PlayEndReason) {
       if (nextQuarter === "4th") {
         nextTime = 0;
         gameOver = true;
-        console.log("Game over — final stats:");
-        for (const [teamName, teamStats] of Object.entries(state.stats)) {
-          console.log(`${teamName}:`, numPlays(teamStats), teamStats);
+        if (DEBUG_LOGGING) {
+          console.log("Game over — final stats:");
+          for (const [teamName, teamStats] of Object.entries(state.stats)) {
+            console.log(`${teamName}:`, numPlays(teamStats), teamStats);
+          }
         }
       } else {
         nextQuarter = QUARTERS[QUARTERS.indexOf(nextQuarter) + 1];

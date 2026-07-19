@@ -2,6 +2,11 @@ import { FIELD_SCALE } from "../utils/units";
 
 /* Global constants */
 export const TRAINING_MODE_ON = false;
+/** Gates routine dev-only console output (per-100-play milestones, full stat
+ * dumps at game-over) that isn't useful in a shipped build. Genuine "this
+ * should never happen" invariant warnings (e.g. utils/roster.ts) are left
+ * ungated since they only fire on an actual bug, not routine play. */
+export const DEBUG_LOGGING = false;
 
 /* Simulation constants */
 export let simSpeed = 1;

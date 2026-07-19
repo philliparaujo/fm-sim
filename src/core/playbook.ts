@@ -16,7 +16,6 @@ import {
   pickCoverageStructure,
   resolveCoverage,
 } from "./coverage";
-import { Attribute, getDefaultRatingForLabel, Ratings } from "./ratings";
 import { LEAGUE_TEAMS } from "./teams";
 import {
   Ball,
@@ -59,15 +58,6 @@ const TEAM_PLAYBOOKS: Record<
     },
   ]),
 );
-
-const savedRatings: Record<string, Partial<Ratings>> = {};
-function saveRating(label: string, attr: Attribute, value: number) {
-  if (!savedRatings[label]) savedRatings[label] = {};
-  savedRatings[label][attr] = value;
-}
-function getSavedRatings(label: string): Ratings {
-  return { ...getDefaultRatingForLabel(label), ...savedRatings[label] };
-}
 
 function generateBall(LOS: number): Ball {
   const BALL_RADIUS = 18 * FIELD_SCALE;
@@ -346,8 +336,6 @@ export {
   generateOffensePlaycall,
   generateScoreboard,
   generateSpecialPlaycall,
-  getSavedRatings,
   PLAYBOOK_CONFIG,
-  saveRating,
   TEAM_PLAYBOOKS,
 };

@@ -133,6 +133,92 @@
   font-size: 24px;
 }
 
+/* ── Season recap (shown once a champion is crowned) ── */
+.sched-recap {
+  margin-bottom: 24px;
+}
+.sched-recap-section {
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+.sched-recap-section .sched-heading {
+  margin-top: 0;
+}
+.sched-recap-bracket {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sched-recap-game {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  font-size: 14px;
+}
+.sched-recap-round {
+  flex-shrink: 0;
+  width: 110px;
+  color: #9ca3af;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: bold;
+}
+.sched-recap-matchup {
+  font-weight: bold;
+}
+.sched-recap-awards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.sched-recap-award {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.sched-recap-award-title {
+  font-size: 11px;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: bold;
+}
+.sched-recap-award-name {
+  font-size: 16px;
+  font-weight: bold;
+}
+.sched-recap-award-none {
+  color: #6b7280;
+}
+.sched-recap-award-detail {
+  font-size: 12px;
+  color: #9ca3af;
+}
+.sched-recap-newrun-btn {
+  display: block;
+  margin: 4px auto 0;
+  padding: 12px 40px;
+  background: #22c55e;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.sched-recap-newrun-btn:hover {
+  background: #16a34a;
+}
+
 /* ── Week navigation ── */
 .sched-week-nav {
   display: flex;

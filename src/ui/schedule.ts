@@ -23,6 +23,7 @@ import {
   seedOf,
   teamByColor,
   TeamRecord,
+  winnerOf,
 } from "../core/schedule";
 import {
   addGameDefensiveStats,
@@ -38,6 +39,7 @@ import {
   autoTrainTeam,
   clearTrainingCompletion,
   isTrainingDoneForWeek,
+  playerOvrDelta,
   teamWeeklyGain,
 } from "../core/training";
 import {
@@ -50,6 +52,7 @@ import {
   rushingGrade,
   weeklyAwards,
 } from "../core/awards";
+import { scoreProspect } from "../core/draftEval";
 import { LEAGUE } from "../core/state";
 import { Label, PlayerStats, PlayerStatsByLabel } from "../core/types";
 import { Highlight } from "../core/highlights";
@@ -286,7 +289,7 @@ function render() {
   }
 
   const champ = getChampion();
-  if (champ) root.appendChild(renderChampionBanner(champ));
+  if (champ) root.appendChild(renderSeasonRecap(champ));
 
   // Two-column layout: week view + optional playoffs (left), standings sidebar (right).
   const mainRow = document.createElement("div");
@@ -397,15 +400,217 @@ function renderControls(): HTMLElement {
   return bar;
 }
 
-function renderChampionBanner(color: string): HTMLElement {
-  const team = teamByColor(color);
+/** Compact box-score line for an award callout — mirrors the Stats tab's
+ * award-card summaries, condensed to whichever side(s) of the ball the player
+ * recorded stats on. */
+function seasonAwardSummary(stats: PlayerStats): string {
+  const parts: string[] = [];
+  if (stats.passing?.attempts) {
+    const p = stats.passing;
+    parts.push(
+      `${p.completions}/${p.attempts}, ${p.yards.toFixed(0)} yds` +
+        (p.tds ? `, ${p.tds} TD` : ""),
+    );
+  }
+  if (stats.rushing?.rushes) {
+    const r = stats.rushing;
+    parts.push(`${r.yards.toFixed(0)} rush yds` + (r.tds ? `, ${r.tds} TD` : ""));
+  }
+  if (stats.receiving?.catches) {
+    const r = stats.receiving;
+    parts.push(`${r.catches} rec, ${r.yards.toFixed(0)} yds`);
+  }
+  if (stats.defense) {
+    const d = stats.defense;
+    const defParts: [number, string][] = [
+      [d.sacks, "sk"],
+      [d.interceptions, "INT"],
+      [d.tackles, "tkl"],
+    ];
+    const defStr = defParts.filter(([n]) => n !== 0).map(([n, u]) => `${n} ${u}`).join(", ");
+    if (defStr) parts.push(defStr);
+  }
+  return parts.join(" · ");
+}
+
+/** Best (color, label, PlayerStats) for a given grading function across every
+ * team's full-season stat lines — the basis for the recap's condensed season
+ * award callouts. Null if nobody qualifies (e.g. no defensive stats at all). */
+function seasonAwardLeader(
+  grade: (s: PlayerStats) => number,
+  filter: (s: PlayerStats) => boolean,
+): { color: string; label: Label; name: string; grade: number; summary: string } | null {
+  let best:
+    | { color: string; label: Label; name: string; grade: number; summary: string }
+    | null = null;
+  for (const [color, players] of Object.entries(getSeasonStats())) {
+    const team = teamByColor(color);
+    for (const [label, stats] of Object.entries(players)) {
+      if (!stats || !filter(stats)) continue;
+      const g = grade(stats);
+      if (best === null || g > best.grade) {
+        const name = team.roster.find((p) => p.label === label)?.name ?? label;
+        best = { color, label: label as Label, name, grade: g, summary: seasonAwardSummary(stats) };
+      }
+    }
+  }
+  return best;
+}
+
+/** The single biggest OVR gainer across every rostered player this season
+ * (mirrors the Stats tab's Most Improved Player award, condensed to the
+ * league-wide #1). Null if nobody has developed since the season baseline. */
+function seasonMostImproved(): { color: string; name: string; delta: number; afterOvr: number } | null {
+  let best: { color: string; name: string; delta: number; afterOvr: number } | null = null;
+  for (const team of LEAGUE) {
+    for (const rp of team.roster) {
+      const delta = playerOvrDelta(team.color, rp);
+      if (delta === null || delta <= 0.05) continue;
+      if (best === null || delta > best.delta) {
+        best = { color: team.color, name: rp.name, delta, afterOvr: scoreProspect(rp) * 100 };
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Full-page season recap shown once a champion is crowned: playoff results,
+ * final standings for both divisions, a condensed season-awards callout, and
+ * a "New Run" button. Reloads the page to start fresh — the game has no save
+ * data to lose, and every piece of state (rosters, draft pool, training,
+ * stats, schedule) is otherwise an import-time singleton with no in-app reset
+ * path, so a reload is the simplest, safest, and only complete restart.
+ */
+function renderSeasonRecap(color: string): HTMLElement {
+  const champ = teamByColor(color);
+  const container = document.createElement("div");
+  container.className = "sched-recap";
+
   const banner = document.createElement("div");
   banner.className = "sched-champion";
   banner.innerHTML =
     `<span class="sched-trophy">🏆</span>` +
-    `<span>League Champion: <strong style="color:${team.color}">${team.name}</strong></span>` +
+    `<span>League Champion: <strong style="color:${champ.color}">${champ.name}</strong></span>` +
     `<span class="sched-trophy">🏆</span>`;
-  return banner;
+  container.appendChild(banner);
+
+  // ── Playoff results ──────────────────────────────────────────────────────
+  const bracket = document.createElement("div");
+  bracket.className = "sched-recap-section";
+  const bracketHeading = document.createElement("h3");
+  bracketHeading.className = "sched-heading";
+  bracketHeading.textContent = "Playoff Results";
+  bracket.appendChild(bracketHeading);
+
+  const bracketList = document.createElement("div");
+  bracketList.className = "sched-recap-bracket";
+  const playoffGames = getGames().filter(
+    (g) => g.round === "semifinal" || g.round === "final",
+  );
+  for (const g of playoffGames) {
+    const home = teamByColor(g.homeColor);
+    const away = teamByColor(g.awayColor);
+    const winner = winnerOf(g);
+    const row = document.createElement("div");
+    row.className = "sched-recap-game";
+    row.innerHTML =
+      `<span class="sched-recap-round">${g.round === "final" ? "Championship" : "Semifinal"}</span>` +
+      `<span class="sched-recap-matchup">` +
+      `<span style="color:${away.color};${winner === away.color ? "" : "opacity:.6"}">${away.name} ${g.awayScore}</span>` +
+      ` @ ` +
+      `<span style="color:${home.color};${winner === home.color ? "" : "opacity:.6"}">${home.name} ${g.homeScore}</span>` +
+      `</span>`;
+    bracketList.appendChild(row);
+  }
+  bracket.appendChild(bracketList);
+  container.appendChild(bracket);
+
+  // ── Final standings (both divisions) ────────────────────────────────────
+  const standings = document.createElement("div");
+  standings.className = "sched-recap-section";
+  const standingsHeading = document.createElement("h3");
+  standingsHeading.className = "sched-heading";
+  standingsHeading.textContent = "Final Standings";
+  standings.appendChild(standingsHeading);
+  const standingsWrap = document.createElement("div");
+  standingsWrap.className = "sched-standings-wrap";
+  getDivisions().forEach((div, i) =>
+    standingsWrap.appendChild(renderDivisionTable(div, i)),
+  );
+  standings.appendChild(standingsWrap);
+  container.appendChild(standings);
+
+  // ── Season awards (condensed: #1 in each race) ──────────────────────────
+  const awards = document.createElement("div");
+  awards.className = "sched-recap-section";
+  const awardsHeading = document.createElement("h3");
+  awardsHeading.className = "sched-heading";
+  awardsHeading.textContent = "Season Awards";
+  awards.appendChild(awardsHeading);
+
+  const awardsGrid = document.createElement("div");
+  awardsGrid.className = "sched-recap-awards";
+  const addAwardCard = (title: string, name: string | null, teamColor: string | null, detail: string) => {
+    const card = document.createElement("div");
+    card.className = "sched-recap-award";
+    card.innerHTML =
+      `<span class="sched-recap-award-title">${title}</span>` +
+      (name
+        ? `<span class="sched-recap-award-name" style="color:${teamColor}">${name}</span>` +
+          `<span class="sched-recap-award-detail">${detail}</span>`
+        : `<span class="sched-recap-award-name sched-recap-award-none">—</span>`);
+    awardsGrid.appendChild(card);
+  };
+
+  const mvp = seasonAwardLeader(mvpGrade, (s) => hasOffense(s) || !!s.defense);
+  addAwardCard(
+    "MVP",
+    mvp?.name ?? null,
+    mvp ? teamByColor(mvp.color).color : null,
+    mvp ? `${mvp.label} · ${mvp.summary}` : "",
+  );
+
+  const opoy = seasonAwardLeader(offensiveGrade, hasOffense);
+  addAwardCard(
+    "OPOY",
+    opoy?.name ?? null,
+    opoy ? teamByColor(opoy.color).color : null,
+    opoy ? `${opoy.label} · ${opoy.summary}` : "",
+  );
+
+  const dpoy = seasonAwardLeader(defensiveGrade, (s) => !!s.defense);
+  addAwardCard(
+    "DPOY",
+    dpoy?.name ?? null,
+    dpoy ? teamByColor(dpoy.color).color : null,
+    dpoy ? `${dpoy.label} · ${dpoy.summary}` : "",
+  );
+
+  const mip = seasonMostImproved();
+  addAwardCard(
+    "Most Improved",
+    mip?.name ?? null,
+    mip ? teamByColor(mip.color).color : null,
+    mip ? `OVR ${(mip.afterOvr - mip.delta).toFixed(1)} → ${mip.afterOvr.toFixed(1)}` : "",
+  );
+
+  awards.appendChild(awardsGrid);
+  container.appendChild(awards);
+
+  // ── New Run ──────────────────────────────────────────────────────────────
+  const newRunBtn = document.createElement("button");
+  newRunBtn.className = "sched-recap-newrun-btn";
+  newRunBtn.textContent = "New Run →";
+  newRunBtn.title = "Start over with a fresh draft pool and empty rosters";
+  newRunBtn.addEventListener("click", () => {
+    if (confirm("Start a new run? This reloads the page and begins a fresh draft.")) {
+      location.reload();
+    }
+  });
+  container.appendChild(newRunBtn);
+
+  return container;
 }
 
 function weekLabel(week: number): string {
