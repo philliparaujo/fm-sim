@@ -1,3 +1,4 @@
+import { draftPool } from "../core/draft";
 import { Attribute, getLetterGrade, getProximity } from "../core/ratings";
 import { scoreProspect } from "../core/draftEval";
 import { Label, PLAYER_LABELS, RosterPlayer, Team } from "../core/types";
@@ -284,9 +285,10 @@ export function buildRosterCard(
         row2.appendChild(chip);
       }
     } else if (options.onSeeProspects) {
+      const available = draftPool.filter((p) => p.label === label).length;
       const btn = document.createElement("button");
       btn.className = "slot-see-btn";
-      btn.textContent = "See prospects";
+      btn.textContent = `Show prospects (${available})`;
       btn.addEventListener("click", () => options.onSeeProspects!(label));
       row2.appendChild(btn);
     }
