@@ -4,7 +4,7 @@
 
 See the app live: https://philliparaujo.github.io/fm-sim/
 
-Screenshots: TODO
+Screenshots: https://imgur.com/a/fm-sim-screenshots-mf7nnNX
 
 ## Description
 
