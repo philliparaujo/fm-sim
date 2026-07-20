@@ -23,7 +23,7 @@ import {
 } from "../core/types";
 import { stepAsPlayer } from "../behavior";
 import { render } from "../render";
-import { updateScoreboardUI } from "../scoreboard";
+import { updateScoreboardUI } from "../ui/scoreboard";
 import { assignBlockingTargets, assignCoverageTargets } from "./assignments";
 import { resolveCollision } from "./collision";
 import {
@@ -36,7 +36,7 @@ import {
   setReplayMode,
   snapshotFrame,
 } from "./replay";
-import { updateStatsAfterPlay } from "../stats";
+import { updateStatsAfterPlay } from "../core/stats";
 import {
   clampPosInBounds,
   getLOSAfterPunt,
@@ -475,10 +475,7 @@ function resetSimulation(reason: PlayEndReason) {
   // "BLU 2-yd run") rather than with the final score — the scoreboard visible
   // during playback already shows the score at that point in the game.
   if (capturingHighlights) {
-    if (
-      evaluatedHighlight &&
-      (evaluatedFrames.length > 0 || isFieldGoal)
-    ) {
+    if (evaluatedHighlight && (evaluatedFrames.length > 0 || isFieldGoal)) {
       capturedHighlights.push({
         ...evaluatedHighlight,
         quarter: prevScoreboard.quarter,

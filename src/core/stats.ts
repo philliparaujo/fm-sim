@@ -1,6 +1,6 @@
-import { Player, PlayEndReason, QBStats, RBStats, State, Stats } from "./core/types";
-import { isCarryingBall } from "./utils/field";
-import { getDefenseTeam, getOffenseTeam } from "./utils/roster";
+import { Player, PlayEndReason, QBStats, RBStats, State, Stats } from "./types";
+import { isCarryingBall } from "../utils/field";
+import { getDefenseTeam, getOffenseTeam } from "../utils/roster";
 import {
   applyQBStats,
   applyRBStats,
@@ -20,8 +20,8 @@ import {
   specificPlaycallCoverageKey,
   updateAverage,
   updateCountYards,
-} from "./utils/stats";
-import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "./utils/units";
+} from "../utils/stats";
+import { ENDZONE_W, pxToYards, ticksToSeconds, W } from "../utils/units";
 
 /**
  * Updates stats for the play that just ended and returns the full per-team map
@@ -79,7 +79,10 @@ function updateStatsAfterPlay(
   // "yards given up" only makes sense attributed to whoever called it.
   updateCountYards(next.playcalls[play.offense], netYards);
   updateCountYards(defenseNext.coverage[play.defense], netYards);
-  updateCountYards(defenseNext.specificCoverage[play.defenseSpecific], netYards);
+  updateCountYards(
+    defenseNext.specificCoverage[play.defenseSpecific],
+    netYards,
+  );
   updateCountYards(
     defenseNext.specificPlaycallCoverage[
       specificPlaycallCoverageKey(play.offense, play.defenseSpecific)
@@ -104,7 +107,8 @@ function updateStatsAfterPlay(
         const key = routeKey(ballCarrierRoute);
         next.routes[key].yards += netYards;
         qb.routeYards[key] = (qb.routeYards[key] ?? 0) + netYards;
-        const coverageBucket = (next.routeCoverage[play.defenseSpecific] ??= {});
+        const coverageBucket = (next.routeCoverage[play.defenseSpecific] ??=
+          {});
         coverageBucket[key] = (coverageBucket[key] ?? 0) + netYards;
       }
       for (const route of play.routes) {

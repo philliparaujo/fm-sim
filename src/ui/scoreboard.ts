@@ -1,5 +1,5 @@
-import { Scoreboard, Team } from "./core/types";
-import { LOSToString, secondsToTimeString } from "./utils/units";
+import { Scoreboard, Team } from "../core/types";
+import { LOSToString, secondsToTimeString } from "../utils/units";
 
 /** Fills in HTML elements using pre-existing scoreboard data */
 export function updateScoreboardUI(data: Scoreboard) {
